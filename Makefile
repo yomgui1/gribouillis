@@ -61,7 +61,7 @@ CVINCLUDE = cvinclude.pl
 ARFLAGS = rcsv
 
 CFLAGS = -noixemul -g
-OPT = -O2 -mstring -mregnames -fomit-frame-pointer -fno-strict-aliasing -fcall-saved-r13
+OPT = -O2 -mstring -mregnames -fomit-frame-pointer -fno-strict-aliasing
 CC_WARNS = \
 	-Wall \
 	-Wno-format \
@@ -70,11 +70,11 @@ CC_WARNS = \
 	-Wstrict-prototypes
 
 CPPFLAGS = $(CFLAGS) $(CC_WARNS) $(OPT) $(DEFINES:%=-D%) $(INCLUDES:%=-I%)
-LINKFLAGS = $(CFLAGS) -Wl,-t -Wl,--traditional-format \
+LINKFLAGS = $(CFLAGS) -Wl,--traditional-format \
 	-Wl,--cref -Wl,--stats -Wl,-Map=mapfile.txt \
 	-Wl,--warn-common -Wl,--warn-once
 
-LIBS = -lc -laboxstubs -labox -lc -lm -lmath -ldl -lsyscall
+LIBS = -lauto -lsyscall
 ifneq ("$(OS)", "MorphOS")
 LDLIBS += -lnix
 endif

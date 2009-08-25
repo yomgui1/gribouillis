@@ -26,13 +26,15 @@
 
 #define Image(f) MUI_NewObject(MUIC_Dtpic, MUIA_Dtpic_Name, f, TAG_DONE)
 #define BrushObject(f) MUI_NewObject(MUIC_Dtpic, \
-    MUIA_Dtpic_Name, f, \
-    MUIA_Dtpic_LightenOnMouse, TRUE, \
+    MUIA_Dtpic_Name, (f), \
     MUIA_Dtpic_Scale, BRUSH_SIZE, \
-    MUIA_InputMode, MUIV_InputMode_RelVerify, TAG_DONE)
+    MUIA_Dtpic_LightenOnMouse, TRUE, \
+    MUIA_InputMode, MUIV_InputMode_Toggle, \
+    MUIA_Frame, MUIV_Frame_ImageButton, \
+    TAG_DONE)
 
 #define LAST_COLORS_NUM 4
-#define BRUSH_SIZE 32
+#define BRUSH_SIZE 64
 
 #define RB CHECKIT
 #define TG CHECKIT|MENUTOGGLE

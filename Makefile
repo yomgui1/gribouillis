@@ -36,6 +36,15 @@ INCDIR := $(BUILDDIR)/include
 
 INCLUDES = $(SRCDIR) $(SRCDIR)/MorphOS $(SRCDIR)/Include $(OBJDIR) .
 
+ifeq ("$(OS)", "MorphOS")
+PYTHON_INCDIR := /gg/os-include/python
+else
+PYTHON_INCDIR := /opt/gg/os-include/python
+INCLUDES += /opt/gg/os-private
+endif
+
+INCLUDES += $(PYTHON_INCDIR)
+
 DEFINES  += AROS_ALMOST_COMPATIBLE USE_INLINE_STDARG
 
 VPATH := $(SRCDIR):$(OBJDIR)
@@ -74,7 +83,7 @@ LINKFLAGS = $(CFLAGS) -Wl,--traditional-format \
 	-Wl,--cref -Wl,--stats -Wl,-Map=mapfile.txt \
 	-Wl,--warn-common -Wl,--warn-once
 
-LIBS = -lauto -lsyscall
+LIBS = -lpython25 -lauto -lsyscall
 ifneq ("$(OS)", "MorphOS")
 LDLIBS += -lnix
 endif

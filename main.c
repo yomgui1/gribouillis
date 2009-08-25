@@ -2,13 +2,16 @@
 #include <libraries/mui.h>
 #include <libraries/gadtools.h>
 #include <utility/hooks.h>
-#include <proto/exec.h>
 
 #undef USE_INLINE_STDARG
 #include <clib/alib_protos.h>  
 #include <proto/muimaster.h>
 #include <proto/intuition.h>      
 #define USE_INLINE_STDARG
+
+#include <proto/exec.h>
+
+#include <Python.h>
 
 #include <stdlib.h>
 #include <string.h>
@@ -168,6 +171,12 @@ struct Hook hook_ColorChanged;
 ULONG gLastColors[3*LAST_COLORS_NUM] = {0};
 ULONG gLastColorId=0;
 
+//+ AtExit
+void AtExit(void)
+{
+    Py_Finalize();
+}
+//-
 //+ fail
 static VOID fail(APTR app,char *str)
 {
@@ -178,7 +187,7 @@ static VOID fail(APTR app,char *str)
         puts(str);
         exit(20);
     }
-    
+
     exit(0);
 }
 //-
@@ -280,6 +289,10 @@ int main(int argc, char **argv)
     LONG sigs;
     
     INIT_HOOK(&hook_ColorChanged, OnColorChanged);
+
+    Py_Initialize();
+    atexit(AtExit);
+    PySys_SetArgv(argc, argv);
 
     app = ApplicationObject,
         MUIA_Application_Title      , "Gribouillis",

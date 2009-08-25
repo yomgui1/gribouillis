@@ -4,7 +4,7 @@
 #include <utility/hooks.h>
 
 #undef USE_INLINE_STDARG
-#include <clib/alib_protos.h>  
+#include <clib/alib_protos.h>
 #include <proto/muimaster.h>
 #include <proto/intuition.h>      
 #define USE_INLINE_STDARG
@@ -39,6 +39,8 @@
 #define LAST_COLORS_NUM 4
 #define BRUSH_SIZE 64
 
+#define FATAL_PYTHON_ERROR "Fatal Python error."
+
 #define RB CHECKIT
 #define TG CHECKIT|MENUTOGGLE
 
@@ -55,117 +57,7 @@ struct NewMenu MenuData1[] =
     { NM_END,NULL,0,0,0,(APTR)0 },
 };
 
-//+ brushes
-STRPTR brushes[] = {
-    "brushes/ab002_prev.png",
-    "brushes/ab007_prev.png",
-    "brushes/ab009_prev.png",
-    "brushes/ab023_prev.png",
-    "brushes/ab026_prev.png",
-    "brushes/ab028_prev.png",
-    "brushes/ab033_prev.png",
-    "brushes/ab043_prev.png",
-    "brushes/aspec_fun_5_prev.png",
-    "brushes/aspect_fun_1_prev.png",
-    "brushes/aspect_fun_3_prev.png",
-    "brushes/basic_prev.png",
-    "brushes/bi000_prev.png",
-    "brushes/bi001_prev.png",
-    "brushes/bi003_prev.png",
-    "brushes/bi004_prev.png",
-    "brushes/bi006_prev.png",
-    "brushes/bi010_prev.png",
-    "brushes/bigcharcoal_prev.png",
-    "brushes/blend+paint_prev.png",
-    "brushes/blur_prev.png",
-    "brushes/bulk_prev.png",
-    "brushes/charcoal_prev.png",
-    "brushes/coarse_bulk_1_prev.png",
-    "brushes/coarse_bulk_2_prev.png",
-    "brushes/coarse_bulk_3_prev.png",
-    "brushes/coarse_bulk_4_prev.png",
-    "brushes/dry_brush_prev.png",
-    "brushes/glow_prev.png",
-    "brushes/hair_prev.png",
-    "brushes/hard_sting_prev.png",
-    "brushes/hue_fun_prev.png",
-    "brushes/ink_eraser_prev.png",
-    "brushes/ink_prev.png",
-    "brushes/leaves_prev.png",
-    "brushes/long_grass_prev.png",
-    "brushes/loosedots_prev.png",
-    "brushes/marker-01_prev.png",
-    "brushes/marker-02_prev.png",
-    "brushes/marker-03_prev.png",
-    "brushes/marker-04_prev.png",
-    "brushes/marker-05_prev.png",
-    "brushes/marker-06_prev.png",
-    "brushes/modelling_prev.png",
-    "brushes/o001_prev.png",
-    "brushes/o009_prev.png",
-    "brushes/o014_prev.png",
-    "brushes/o017_prev.png",
-    "brushes/o022_prev.png",
-    "brushes/o028_prev.png",
-    "brushes/o032_prev.png",
-    "brushes/o300_prev.png",
-    "brushes/o388_prev.png",
-    "brushes/o397_prev.png",
-    "brushes/o398_prev.png",
-    "brushes/o512_prev.png",
-    "brushes/o558_prev.png",
-    "brushes/o594_prev.png",
-    "brushes/o826_prev.png",
-    "brushes/o834_prev.png",
-    "brushes/o888_prev.png",
-    "brushes/o945_prev.png",
-    "brushes/old_b008_prev.png",
-    "brushes/painting_knife_prev.png",
-    "brushes/pencil-2b_prev.png",
-    "brushes/pencil-6b_prev.png",
-    "brushes/pencil-8b_prev.png",
-    "brushes/pencil-blur_prev.png",
-    "brushes/pencil-h_prev.png",
-    "brushes/pencil-hb_prev.png",
-    "brushes/pencil-rubber_prev.png",
-    "brushes/pencil_prev.png",
-    "brushes/pick_and_drag_prev.png",
-    "brushes/pointy_ink_prev.png",
-    "brushes/redbrush_prev.png",
-    "brushes/s000_prev.png",
-    "brushes/s002_prev.png",
-    "brushes/s003_prev.png",
-    "brushes/s004_prev.png",
-    "brushes/s006_prev.png",
-    "brushes/s007_prev.png",
-    "brushes/s008_prev.png",
-    "brushes/s009_prev.png",
-    "brushes/s011_prev.png",
-    "brushes/s014_prev.png",
-    "brushes/s015_prev.png",
-    "brushes/s018_prev.png",
-    "brushes/s020_prev.png",
-    "brushes/s021_prev.png",
-    "brushes/s023_prev.png",
-    "brushes/s109_prev.png",
-    "brushes/short_grass_prev.png",
-    "brushes/slow_prev.png",
-    "brushes/smudge_prev.png",
-    "brushes/soft_sting_prev.png",
-    "brushes/soft_water_prev.png",
-    "brushes/solid_water_prev.png",
-    "brushes/splatter-01_prev.png",
-    "brushes/splatter-02_prev.png",
-    "brushes/splatter-03_prev.png",
-    "brushes/splatter-04_prev.png",
-    "brushes/splatter-05_prev.png",
-    "brushes/splatter-06_prev.png",
-    "brushes/subtle_pencil_prev.png",
-    "brushes/textured_ink_prev.png",
-    NULL
-};
-//-
-
+PyObject *gPyGlobalDict = NULL, *gPyApp = NULL;
 Object *gWinColor, *gWinBrushSelect;
 struct Hook hook_ColorChanged;
 ULONG gLastColors[3*LAST_COLORS_NUM] = {0};
@@ -174,6 +66,8 @@ ULONG gLastColorId=0;
 //+ AtExit
 void AtExit(void)
 {
+    Py_DECREF(gPyApp);
+    Py_DECREF(gPyGlobalDict);
     Py_Finalize();
 }
 //-
@@ -182,6 +76,9 @@ static VOID fail(APTR app,char *str)
 {
     if (app)
         MUI_DisposeObject(app);
+
+    if (PyErr_Occurred())
+        PyErr_Print();
 
     if (str) {
         puts(str);
@@ -262,20 +159,32 @@ static Object *do_BrushSelectWindow(void)
     End;
 
     if (NULL != win) {
-        STRPTR *name;
+        PyObject *names;
 
         /* Close window when requested */
         DoMethod(win, MUIM_Notify, MUIA_Window_CloseRequest, TRUE,
                  MUIV_Notify_Self, 3, MUIM_Set, MUIA_Window_Open, FALSE);
 
-        DoMethod(vg, MUIM_Group_InitChange, TRUE);
-        for (name=brushes; NULL != *name; name++) {
-            Object *o = BrushObject(*name);
+        names = PyObject_GetAttrString(gPyApp, "brushes_names");
+        if ((NULL != names) && PyList_CheckExact(names)) {
+            int i;
 
-            if (NULL != o)
-                DoMethod(vg, OM_ADDMEMBER, o);
+            DoMethod(vg, MUIM_Group_InitChange, TRUE);
+            for (i=PyList_GET_SIZE(names); i; i--) {
+                Object *mo;
+                STRPTR name;
+
+                name = PyString_AsString(PyList_GET_ITEM(names, i));
+                dprintf("Load brush image '%s'\n", name);
+                mo = BrushObject(name);
+                if (NULL != mo)
+                    DoMethod(vg, OM_ADDMEMBER, mo);
+            }
+            DoMethod(vg, MUIM_Group_InitChange, FALSE);
         }
-        DoMethod(vg, MUIM_Group_InitChange, FALSE);
+
+        Py_DECREF(names);
+        PyErr_Clear();
     }
 
     return win;
@@ -288,12 +197,25 @@ int main(int argc, char **argv)
     BOOL run = TRUE;
     LONG sigs;
     
-    INIT_HOOK(&hook_ColorChanged, OnColorChanged);
-
+    /*--- Python startup ---*/
+    PyMorphOS_Init(&argc, &argv);
     Py_Initialize();
     atexit(AtExit);
     PySys_SetArgv(argc, argv);
 
+    gPyGlobalDict = PyDict_New();
+    if (NULL == gPyGlobalDict)
+        fail(NULL, FATAL_PYTHON_ERROR);
+
+    /* Create the Python side of the application */
+    gPyApp = PyRun_String("import os, startup; startup.Application(os.getcwd())", Py_file_input, gPyGlobalDict, gPyGlobalDict);
+    if (NULL == gPyApp)
+        fail(NULL, FATAL_PYTHON_ERROR);
+
+    /*--- Hooks ---*/
+    INIT_HOOK(&hook_ColorChanged, OnColorChanged);
+
+    /*--- GUI ---*/
     app = ApplicationObject,
         MUIA_Application_Title      , "Gribouillis",
         MUIA_Application_Version    , "$VER: Gribouillis "VERSION_STR" (" __DATE__ ")",
@@ -306,7 +228,7 @@ int main(int argc, char **argv)
 
         SubWindow, win_main = WindowObject,
             MUIA_Window_Title, "Gribouillis",
-            MUIA_Window_ID   , MAKE_ID('D','R','A','W'),
+            MUIA_Window_ID, MAKE_ID('D','R','A','W'),
             MUIA_Window_Backdrop, TRUE,
             MUIA_Window_DepthGadget, FALSE,
             WindowContents, VGroup,
@@ -323,6 +245,7 @@ int main(int argc, char **argv)
     if (!app)
         fail(app, "Failed to create Application.");
 
+    /*--- Install MUI Notifications ---*/
     DoMethod(win_main, MUIM_Notify, MUIA_Window_CloseRequest, TRUE,
              app, 2, MUIM_Application_ReturnID, MUIV_Application_ReturnID_Quit);
 
@@ -334,6 +257,7 @@ int main(int argc, char **argv)
     DoMethod(win_main, MUIM_Notify, MUIA_Window_InputEvent, "b",
              gWinBrushSelect, 3, MUIM_Set, MUIA_Window_Open, TRUE);
 
+    /* Open Windows now */
     set(win_main, MUIA_Window_Open, TRUE);
     set(gWinColor, MUIA_Window_Open, TRUE);
     set(gWinBrushSelect, MUIA_Window_Open, TRUE);
@@ -351,7 +275,8 @@ int main(int argc, char **argv)
     }
 
     set(win_main, MUIA_Window_Open, FALSE);
+
     fail(app, NULL);
-    return(0);
+    return 0;
 }
 //-

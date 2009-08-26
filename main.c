@@ -68,16 +68,18 @@ struct Hook hook_ColorChanged;
 ULONG gLastColors[3*LAST_COLORS_NUM] = {0};
 ULONG gLastColorId=0;
 
+ULONG __stack = 1024*128;
+
 //+ fail
 static VOID fail(APTR app,char *str)
 {
     if (app)
         MUI_DisposeObject(app);
 
-    Py_Finalize();
-
     if (PyErr_Occurred())
         PyErr_Print();
+
+    Py_Finalize();
 
     if (str) {
         puts(str);
@@ -165,7 +167,7 @@ static Object *do_BrushSelectWindow(void)
                  MUIV_Notify_Self, 3, MUIM_Set, MUIA_Window_Open, FALSE);
 
         names = PyObject_GetAttrString(gPyApp, "brushes_names");
-        if ((NULL != names) && PyList_CheckExact(names)) {
+        if ((NULL != names) && PyList_Check(names)) {
             int i;
 
             DoMethod(vg, MUIM_Group_InitChange, TRUE);
@@ -174,13 +176,14 @@ static Object *do_BrushSelectWindow(void)
                 STRPTR name;
 
                 name = PyString_AsString(PyList_GET_ITEM(names, i));
-                dprintf("Load brush image '%s'\n", name);
+                printf("Load brush image '%s'\n", name);
                 mo = BrushObject(name);
                 if (NULL != mo)
                     DoMethod(vg, OM_ADDMEMBER, mo);
             }
             DoMethod(vg, MUIM_Group_InitChange, FALSE);
-        }
+        } else
+            printf("bad names: %p\n", names);
 
         Py_XDECREF(names);
         PyErr_Clear();
@@ -194,21 +197,32 @@ int main(int argc, char **argv)
 {
     Object *app, *win_main, *strip;
     BOOL run = TRUE;
-    LONG sigs;
+    LONG sigs, res;
+    PyObject *m;
     
     /*--- Python startup ---*/
-    PyMorphOS_Init(&argc, &argv);
-    Py_Initialize();
-    //PySys_SetArgv(argc, argv);
+    res = PyMorphOS_Init(&argc, &argv);
+    if (res != RETURN_OK) return res;
 
-    gPyGlobalDict = PyDict_New();
+    Py_SetProgramName(argv[0]);
+    Py_Initialize();
+    PySys_SetArgv(argc, argv);
+
+    m = PyImport_AddModule("__main__");
+    if (NULL == m)
+        fail(NULL, FATAL_PYTHON_ERROR);
+
+    gPyGlobalDict = PyModule_GetDict(m);
     if (NULL == gPyGlobalDict)
         fail(NULL, FATAL_PYTHON_ERROR);
 
     /* Create the Python side of the application */
-    gPyApp = PyRun_String("import os, startup; startup.Application(os.getcwd())", Py_file_input, gPyGlobalDict, gPyGlobalDict);
+    PyRun_String("import os, startup; app=startup.Application(os.getcwd())", Py_file_input, gPyGlobalDict, gPyGlobalDict);
+    gPyApp = PyDict_GetItemString(gPyGlobalDict, "app");
     if (NULL == gPyApp)
         fail(NULL, FATAL_PYTHON_ERROR);
+
+    //Py_INCREF(gPyApp);
 
     /*--- Hooks ---*/
     INIT_HOOK(&hook_ColorChanged, OnColorChanged);

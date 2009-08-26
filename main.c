@@ -12,6 +12,7 @@
 #include <proto/exec.h>
 
 #include <Python.h>
+//#include <proto/python.h>
 
 #include <stdlib.h>
 #include <string.h>
@@ -22,6 +23,8 @@
 #ifndef MAKE_ID
 #define MAKE_ID(a,b,c,d) ((ULONG) (a)<<24 | (ULONG) (b)<<16 | (ULONG) (c)<<8 | (ULONG) (d))
 #endif
+
+extern void dprintf();
 
 #define INIT_HOOK(h, f) { struct Hook *_h = (struct Hook *)(h); \
     _h->h_Entry = (APTR) HookEntry; \
@@ -57,25 +60,21 @@ struct NewMenu MenuData1[] =
     { NM_END,NULL,0,0,0,(APTR)0 },
 };
 
+extern struct Library *PythonBase;
+
 PyObject *gPyGlobalDict = NULL, *gPyApp = NULL;
 Object *gWinColor, *gWinBrushSelect;
 struct Hook hook_ColorChanged;
 ULONG gLastColors[3*LAST_COLORS_NUM] = {0};
 ULONG gLastColorId=0;
 
-//+ AtExit
-void AtExit(void)
-{
-    Py_DECREF(gPyApp);
-    Py_DECREF(gPyGlobalDict);
-    Py_Finalize();
-}
-//-
 //+ fail
 static VOID fail(APTR app,char *str)
 {
     if (app)
         MUI_DisposeObject(app);
+
+    Py_Finalize();
 
     if (PyErr_Occurred())
         PyErr_Print();
@@ -183,7 +182,7 @@ static Object *do_BrushSelectWindow(void)
             DoMethod(vg, MUIM_Group_InitChange, FALSE);
         }
 
-        Py_DECREF(names);
+        Py_XDECREF(names);
         PyErr_Clear();
     }
 
@@ -200,8 +199,7 @@ int main(int argc, char **argv)
     /*--- Python startup ---*/
     PyMorphOS_Init(&argc, &argv);
     Py_Initialize();
-    atexit(AtExit);
-    PySys_SetArgv(argc, argv);
+    //PySys_SetArgv(argc, argv);
 
     gPyGlobalDict = PyDict_New();
     if (NULL == gPyGlobalDict)

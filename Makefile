@@ -37,9 +37,9 @@ INCDIR := $(BUILDDIR)/include
 INCLUDES = $(SRCDIR) $(SRCDIR)/MorphOS $(SRCDIR)/Include $(OBJDIR) .
 
 ifeq ("$(OS)", "MorphOS")
-PYTHON_INCDIR := /gg/os-include/python
+PYTHON_INCDIR := /usr/include/python25
 else
-PYTHON_INCDIR := /opt/gg/os-include/python
+PYTHON_INCDIR := /opt/gg/os-include/python25
 INCLUDES += /opt/gg/os-private
 endif
 
@@ -70,7 +70,7 @@ CVINCLUDE = cvinclude.pl
 ARFLAGS = rcsv
 
 CFLAGS = -noixemul -g
-OPT = -O2 -mstring -mregnames -fomit-frame-pointer -fno-strict-aliasing
+OPT = -O2 -mstring -mregnames -fomit-frame-pointer -fno-strict-aliasing -fcall-saved-r13
 CC_WARNS = \
 	-Wall \
 	-Wno-format \
@@ -83,7 +83,7 @@ LINKFLAGS = $(CFLAGS) -Wl,--traditional-format \
 	-Wl,--cref -Wl,--stats -Wl,-Map=mapfile.txt \
 	-Wl,--warn-common -Wl,--warn-once
 
-LIBS = -lpython25 -lauto -lsyscall
+LIBS = -lpython -lauto -lsyscall
 ifneq ("$(OS)", "MorphOS")
 LDLIBS += -lnix
 endif

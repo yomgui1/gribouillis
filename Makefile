@@ -13,8 +13,12 @@ SRCDIR   = .
 
 ifeq ("$(OS)", "MorphOS")
 TMPDIR = ram:t
+PREFIX := /usr
+PYTHON_INCDIR := $(PREFIX)/include/python
 else
 TMPDIR = /tmp
+PREFIX := /opt/gg/usr
+PYTHON_INCDIR := $(PREFIX)/include $(PREFIX)/include/python
 endif
 
 ifneq ($(findstring debug, $(MAKECMDGOALS)), debug)
@@ -34,12 +38,9 @@ OBJDIR := $(BUILDDIR)/objs/$(MODE)
 LIBSDIR := $(BUILDDIR)/libs/$(MODE)
 INCDIR := $(BUILDDIR)/include
 
-INCLUDES = $(SRCDIR) $(SRCDIR)/MorphOS $(SRCDIR)/Include $(OBJDIR) .
+INCLUDES = $(SRCDIR) $(OBJDIR) .
 
-ifeq ("$(OS)", "MorphOS")
-PYTHON_INCDIR := /usr/include/python
-else
-PYTHON_INCDIR := /opt/gg/os-include/python
+ifneq ("$(OS)", "MorphOS")
 INCLUDES += /opt/gg/os-private
 endif
 
@@ -83,7 +84,7 @@ LINKFLAGS = $(CFLAGS) -Wl,--traditional-format \
 	-Wl,--cref -Wl,--stats -Wl,-Map=mapfile.txt \
 	-Wl,--warn-common -Wl,--warn-once
 
-LIBS = -lpython -lauto -lsyscall
+LIBS = -L$(PREFIX)/lib -lpython -lauto -lsyscall
 ifneq ("$(OS)", "MorphOS")
 LDLIBS += -lnix
 endif

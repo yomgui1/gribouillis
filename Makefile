@@ -21,7 +21,7 @@ ifneq ($(findstring debug, $(MAKECMDGOALS)), debug)
 DEFINES += NDEBUG
 MODE    = final
 else
-DEFINES += Py_DEBUG
+DEFINES += 
 MODE    = debug
 endif
 
@@ -37,9 +37,9 @@ INCDIR := $(BUILDDIR)/include
 INCLUDES = $(SRCDIR) $(SRCDIR)/MorphOS $(SRCDIR)/Include $(OBJDIR) .
 
 ifeq ("$(OS)", "MorphOS")
-PYTHON_INCDIR := /usr/include/python25
+PYTHON_INCDIR := /usr/include/python
 else
-PYTHON_INCDIR := /opt/gg/os-include/python25
+PYTHON_INCDIR := /opt/gg/os-include/python
 INCLUDES += /opt/gg/os-private
 endif
 

@@ -132,7 +132,7 @@ $(DEPDIR)/%.d : %.c
 
 TARGET = $(BUILDDIR)/Gribouillis.db
 
-TARGET_SRCS = main.c
+TARGET_SRCS = main.c _muimodule.c brush_mcc.c
 ALL_SOURCES += $(TARGET_SRCS)
 
 TARGET_OBJS = $(TARGET_SRCS:%.c=$(OBJDIR)/%.o)

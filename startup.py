@@ -1,5 +1,9 @@
 import os
 from application import Application
 
+app = None
+
 def start():
-    return Application(os.getcwd())
+    global app
+    app = Application(os.getcwd())
+    return app

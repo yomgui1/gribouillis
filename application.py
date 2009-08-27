@@ -1,5 +1,5 @@
 from __future__ import with_statement
-import os, _core
+import os, _core, _mui
 from brush import Brush
 
 class Application:
@@ -8,17 +8,18 @@ class Application:
             userpath = datapath
 
         self.paths = dict(data=datapath, user=userpath)
-        
         self.muio = _core.create_app()
 
         gd = globals()
         ld = locals()
 
         # GUI creation
-        for name in ['window_color']:
+        win_names = [ 'window_drawing',
+                      'window_color' ]
+        for name in win_names:
             m = __import__(name, gd, ld)
             win = m.window()
-            _core.add_member(self.muio, win.muio)
+            _mui.add_member(self.muio, win.muio)
             self.__dict__[name] = win
             win.open()
         
@@ -66,7 +67,7 @@ class Application:
         _core.set_active_brush(brush.path)
 
     def set_color(self, *rgb):
-        self.window_color.set_color(*rgb)
+        self.window_color.set_color(*rgb) # Coloradjust object will call OnColor method
 
     def OnSelectedBrush(self, path):
         for b in self.brushes:
@@ -76,3 +77,6 @@ class Application:
     def OnColor(self, *rgb):
         assert len(rgb) == 3, 'Bad call'
         self.active_color = rgb
+
+    def mainloop(self):
+        _mui.mainloop(self.muio)

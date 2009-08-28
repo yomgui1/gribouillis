@@ -1,8 +1,7 @@
-from window import Window
-import _core
+import _core, mui
 
-class DrawingWindow(Window):
+class DrawingWindow(mui.Window):
     def __init__(self, app):
-        Window.__init__(self, _core.do_win_drawing())
+        super(DrawingWindow, self).__init__( _core.do_win_drawing())
 
 window = DrawingWindow

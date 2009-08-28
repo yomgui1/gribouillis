@@ -2,25 +2,23 @@ from __future__ import with_statement
 import os, _core, mui
 from brush import Brush
 
-class Application(mui.MUIObject):
+class App(mui.Application):
     def __init__(self, datapath, userpath=None):
-        mui.MUIObject.__init__(self, _core.create_app())
+        super(App, self).__init__(_core.create_app())
 
         if userpath is None:
             userpath = datapath
 
         self.paths = dict(data=datapath, user=userpath)
-
-        gd = globals()
-        ld = locals()
-
         self.init_brushes()
 
         # GUI creation
-        win_names = [ 'window_drawing',
+        gd = globals()
+        ld = locals()
+        win_names = ( 'window_drawing',
                       'window_color',
                       'window_brushselect',
-                    ]
+                      )
         for name in win_names:
             m = __import__(name, gd, ld)
             win = m.window(self)
@@ -67,7 +65,14 @@ class Application(mui.MUIObject):
         for name in self.brushes_names:
             b = Brush(self)
             b.load(name)
+            b.notify(mui.MUIA_Selected, mui.MUIV_EveryTime, self.OnSelectBrush, b)
             self.brushes.append(b)
+
+    def set_color(self, *rgb):
+        self.window_color.color = rgb # Coloradjust object will call OnColor method
+
+    def OnSelected(self, brush):
+        self.brush = brush
 
     def set_active_brush(self, brush):
         self._brush.copy(brush)
@@ -75,16 +80,10 @@ class Application(mui.MUIObject):
 
     brush = property(fget=lambda self: self._brush, fset=set_active_brush)
 
-    def set_color(self, *rgb):
-        self.window_color.set_color(*rgb) # Coloradjust object will call OnColor method
-
-    def OnSelectedBrush(self, path):
+    def OnSelectedBrush(self, path): # Called by the BrushSelect window
         for b in self.brushes:
             if b.path == path:
                 self.brush = b
 
-    def OnColorChanged(self, color):
+    def OnColorChanged(self, color): # Called by the ColorChooser window
         self.brush.color = color
-
-    def mainloop(self):
-        mui.mainloop(self.mui)

@@ -2,22 +2,22 @@ import os, _core, mui
 
 class Brush(mui.MUIObject):
     def __init__(self, app):
-        mui.MUIObject.__init__(self)
-
-        self.app = app
+        super(Brush, self).__init__() # MUI obejct given at 'load 'method
         self._color = (0, 0, 0)
 
-    def load(self, name):
-        fn = name + '_prev.png'
-        path = os.path.join(self.app.paths['user_brushes'], fn)
-        if not os.path.isfile(path):
-            path = os.path.join(self.app.paths['builtins_brushes'], fn)
-        assert os.path.isfile(path), 'brush "' + name + '" not found'
-        self.name = name
-        self.path = path
-        self.mui = _core.mui_brush(path)
+    def load(self, search_paths, name):
+        fullname = name + '_prev.png'
+        
+        for path in search_paths:
+            filename = os.path.join(path, fullname)
+            if not os.path.isfile(filename): continue
 
-        self.notify(mui.MUIA_Selected, mui.MUIV_EveryTime, self.OnSelected)
+            self.name = name
+            self.path = path
+            self.mui = _core.mui_brush(path)
+            return
+        
+        raise RuntimeError('brush "' + name + '" not found')
 
     def set_color(self, color):
         pass
@@ -29,6 +29,3 @@ class Brush(mui.MUIObject):
         self.name = brush.name
         self.path = brush.path
         self.color = brush.color
-
-    def OnSelected(self):
-        self.app.set_active_brush(self)

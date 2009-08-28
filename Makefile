@@ -116,6 +116,7 @@ $(OBJDIR)/%.o : $(SRCDIR)/%.c
 	$(CC) -c $(CPPFLAGS) $< -o $@
 
 %.sym: %.db
+	@$(CREATING)
 	$(NM) -n $^ > $@
 
 # Automatic dependencies generation
@@ -130,36 +131,51 @@ $(DEPDIR)/%.d : %.c
 ##########################################################################
 # Target Rules and defines
 
-TARGET = $(BUILDDIR)/Gribouillis.db
+TARGET = $(BUILDDIR)/Gribouillis
 
-TARGET_SRCS = main.c _muimodule.c brush_mcc.c
+TARGET_SRCS = main.c _muimodule.c _coremodule.c brush_mcc.c
 ALL_SOURCES += $(TARGET_SRCS)
 
 TARGET_OBJS = $(TARGET_SRCS:%.c=$(OBJDIR)/%.o)
 
-$(TARGET): DEFINES+=VERSION_STR=\"$(VERSION)\"
-$(TARGET): OBJS=$(TARGET_OBJS)
-$(TARGET): $(TARGET_OBJS)
+$(TARGET).db: DEFINES+=VERSION_STR=\"$(VERSION)\"
+$(TARGET).db: OBJS=$(TARGET_OBJS)
+
+$(TARGET).db: $(TARGET_OBJS)
+	@$(COMPILING)
 	$(CC) $(LINKFLAGS) -o $@ $^ $(LIBS)
+
+$(TARGET): $(TARGET).db
+	@$(CREATING)
+	$(STRIP) $(STRIPFLAGS)
 
 ##########################################################################
 # General Rules
 
 .DEFAULT: all
-.PHONY: all clean distclean debug final pyfunc mkfuncarray force sdk
+.PHONY: all clean distclean debug final pyfunc mkfuncarray sdk release force
 
 force:;
 
 debug final:
 
 clean:
-	rm -f mapfile.txt $(TARGET)
+	rm -f mapfile.txt $(TARGET).* $(TARGET)
 	-[ -d $(OBJDIR) ] && find $(OBJDIR) -name "*.o" -exec rm -v {} ";"
 
 distclean: clean
 	rm -rf $(BUILDDIR)/deps $(BUILDDIR)/objs $(BUILDDIR)/libs $(BUILDDIR)/include
 
-all: $(TARGET)
+all: $(TARGET) $(TARGET).sym
+
+release : $(TARGET).tar.bz2
+
+$(TARGET).tar.bz2: $(TARGET) *.py brushes/*.png brushes/*.myb brushes/*.conf
+	@$(CREATING)
+	-rm -f $(TARGET).tar $@
+	tar cf $(TARGET).tar $^
+	bzip2 -cz9 $(TARGET).tar > $@
+	-rm -f $(TARGET).tar
 
 ######### Automatic deps inclusion
 

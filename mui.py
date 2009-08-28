@@ -7,13 +7,24 @@ MUIV_EveryTime = 0x49893131
 
 class MUIObject(object):
     def __init__(self, obj=None):
-        self._notify_cb = []
+        self._nslot_list = []
         self._muio = obj
 
-    def notify(self, *args):
-        self._notify_cb.append(notify(self._muio, *args))
+    def notify(self, trigAttr, trigValue, callback, *args):
+        self._nslot_list.append(notify(self._muio, trigAttr, trigValue, callback, *args))
 
     def set_mui(self, obj):
         self._muio = obj
 
     mui = property(fget=lambda self: self._muio, fset=set_mui, doc="Get associated MUI object (Python CObject)")
+
+class Application(MUIObject):
+    def __init__(self, obj):
+        super(Application, self).__init__(obj)
+
+    def mainloop(self):
+        mainloop(self.mui)
+    
+class Window(MUIObject):
+    def open(self, state=True):
+        set(self.mui, MUIA_Window_Open, state)

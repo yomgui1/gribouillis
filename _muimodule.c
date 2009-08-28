@@ -17,17 +17,43 @@
 extern struct Library *PythonBase;
 extern void dprintf(char*fmt, ...);
 
+struct NotifySlot {
+    PyObject *cb;
+    PyObject *cb_args;
+};
+
 static struct Hook notify_hook;
 
 //+ on_notify
 static void on_notify(struct Hook *hook, Object *caller, ULONG *args)
 {
-    PyObject *o, *cb = (APTR)args[0];
+    struct NotifySlot *slot = (APTR)args[0];
+    PyObject *o;
 
-    dprintf("call cb %p\n", cb);
-    o = PyObject_CallObject(cb, NULL); /* NR */
+    /* Because we never remove a notification, when the notification object is destroyed
+     * this cause the cb and cb_args object to be Py_DECREF'ed. 
+     * Only the slot variable is keeped in memory until the Py_Finalize().
+     */
+    if (NULL == slot->cb) return;
+
+    //dprintf("call cb %p, args %p\n", slot->cb, slot->cb_args);
+    o = PyObject_CallObject(slot->cb, slot->cb_args); /* NR */
     Py_XDECREF(o);
+
     /* in case of Python exception, the PyErr_Occurred() in the mainloop will catch it */
+}
+//-
+//+
+static void free_nslot(void *p)
+{
+    struct NotifySlot *slot = p;
+
+    Py_CLEAR(slot->cb);
+    Py_CLEAR(slot->cb_args);
+
+    /* I don't call PyMem_Free() on slot because we want to keep it alive unil the end of the module
+     * I hope that this doesn't cause memory waste.
+     */
 }
 //-
 
@@ -115,23 +141,40 @@ static PyObject *mui_get(PyObject *self, PyObject *args)
 //+ mui_notify
 static PyObject *mui_notify(PyObject *self, PyObject *args)
 {
-    PyObject *pyo, *cb;
+    PyObject *pyo, *cb, *cb_args;
     Object *mo;
     ULONG attr, trig;
+    struct NotifySlot *slot;
 
-    if (!PyArg_ParseTuple(args, "O!kkO:get", &PyCObject_Type, &pyo, &attr, &trig, &cb)) /* BR */
+    if (!PyArg_ParseTuple(args, "O!kkOO!:get", &PyCObject_Type, &pyo, &attr, &trig, &cb, &PyTuple_Type, &cb_args)) /* BR */
         return NULL;
 
     if (!PyCallable_Check(cb))
         return PyErr_Format(PyExc_TypeError, "object %s is not callable", cb->ob_type->tp_name);
 
-    mo = PyCObject_AsVoidPtr(pyo);   
+    mo = PyCObject_AsVoidPtr(pyo);
+    assert(NULL != mo);
+
+    slot = PyMem_Malloc(sizeof(struct NotifySlot));
+    if (NULL == slot)
+        return PyErr_NoMemory();
+
     Py_INCREF(cb);
+    Py_INCREF(cb_args);
+    slot->cb = cb;
+    slot->cb_args = cb_args;
+
+    self = PyCObject_FromVoidPtr(slot, free_nslot);
+    if (NULL == self) {
+        Py_DECREF(cb);
+        Py_DECREF(cb_args);
+        PyMem_Free(slot);
+        return NULL;
+    }
 
     dprintf("New notify: obj=%p, attr=0x%08x, trig=0x%08x, cb=%p\n", mo, attr, trig, cb);
-    DoMethod(mo, MUIM_Notify, attr, trig, MUIV_Notify_Self, 3, MUIM_CallHook, &notify_hook, cb);
-    
-    return cb;
+    DoMethod(mo, MUIM_Notify, attr, trig, MUIV_Notify_Self, 3, MUIM_CallHook, &notify_hook, slot);
+    return self;
 }
 //-
 

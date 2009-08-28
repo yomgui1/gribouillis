@@ -1,5 +1,5 @@
 import os
-from application import Application
+from application import App
 
 def start():
-    return Application(os.getcwd())
+    App(os.getcwd()).mainloop()

@@ -2,12 +2,34 @@
 
 #include <private/mui2intuition/mui.h>
 #include <libraries/mui.h>
+#include <utility/hooks.h>
 
 #undef USE_INLINE_STDARG
 #include <clib/alib_protos.h>
 #include <proto/muimaster.h>
 #include <proto/intuition.h>
 #define USE_INLINE_STDARG
+
+#define INIT_HOOK(h, f) { struct Hook *_h = (struct Hook *)(h); \
+    _h->h_Entry = (APTR) HookEntry; \
+    _h->h_SubEntry = (APTR) (f); }
+
+extern struct Library *PythonBase;
+extern void dprintf(char*fmt, ...);
+
+static struct Hook notify_hook;
+
+//+ on_notify
+static void on_notify(struct Hook *hook, Object *caller, ULONG *args)
+{
+    PyObject *o, *cb = (APTR)args[0];
+
+    dprintf("call cb %p\n", cb);
+    o = PyObject_CallObject(cb, NULL); /* NR */
+    Py_XDECREF(o);
+    /* in case of Python exception, the PyErr_Occurred() in the mainloop will catch it */
+}
+//-
 
 //+ mui_add_member
 static PyObject *mui_add_member(PyObject *self, PyObject *args)
@@ -23,7 +45,7 @@ static PyObject *mui_add_member(PyObject *self, PyObject *args)
 }
 //-
 //+ mui_mainloop
-static PyObject *mui_mainloop(PyObject *pyo)
+static PyObject *mui_mainloop(PyObject *self, PyObject *pyo)
 {
     BOOL run = TRUE;
     LONG sigs;
@@ -36,7 +58,7 @@ static PyObject *mui_mainloop(PyObject *pyo)
 
     app = PyCObject_AsVoidPtr(pyo);
 
-    while (run) {
+    do {
         ULONG id = DoMethod(app, MUIM_Application_Input, &sigs);
 
         switch (id) {
@@ -48,8 +70,12 @@ static PyObject *mui_mainloop(PyObject *pyo)
         if (PyErr_Occurred())
             break;
 
-        if (run && sigs) Wait(sigs);
-    }
+        if (run && sigs) {
+            sigs = Wait(sigs|SIGBREAKF_CTRL_C);
+            if (sigs & SIGBREAKF_CTRL_C)
+                break;
+        }
+    } while (run);
 
     Py_RETURN_NONE;
 }
@@ -86,13 +112,36 @@ static PyObject *mui_get(PyObject *self, PyObject *args)
     return Py_BuildValue(fmt, value);
 }
 //-
+//+ mui_notify
+static PyObject *mui_notify(PyObject *self, PyObject *args)
+{
+    PyObject *pyo, *cb;
+    Object *mo;
+    ULONG attr, trig;
 
-//+ MuiMethods
+    if (!PyArg_ParseTuple(args, "O!kkO:get", &PyCObject_Type, &pyo, &attr, &trig, &cb)) /* BR */
+        return NULL;
+
+    if (!PyCallable_Check(cb))
+        return PyErr_Format(PyExc_TypeError, "object %s is not callable", cb->ob_type->tp_name);
+
+    mo = PyCObject_AsVoidPtr(pyo);   
+    Py_INCREF(cb);
+
+    dprintf("New notify: obj=%p, attr=0x%08x, trig=0x%08x, cb=%p\n", mo, attr, trig, cb);
+    DoMethod(mo, MUIM_Notify, attr, trig, MUIV_Notify_Self, 3, MUIM_CallHook, &notify_hook, cb);
+    
+    return cb;
+}
+//-
+
+//+ _MUIMethods
 static PyMethodDef _MUIMethods[] = {
     {"add_member", mui_add_member, METH_VARARGS, NULL},
-    {"mainloop", (PyCFunction)mui_mainloop, METH_NOARGS, NULL},
+    {"mainloop", (PyCFunction)mui_mainloop, METH_O, NULL},
     {"set", mui_set, METH_VARARGS, NULL},
     {"get", mui_get, METH_VARARGS, NULL},
+    {"notify", mui_notify, METH_VARARGS, NULL},
 
     {0}
 };
@@ -101,6 +150,7 @@ static PyMethodDef _MUIMethods[] = {
 //+ init_muimodule
 void init_muimodule(void)
 {
+    INIT_HOOK(&notify_hook, on_notify);
     Py_InitModule("_mui", _MUIMethods);
 }
 //-

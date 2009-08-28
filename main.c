@@ -29,6 +29,11 @@
     _h->h_Entry = (APTR) HookEntry; \
     _h->h_SubEntry = (APTR) (f); }
 
+#define Py_RETURN_MUIObject(s, o) \
+    s = PyCObject_FromVoidPtr(o, free_mo); \
+    if (NULL == s) free_mo(o); \
+    return s;
+
 #define Image(f) MUI_NewObject(MUIC_Dtpic, MUIA_Dtpic_Name, f, MUIA_Dtpic_LightenOnMouse, TRUE, TAG_DONE)
 
 #define LAST_COLORS_NUM 4
@@ -51,7 +56,7 @@ struct NewMenu MenuData1[] =
 
 extern struct Library *PythonBase;
 extern void init_muimodule(void);
-extern void dprintf();
+extern void dprintf(char*fmt, ...);
 
 PyObject *gPyApp = NULL;
 Object *gActiveBrush, *gColor=NULL;
@@ -67,7 +72,7 @@ static void exit_handler(void)
 {
     if (PyErr_Occurred())
         PyErr_Print();
- 
+
     Py_XDECREF(gPyApp);
     Py_Finalize();
 
@@ -86,12 +91,6 @@ static void fail(char *str)
     exit(0);
 }
 //-
-//+ free_app
-static void free_app(void *app)
-{
-    MUI_DisposeObject(app);
-}
-//-
 //+ free_mo
 static void free_mo(void *mo)
 {
@@ -103,7 +102,9 @@ static void free_mo(void *mo)
         return;
     }
     
-    if ((NULL == app) && (NULL == parent))
+    dprintf("freeing mui obj: %p (app=%p, parent=%p)\n", mo, app, parent);
+
+    if ((app == mo) || ((NULL == app) && (NULL == parent)))
         MUI_DisposeObject(mo);
 }
 //-
@@ -135,6 +136,8 @@ static Object *do_ColorWindow(Object *cadjust)
         End,
     End;
 
+    dprintf("New ColorWindow: %p\n", win);
+
     if (NULL != win) {
         /* Close window when requested */
         DoMethod(win, MUIM_Notify, MUIA_Window_CloseRequest, TRUE,
@@ -162,6 +165,8 @@ static Object *do_DrawingWindow(void)
         End,
     End;
 
+    dprintf("New DrawingWindow: %p\n", win);
+
     if (NULL != win) {
         DoMethod(win, MUIM_Notify, MUIA_Window_CloseRequest, TRUE,
                  MUIV_Notify_Application, 2, MUIM_Application_ReturnID, MUIV_Application_ReturnID_Quit);
@@ -183,6 +188,8 @@ static Object *do_App(void)
 
         MUIA_Application_Menustrip, MUI_MakeObject(MUIO_MenustripNM, MenuData1, MUIO_MenustripNM_CommandKeyCheck),
     End;
+
+    dprintf("New App: %p\n", app);
 
     return app;
 }
@@ -210,6 +217,8 @@ static Object *do_BrushSelectWindow(void)
             End,
         End,
     End;
+
+    dprintf("New BrushSelectWindow: %p\n", win);
 
     if (NULL != win) {
         PyObject *names;
@@ -277,6 +286,7 @@ static PyObject *core_set_color(PyObject *self, PyObject *args)
 {
     ULONG rgb[3], r, g, b;
     PyObject *pyo;
+    Object *mo;
 
     if (!PyArg_ParseTuple(args, "O!III:set_color", &PyCObject_Type, &pyo, &r, &g, &b))
         return NULL;
@@ -285,31 +295,35 @@ static PyObject *core_set_color(PyObject *self, PyObject *args)
     rgb[1] = MAKE_ID(g,g,g,g);
     rgb[2] = MAKE_ID(b,b,b,b);
 
-    set(PyCObject_AsVoidPtr(pyo), MUIA_Coloradjust_RGB, rgb);
+
+    mo = PyCObject_AsVoidPtr(pyo);
+    set(mo, MUIA_Coloradjust_RGB, rgb);
 
     Py_RETURN_NONE;
 }
 //-
 //+ core_get_color
-static PyObject *core_get_color(PyObject *pyo)
+static PyObject *core_get_color(PyObject *self, PyObject *pyo)
 {
-    ULONG rgb[3];
+    ULONG *rgb;
+    UBYTE r,g,b;
 
     if (!PyCObject_Check(pyo)) {
         PyErr_SetString(PyExc_TypeError, "get_color get a Coloradjust MUI object as argument");
         return NULL;
     }
 
-    if (!get(PyCObject_AsVoidPtr(pyo), MUIA_Coloradjust_RGB, rgb)) {
+    if (!get(PyCObject_AsVoidPtr(pyo), MUIA_Coloradjust_RGB, &rgb)) {
         PyErr_SetString(PyExc_SystemError, "get(MUIA_Coloradjust_RGB) failed");
         return NULL;
     }
 
-    return Py_BuildValue("III", rgb[0]>>24, rgb[1]>>24, rgb[2]>>24);
+    r = rgb[0] >> 24; g = rgb[1] >> 24; b = rgb[2] >> 24;
+    return Py_BuildValue("BBB", r, g, b);
 }
 //-
 //+ core_create_app
-static PyObject *core_create_app(void)
+static PyObject *core_create_app(PyObject *self)
 {
     Object *app = do_App();
 
@@ -318,18 +332,16 @@ static PyObject *core_create_app(void)
         return NULL;
     }
 
-    return PyCObject_FromVoidPtr(app, free_app);
+    Py_RETURN_MUIObject(self, app);
 }
 //-
 //+ core_do_win_color
-static PyObject *core_do_win_color(PyObject *pyo)
+static PyObject *core_do_win_color(PyObject *self, PyObject *pyo)
 {
     Object *mo;
 
-    if (!PyCObject_Check(pyo)) {
-        PyErr_SetString(PyExc_TypeError, "do_win_color get a Coloradjust MUI object as argument");
-        return NULL;
-    }
+    if (!PyCObject_Check(pyo))
+        return PyErr_Format(PyExc_TypeError, "do_win_color needs Coloradjust MUI object as argument, not %s", pyo->ob_type->tp_name);
 
     mo = do_ColorWindow(PyCObject_AsVoidPtr(pyo));
     if (NULL == mo) {
@@ -337,11 +349,11 @@ static PyObject *core_do_win_color(PyObject *pyo)
         return NULL;
     }
 
-    return PyCObject_FromVoidPtr(mo, free_mo);
+    Py_RETURN_MUIObject(self, mo);
 }
 //-
 //+ core_do_win_drawing
-static PyObject *core_do_win_drawing(void)
+static PyObject *core_do_win_drawing(PyObject *self)
 {
     Object *mo = do_DrawingWindow();
 
@@ -350,20 +362,22 @@ static PyObject *core_do_win_drawing(void)
         return NULL;
     }
 
-    return PyCObject_FromVoidPtr(mo, free_mo);
+    Py_RETURN_MUIObject(self, mo);
 }
 //-
 //+ core_do_color_adjust
-static PyObject *core_do_color_adjust(void)
+static PyObject *core_do_color_adjust(PyObject *self, PyObject *args)
 {
     Object *mo = ColoradjustObject, End;
+
+    dprintf("New Coloradjust: %p\n", mo);   
 
     if (NULL == mo) {
         PyErr_SetString(PyExc_SystemError, "MUI Color Window failed");
         return NULL;
     }
 
-    return PyCObject_FromVoidPtr(mo, free_mo);
+    Py_RETURN_MUIObject(self, mo);
 }
 //-
 
@@ -392,20 +406,22 @@ static void OnColorChanged(struct Hook *hook, Object *caller, ULONG *args)
     ULONG *rgb = (ULONG *)args[0];
     Object *cn = (Object *)args[1];
     char buf[7];
+    UBYTE r, g, b;
+
+    r = rgb[0]>>24;
+    g = rgb[1]>>24;
+    b = rgb[2]>>24;
 
     /* Change the Color name string */
-    sprintf(buf, "%02X%02X%02X", rgb[0]>>24, rgb[1]>>24, rgb[2]>>24);
+    sprintf(buf, "%02X%02X%02X", r, g, b);
     set(cn, MUIA_String_Contents, buf);
-
-    /* Notify the Python Application */
-    Py_XDECREF(PyObject_CallMethod(gPyApp, "OnColor", "III", rgb[0]>>24, rgb[1]>>24, rgb[2]>>24));
 }
 //-
 //+ main
 int main(int argc, char **argv)
 {
     LONG res;
-    PyObject *m, *d;
+    PyObject *m, *d, *o;
 
     /*--- Hooks ---*/
     INIT_HOOK(&hook_ColorChanged, OnColorChanged);
@@ -446,8 +462,8 @@ int main(int argc, char **argv)
         fail(FATAL_PYTHON_ERROR);
 
     /* Run the mainloop */
-    PyRun_SimpleString("app.mainloop()");
-
+    o = PyObject_CallMethod(gPyApp, "mainloop", NULL);
+    Py_XDECREF(o);
     return 0;
 }
 //-

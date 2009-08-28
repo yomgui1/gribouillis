@@ -1,8 +1,9 @@
 import os, _core
 
-class Brush:
+class Brush(object):
     def __init__(self, app):
         self.app = app
+        self._color = (0, 0, 0)
 
     def load(self, name):
         fn = name + '_prev.png'
@@ -13,3 +14,11 @@ class Brush:
         self.name = name
         self.path = path
         self.muio = _core.mui_image(path)
+
+    def set_color(self, color):
+        print "brush color:", color
+
+    color = property(fget=lambda self: self._color, fset=set_color)
+
+    def copy(self, brush):
+        pass

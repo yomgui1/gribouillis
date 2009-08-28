@@ -1,10 +1,8 @@
-import _mui
+import mui
 
-MUIA_Window_Open = 0x80428aa0
-
-class Window:
-    def __init__(self):
-        pass
+class Window(mui.MUIObject):
+    def __init__(self, obj):
+        mui.MUIObject.__init__(self, obj)
 
     def open(self, state=True):
-        _mui.set(self.muio, MUIA_Window_Open, state)
+        mui.set(self.mui, mui.MUIA_Window_Open, state)

@@ -1,14 +1,15 @@
 from __future__ import with_statement
-import os, _core, _mui
+import os, _core, mui
 from brush import Brush
 
-class Application:
+class Application(mui.MUIObject):
     def __init__(self, datapath, userpath=None):
+        mui.MUIObject.__init__(self, _core.create_app())
+
         if userpath is None:
             userpath = datapath
 
         self.paths = dict(data=datapath, user=userpath)
-        self.muio = _core.create_app()
 
         gd = globals()
         ld = locals()
@@ -19,14 +20,18 @@ class Application:
         for name in win_names:
             m = __import__(name, gd, ld)
             win = m.window()
-            _mui.add_member(self.muio, win.muio)
+            mui.add_member(self.mui, win.mui)
             self.__dict__[name] = win
             win.open()
+
+        self.window_color.add_watcher(self.OnColorChanged)
         
         self.init_brushes()
-        self.set_color(0,0,0)
+        self.set_color(255, 0, 0)
 
     def init_brushes(self):
+        self._brush = Brush(self)
+        
         self.paths['builtins_brushes'] = os.path.join(self.paths['data'], 'brushes')
         self.paths['user_brushes'] = os.path.join(self.paths['user'], 'brushes')
 
@@ -63,8 +68,10 @@ class Application:
         self.set_active_brush(self.brushes[0])
 
     def set_active_brush(self, brush):
-        self.selected_brush = brush
+        self._brush.copy(brush)
         _core.set_active_brush(brush.path)
+
+    brush = property(fget=lambda self: self._brush, fset=set_active_brush)
 
     def set_color(self, *rgb):
         self.window_color.set_color(*rgb) # Coloradjust object will call OnColor method
@@ -72,11 +79,10 @@ class Application:
     def OnSelectedBrush(self, path):
         for b in self.brushes:
             if b.path == path:
-                self.set_active_brush(b)
+                self.brush = b
 
-    def OnColor(self, *rgb):
-        assert len(rgb) == 3, 'Bad call'
-        self.active_color = rgb
+    def OnColorChanged(self, color):
+        self.brush.color = color
 
     def mainloop(self):
-        _mui.mainloop(self.muio)
+        mui.mainloop(self.mui)

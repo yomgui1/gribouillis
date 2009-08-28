@@ -14,20 +14,24 @@ class Application(mui.MUIObject):
         gd = globals()
         ld = locals()
 
+        self.init_brushes()
+
         # GUI creation
         win_names = [ 'window_drawing',
-                      'window_color' ]
+                      'window_color',
+                      'window_brushselect',
+                    ]
         for name in win_names:
             m = __import__(name, gd, ld)
-            win = m.window()
+            win = m.window(self)
             mui.add_member(self.mui, win.mui)
             self.__dict__[name] = win
             win.open()
 
         self.window_color.add_watcher(self.OnColorChanged)
         
-        self.init_brushes()
-        self.set_color(255, 0, 0)
+        self.set_active_brush(self.brushes[0]) 
+        self.set_color(0, 0, 0)
 
     def init_brushes(self):
         self._brush = Brush(self)
@@ -64,8 +68,6 @@ class Application(mui.MUIObject):
             b = Brush(self)
             b.load(name)
             self.brushes.append(b)
-
-        self.set_active_brush(self.brushes[0])
 
     def set_active_brush(self, brush):
         self._brush.copy(brush)

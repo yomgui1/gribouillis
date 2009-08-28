@@ -195,7 +195,7 @@ static Object *do_App(void)
 }
 //-
 //+ do_BrushSelectWindow
-static Object *do_BrushSelectWindow(void)
+static Object *do_BrushSelectWindow(PyObject *app)
 {
     Object *win, *vg;
 
@@ -204,6 +204,7 @@ static Object *do_BrushSelectWindow(void)
         MUIA_Window_Title, "Brush selection",
         WindowContents, VGroup,
             Child, HGroup,
+                GroupFrameT("Current brush"),
                 Child, gActiveBrush = BrushObject("PROGDIR:brushes/ink_prev.png"),
                 Child, HSpace(0),
             End,
@@ -213,7 +214,9 @@ static Object *do_BrushSelectWindow(void)
             End,
             Child, ScrollgroupObject,
                 MUIA_Scrollgroup_FreeHoriz, FALSE,
-                MUIA_Scrollgroup_Contents, vg = ColGroupV(4), End,
+                MUIA_Scrollgroup_Contents, vg = ColGroupV(4),
+                    VirtualFrame,
+                End,
             End,
         End,
     End;
@@ -227,7 +230,7 @@ static Object *do_BrushSelectWindow(void)
         DoMethod(win, MUIM_Notify, MUIA_Window_CloseRequest, TRUE,
                  MUIV_Notify_Self, 3, MUIM_Set, MUIA_Window_Open, FALSE);
 
-        names = PyObject_GetAttrString(gPyApp, "brushes"); /* NR */
+        names = PyObject_GetAttrString(app, "brushes"); /* NR */
         if ((NULL != names) && PyList_Check(names)) {
             int i;
 
@@ -236,7 +239,7 @@ static Object *do_BrushSelectWindow(void)
                 Object *mo;
                 PyObject *pyo;
 
-                pyo = PyObject_GetAttrString(PyList_GET_ITEM(names, i) /* BR */, "muio"); /* NR */
+                pyo = PyObject_GetAttrString(PyList_GET_ITEM(names, i) /* BR */, "mui"); /* NR */
                 if (NULL != pyo) {
                     mo = PyCObject_AsVoidPtr(pyo);
                     if (NULL != mo)
@@ -257,12 +260,12 @@ static Object *do_BrushSelectWindow(void)
 
 /*-----------------------------------------------------------------------------------------------------------*/
 
-//+ core_image
-static PyObject *core_image(PyObject *self, PyObject *args)
+//+ core_brush
+static PyObject *core_brush(PyObject *self, PyObject *args)
 {
     STRPTR fn;
 
-    if (!PyArg_ParseTuple(args, "s:mui_image", &fn))
+    if (!PyArg_ParseTuple(args, "s:mui_brush", &fn))
         return NULL;
     
     return PyCObject_FromVoidPtr(BrushObject(fn), free_mo);
@@ -365,6 +368,19 @@ static PyObject *core_do_win_drawing(PyObject *self)
     Py_RETURN_MUIObject(self, mo);
 }
 //-
+//+ core_do_win_brushselect
+static PyObject *core_do_win_brushselect(PyObject *self, PyObject *app)
+{
+    Object *mo = do_BrushSelectWindow(app);
+
+    if (NULL == mo) {
+        PyErr_SetString(PyExc_SystemError, "MUI BrushSelect window failed");
+        return NULL;
+    }
+
+    Py_RETURN_MUIObject(self, mo);
+}
+//-
 //+ core_do_color_adjust
 static PyObject *core_do_color_adjust(PyObject *self, PyObject *args)
 {
@@ -387,9 +403,10 @@ static PyMethodDef _CoreMethods[] = {
 
     {"do_win_color", (PyCFunction)core_do_win_color, METH_O, NULL},
     {"do_win_drawing", (PyCFunction)core_do_win_drawing, METH_NOARGS, NULL},
+    {"do_win_brushselect", core_do_win_brushselect, METH_O, NULL},
     {"do_color_adjust", (PyCFunction)core_do_color_adjust, METH_NOARGS, NULL},
 
-    {"mui_image", core_image, METH_VARARGS, NULL},
+    {"mui_brush", core_brush, METH_VARARGS, NULL},
     {"set_active_brush", core_active_brush, METH_VARARGS, NULL},
     {"set_color", core_set_color, METH_VARARGS, NULL},
     {"get_color", (PyCFunction)core_get_color, METH_O, NULL},

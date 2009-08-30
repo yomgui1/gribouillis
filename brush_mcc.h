@@ -18,6 +18,7 @@
                   ImageButtonFrame,                             \
                   MUIA_Dtpic_Name, (f),                         \
                   MUIA_Dtpic_Scale, BRUSH_SIZE,                 \
+                  MUIA_InputMode, MUIV_InputMode_Toggle,        \
                   TAG_DONE)
 #endif
 

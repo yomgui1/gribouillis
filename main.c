@@ -1,35 +1,37 @@
 #include <Python.h>
 
+#include "common.h"
 #include "brush_mcc.h"
-
-#include <private/mui2intuition/mui.h>
-#include <libraries/mui.h>
-
-#undef USE_INLINE_STDARG
-#include <proto/muimaster.h>
-#include <proto/intuition.h>
-#define USE_INLINE_STDARG
 
 #define LAST_COLORS_NUM 4
 
 #define FATAL_PYTHON_ERROR "Fatal Python error."
-
-extern struct Library *PythonBase;
 
 extern void init_muimodule(void);
 extern void init_coremodule(void);
 
 struct MUI_CustomClass *gBrushMCC=NULL;
 ULONG __stack = 1024*128;
+Object *gApp = NULL;
 
+//+ exit_handler
+void exit_handler(void)
+{
+    if (NULL != gApp) {
+        dprintf("Bad end: force to remove Application object\n");
+        MUI_DisposeObject(gApp);
+        gApp = NULL;
+    }
+}
+//-
 //+ myexit
 static void myexit(char *str)
 {
     BOOL pyerr = FALSE;
 
     if (PyErr_Occurred()) {
-        pyerr = TRUE;
         PyErr_Print();
+        pyerr = TRUE;    
     }
 
     Py_Finalize();
@@ -68,6 +70,8 @@ int main(int argc, char **argv)
     init_muimodule();
     init_coremodule();
 
+    atexit(exit_handler);
+
     /*--- MCCs creation ---*/
     gBrushMCC = BrushMCC_Init();
     if (NULL == gBrushMCC)
@@ -77,6 +81,7 @@ int main(int argc, char **argv)
     if (PyRun_SimpleString("from startup import start; start()"))
         myexit(FATAL_PYTHON_ERROR);
 
+    myexit(NULL);
     return 0;
 }
 //-

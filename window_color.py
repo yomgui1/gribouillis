@@ -5,7 +5,7 @@ class ColorChooser(mui.Window):
     
     def __init__(self, app):
         self._color_adjust = mui.MUIObject(_core.do_color_adjust())
-        super(ColorChooser, self).__init__(_core.do_win_color(self._color_adjust.mui))
+        super(ColorChooser, self).__init__(app, _core.do_win_color(self._color_adjust.mui))
 
         self.watchers = []
 
@@ -21,7 +21,7 @@ class ColorChooser(mui.Window):
     def del_color(self):
         _core.set_color(self._color_adjust.mui, *ColorChooser.default_color)
 
-    color = property(fget=get_color, fset=set_color, del=del_color)
+    color = property(fget=get_color, fset=set_color, fdel=del_color)
 
     def add_watcher(self, cb):
         if cb not in self.watchers:

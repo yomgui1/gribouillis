@@ -33,5 +33,6 @@ static ULONG Name##_Dispatcher(void) { struct IClass *cl=(struct IClass*)REG_A0;
 
 extern struct Library *PythonBase;
 extern void dprintf(char*fmt, ...);
+extern Object *gApp;
 
 #endif /* COMMON_H */

@@ -7,11 +7,17 @@ MUIV_EveryTime = 0x49893131
 
 class MUIObject(object):
     def __init__(self, obj=None):
-        self._nslot_list = []
+        self._notify = dict()
         self._muio = obj
 
+    def _notify_cb(self, attr, v):
+        tv, cb, a = self._notify[attr]
+        if tv == MUIV_EveryTime or tv == v:
+            cb(*a)
+
     def notify(self, trigAttr, trigValue, callback, *args):
-        self._nslot_list.append(notify(self._muio, trigAttr, trigValue, callback, *args))
+        self._notify[trigAttr] = (trigValue, callback, args)
+        notify(self, self._muio, trigAttr, trigValue)
 
     def set_mui(self, obj):
         self._muio = obj
@@ -26,5 +32,9 @@ class Application(MUIObject):
         mainloop(self.mui)
     
 class Window(MUIObject):
+    def __init__(self, app, obj):
+        super(Window, self).__init__(obj)
+        add_member(app.mui, self.mui)
+
     def open(self, state=True):
         set(self.mui, MUIA_Window_Open, state)

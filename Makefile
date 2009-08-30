@@ -25,7 +25,7 @@ ifneq ($(findstring debug, $(MAKECMDGOALS)), debug)
 DEFINES += NDEBUG
 MODE    = final
 else
-DEFINES += 
+DEFINES += Py_DEBUG
 MODE    = debug
 endif
 
@@ -133,7 +133,7 @@ $(DEPDIR)/%.d : %.c
 
 TARGET = $(BUILDDIR)/Gribouillis
 
-TARGET_SRCS = main.c _muimodule.c _coremodule.c brush_mcc.c
+TARGET_SRCS = main.c _muimodule.c _coremodule.c brush_mcc.c surface_mcc.c
 ALL_SOURCES += $(TARGET_SRCS)
 
 TARGET_OBJS = $(TARGET_SRCS:%.c=$(OBJDIR)/%.o)

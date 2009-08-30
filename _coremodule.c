@@ -1,10 +1,10 @@
 #include "common.h"
 #include "brush_mcc.h"
 
-#define Py_RETURN_MUIObject(s, o) \
+#define Py_RETURN_MUIObject(s, o) ({ \
     s = PyCObject_FromVoidPtr(o, free_mo); \
     if (NULL == s) free_mo(o); \
-    return s;
+    return s; })
 
 #define Image(f) MUI_NewObject(MUIC_Dtpic, MUIA_Dtpic_Name, (f), TAG_DONE)
 
@@ -38,10 +38,12 @@ static void free_mo(void *mo)
         return;
     }
     
-    dprintf("freeing mui obj: %p (app=%p, parent=%p)\n", mo, app, parent);
-
-    if ((app == mo) || ((NULL == app) && (NULL == parent)))
+    if ((mo == app) || ((NULL == app) && (NULL == parent))) {
+        dprintf("freeing mui obj: %p (app=%p, parent=%p)\n", mo, app, parent); 
         MUI_DisposeObject(mo);
+        if (mo == gApp)
+            gApp = NULL;
+    }
 }
 //-
 //+ do_App
@@ -60,6 +62,7 @@ static Object *do_App(void)
 
     dprintf("New App: %p\n", app);
 
+    gApp = app;
     return app;
 }
 //-
@@ -141,7 +144,9 @@ static Object *do_BrushSelectWindow(PyObject *app)
         WindowContents, VGroup,
             Child, HGroup,
                 GroupFrameT("Current brush"),
-                Child, gActiveBrush = Image("PROGDIR:brushes/ink_prev.png"),
+                Child, gActiveBrush = MUI_NewObject(MUIC_Dtpic, MUIA_Dtpic_Name, "PROGDIR:brushes/ink_prev.png",
+                    MUIA_Dtpic_Scale, 48,
+                End,
                 Child, HSpace(0),
             End,
             Child, RectangleObject,
@@ -152,7 +157,8 @@ static Object *do_BrushSelectWindow(PyObject *app)
                 MUIA_Scrollgroup_FreeHoriz, FALSE,
                 MUIA_Scrollgroup_Contents, vg = ColGroupV(4),
                     VirtualFrame,
-                    InnerSpacing(0, 0),
+                    MUIA_Group_HorizSpacing, 0,
+                    MUIA_Group_VertSpacing, 0,
                 End,
             End,
         End,
@@ -188,7 +194,7 @@ static Object *do_BrushSelectWindow(PyObject *app)
         }
 
         Py_XDECREF(names);
-        PyErr_Clear();
+        //PyErr_Clear();
     }
 
     return win;
@@ -214,13 +220,13 @@ static void OnColorChanged(struct Hook *hook, Object *caller, ULONG *args)
 
 /*-----------------------------------------------------------------------------------------------------------*/      
 
-//+ core_brush
-static PyObject *core_brush(PyObject *self, PyObject *args)
+//+ core_do_brush
+static PyObject *core_do_brush(PyObject *self, PyObject *args)
 {
     STRPTR fn;
     Object *mo;
 
-    if (!PyArg_ParseTuple(args, "s:mui_brush", &fn))
+    if (!PyArg_ParseTuple(args, "s:do_brush", &fn))
         return NULL;
 
     mo = BrushObject(fn);
@@ -370,7 +376,7 @@ static PyMethodDef _CoreMethods[] = {
     {"do_win_brushselect", core_do_win_brushselect, METH_O, NULL},
     {"do_color_adjust", (PyCFunction)core_do_color_adjust, METH_NOARGS, NULL},
 
-    {"mui_brush", core_brush, METH_VARARGS, NULL},
+    {"do_brush", core_do_brush, METH_VARARGS, NULL},
     {"set_active_brush", core_active_brush, METH_VARARGS, NULL},
     {"set_color", core_set_color, METH_VARARGS, NULL},
     {"get_color", (PyCFunction)core_get_color, METH_O, NULL},

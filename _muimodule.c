@@ -1,59 +1,28 @@
-#include <Python.h>
-
-#include <private/mui2intuition/mui.h>
-#include <libraries/mui.h>
-#include <utility/hooks.h>
-
-#undef USE_INLINE_STDARG
-#include <clib/alib_protos.h>
-#include <proto/muimaster.h>
-#include <proto/intuition.h>
-#define USE_INLINE_STDARG
-
-#define INIT_HOOK(h, f) { struct Hook *_h = (struct Hook *)(h); \
-    _h->h_Entry = (APTR) HookEntry; \
-    _h->h_SubEntry = (APTR) (f); }
-
-extern struct Library *PythonBase;
-extern void dprintf(char*fmt, ...);
-
-struct NotifySlot {
-    PyObject *cb;
-    PyObject *cb_args;
-};
+#include "common.h"
 
 static struct Hook notify_hook;
 
 //+ on_notify
 static void on_notify(struct Hook *hook, Object *caller, ULONG *args)
 {
-    struct NotifySlot *slot = (APTR)args[0];
-    PyObject *o;
+    PyObject *obj;
+    ULONG attr = args[0];
+    ULONG value = args[1];
 
-    /* Because we never remove a notification, when the notification object is destroyed
-     * this cause the cb and cb_args object to be Py_DECREF'ed. 
-     * Only the slot variable is keeped in memory until the Py_Finalize().
-     */
-    if (NULL == slot->cb) return;
+    obj = (APTR) muiUserData(caller);
+    Py_XINCREF(obj);
 
-    //dprintf("call cb %p, args %p\n", slot->cb, slot->cb_args);
-    o = PyObject_CallObject(slot->cb, slot->cb_args); /* NR */
-    Py_XDECREF(o);
+    //printf("call notify on obj: %p, attr is 0x%08x\n", obj, attr);
+    if (NULL != obj) {
+        PyObject *res;
+
+        res = PyObject_CallMethod(obj, "_notify_cb", "kk", attr, value); /* NR */
+        Py_XDECREF(res);
+    }
+
+    Py_XDECREF(obj);
 
     /* in case of Python exception, the PyErr_Occurred() in the mainloop will catch it */
-}
-//-
-//+
-static void free_nslot(void *p)
-{
-    struct NotifySlot *slot = p;
-
-    Py_CLEAR(slot->cb);
-    Py_CLEAR(slot->cb_args);
-
-    /* I don't call PyMem_Free() on slot because we want to keep it alive unil the end of the module
-     * I hope that this doesn't cause memory waste.
-     */
 }
 //-
 
@@ -120,6 +89,20 @@ static PyObject *mui_set(PyObject *self, PyObject *args)
     return PyInt_FromLong(res);
 }
 //-
+//+ mui_nnset
+static PyObject *mui_nnset(PyObject *self, PyObject *args)
+{
+    PyObject *pyo;
+    ULONG method, value;
+    LONG res;
+
+    if (!PyArg_ParseTuple(args, "O!kk:nnset", &PyCObject_Type, &pyo, &method, &value)) /* BR */
+        return NULL;
+
+    res = nnset(PyCObject_AsVoidPtr(pyo), method, value);
+    return PyInt_FromLong(res);
+}
+//-
 //+ mui_get
 static PyObject *mui_get(PyObject *self, PyObject *args)
 {
@@ -141,40 +124,22 @@ static PyObject *mui_get(PyObject *self, PyObject *args)
 //+ mui_notify
 static PyObject *mui_notify(PyObject *self, PyObject *args)
 {
-    PyObject *pyo, *cb, *cb_args;
+    PyObject *obj, *pyo;
     Object *mo;
     ULONG attr, trig;
-    struct NotifySlot *slot;
 
-    if (!PyArg_ParseTuple(args, "O!kkOO!:get", &PyCObject_Type, &pyo, &attr, &trig, &cb, &PyTuple_Type, &cb_args)) /* BR */
+    if (!PyArg_ParseTuple(args, "OO!kk:mui_notify", &obj, &PyCObject_Type, &pyo, &attr, &trig)) /* BR */
         return NULL;
-
-    if (!PyCallable_Check(cb))
-        return PyErr_Format(PyExc_TypeError, "object %s is not callable", cb->ob_type->tp_name);
 
     mo = PyCObject_AsVoidPtr(pyo);
     assert(NULL != mo);
 
-    slot = PyMem_Malloc(sizeof(struct NotifySlot));
-    if (NULL == slot)
-        return PyErr_NoMemory();
+    muiUserData(mo) = (ULONG) obj;
 
-    Py_INCREF(cb);
-    Py_INCREF(cb_args);
-    slot->cb = cb;
-    slot->cb_args = cb_args;
-
-    self = PyCObject_FromVoidPtr(slot, free_nslot);
-    if (NULL == self) {
-        Py_DECREF(cb);
-        Py_DECREF(cb_args);
-        PyMem_Free(slot);
-        return NULL;
-    }
-
-    dprintf("New notify: obj=%p, attr=0x%08x, trig=0x%08x, cb=%p\n", mo, attr, trig, cb);
-    DoMethod(mo, MUIM_Notify, attr, trig, MUIV_Notify_Self, 3, MUIM_CallHook, &notify_hook, slot);
-    return self;
+    dprintf("New notify: obj=%p, attr=0x%08x, trig=0x%08x, obj=%p\n", mo, attr, trig, obj);
+    DoMethod(mo, MUIM_Notify, attr, trig, MUIV_Notify_Self, 4, MUIM_CallHook, &notify_hook, attr, MUIV_TriggerValue);
+    
+    Py_RETURN_NONE;
 }
 //-
 
@@ -183,6 +148,7 @@ static PyMethodDef _MUIMethods[] = {
     {"add_member", mui_add_member, METH_VARARGS, NULL},
     {"mainloop", (PyCFunction)mui_mainloop, METH_O, NULL},
     {"set", mui_set, METH_VARARGS, NULL},
+    {"nnset", mui_nnset, METH_VARARGS, NULL},
     {"get", mui_get, METH_VARARGS, NULL},
     {"notify", mui_notify, METH_VARARGS, NULL},
 

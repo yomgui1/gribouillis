@@ -1,5 +1,5 @@
 from __future__ import with_statement
-import os, _core, mui
+import os, _core, mui, sys
 from brush import Brush
 
 class App(mui.Application):
@@ -10,6 +10,7 @@ class App(mui.Application):
             userpath = datapath
 
         self.paths = dict(data=datapath, user=userpath)
+        
         self.init_brushes()
 
         # GUI creation
@@ -22,17 +23,16 @@ class App(mui.Application):
         for name in win_names:
             m = __import__(name, gd, ld)
             win = m.window(self)
-            mui.add_member(self.mui, win.mui)
             self.__dict__[name] = win
             win.open()
 
-        self.window_color.add_watcher(self.OnColorChanged)
+        self.window_color.add_watcher(self.OnColorChanged)   
         
         self.set_active_brush(self.brushes[0]) 
         self.set_color(0, 0, 0)
 
     def init_brushes(self):
-        self._brush = Brush(self)
+        self._brush = Brush()
         
         self.paths['builtins_brushes'] = os.path.join(self.paths['data'], 'brushes')
         self.paths['user_brushes'] = os.path.join(self.paths['user'], 'brushes')
@@ -62,28 +62,27 @@ class App(mui.Application):
         self.brushes_names = unsorted_brushes + sorted_brushes
 
         self.brushes = []
+        paths = (self.paths['user_brushes'], self.paths['builtins_brushes'])
         for name in self.brushes_names:
-            b = Brush(self)
-            b.load(name)
+            b = Brush()
+            b.load(paths, name)
             b.notify(mui.MUIA_Selected, mui.MUIV_EveryTime, self.OnSelectBrush, b)
             self.brushes.append(b)
 
     def set_color(self, *rgb):
         self.window_color.color = rgb # Coloradjust object will call OnColor method
 
-    def OnSelected(self, brush):
+    def OnColorChanged(self, color): # Called by the ColorChooser window
+        self.brush.color = color
+
+    def OnSelectBrush(self, brush):
+        mui.nnset(self.brush.mui, mui.MUIA_Selected, False) 
         self.brush = brush
 
     def set_active_brush(self, brush):
         self._brush.copy(brush)
+        mui.nnset(brush.mui, mui.MUIA_Selected, True)
         _core.set_active_brush(brush.path)
 
     brush = property(fget=lambda self: self._brush, fset=set_active_brush)
 
-    def OnSelectedBrush(self, path): # Called by the BrushSelect window
-        for b in self.brushes:
-            if b.path == path:
-                self.brush = b
-
-    def OnColorChanged(self, color): # Called by the ColorChooser window
-        self.brush.color = color

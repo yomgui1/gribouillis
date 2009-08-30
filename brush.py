@@ -1,8 +1,8 @@
 import os, _core, mui
 
 class Brush(mui.MUIObject):
-    def __init__(self, app):
-        super(Brush, self).__init__() # MUI obejct given at 'load 'method
+    def __init__(self):
+        super(Brush, self).__init__() # MUI object given at 'load 'method
         self._color = (0, 0, 0)
 
     def load(self, search_paths, name):
@@ -13,8 +13,8 @@ class Brush(mui.MUIObject):
             if not os.path.isfile(filename): continue
 
             self.name = name
-            self.path = path
-            self.mui = _core.mui_brush(path)
+            self.path = filename
+            self.mui = _core.do_brush(filename)
             return
         
         raise RuntimeError('brush "' + name + '" not found')

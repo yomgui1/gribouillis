@@ -125,18 +125,19 @@ static PyObject *mui_get(PyObject *self, PyObject *args)
 static PyObject *mui_notify(PyObject *self, PyObject *args)
 {
     PyObject *obj, *pyo;
-    Object *mo;
+    Object *mo=NULL;
     ULONG attr, trig;
 
     if (!PyArg_ParseTuple(args, "OO!kk:mui_notify", &obj, &PyCObject_Type, &pyo, &attr, &trig)) /* BR */
         return NULL;
 
-    mo = PyCObject_AsVoidPtr(pyo);
-    assert(NULL != mo);
+    mo = PYOBJECT2OBJECT(pyo);
+    if (NULL == mo)
+        return NULL;
 
+    dprintf("New notify: obj=%p, attr=0x%08x, trig=0x%08x, obj=%p\n", mo, attr, trig, obj);  
     muiUserData(mo) = (ULONG) obj;
-
-    dprintf("New notify: obj=%p, attr=0x%08x, trig=0x%08x, obj=%p\n", mo, attr, trig, obj);
+    
     DoMethod(mo, MUIM_Notify, attr, trig, MUIV_Notify_Self, 4, MUIM_CallHook, &notify_hook, attr, MUIV_TriggerValue);
     
     Py_RETURN_NONE;

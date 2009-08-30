@@ -2,6 +2,7 @@
 #define COMMON_H
 
 #include <Python.h>
+#include <structmember.h>
 
 #include <private/mui2intuition/mui.h>
 #include <libraries/mui.h>
@@ -30,6 +31,19 @@ static ULONG Name##_Dispatcher(void) { struct IClass *cl=(struct IClass*)REG_A0;
 #define INIT_HOOK(h, f) { struct Hook *_h = (struct Hook *)(h); \
     _h->h_Entry = (APTR) HookEntry; \
     _h->h_SubEntry = (APTR) (f); }
+
+#define PYOBJECT2OBJECT(pyo) ({ \
+    PyObject *_pyo = (PyObject *)(pyo); \
+    Object *_mo = PyCObject_AsVoidPtr(_pyo); \
+    if ((NULL == _mo) && !PyErr_Occurred()) \
+        PyErr_SetString(PyExc_ValueError, "python C object not associated to a MUI object"); \
+    _mo; })
+
+#define MYTAGBASE (TAG_USER | 0x95fe0000)
+
+#define INSI(m, s, v) if (PyModule_AddIntConstant(m, s, v)) return -1
+#define INSL(m, s, v) if (PyModule_AddObject(m, s, PyLong_FromUnsignedLong(v))) return -1
+#define INSS(m, s, v) if (PyModule_AddStringConstant(m, s, v)) return -1
 
 extern struct Library *PythonBase;
 extern void dprintf(char*fmt, ...);

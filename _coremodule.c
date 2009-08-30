@@ -24,7 +24,7 @@ struct NewMenu MenuData1[] =
 };
 
 static struct Hook hook_ColorChanged;
-static Object *gActiveBrush;
+static Object *gActiveBrush=NULL, *gSurface=NULL;
 
 //+ free_mo
 static void free_mo(void *mo)
@@ -112,9 +112,9 @@ static Object *do_DrawingWindow(void)
     Object *win = WindowObject,
         MUIA_Window_Title, "Gribouillis",
         MUIA_Window_ID, MAKE_ID('D','R','A','W'),
-        MUIA_Window_Open, TRUE,
+        MUIA_Window_TabletMessages, TRUE,
         WindowContents, VGroup,
-            Child, SurfaceObject,
+            Child, gSurface = SurfaceObject,
                 MUIA_Background, MUII_SHINE,
             End,
         End,
@@ -363,6 +363,12 @@ static PyObject *core_do_color_adjust(PyObject *self, PyObject *args)
     Py_RETURN_MUIObject(self, mo);
 }
 //-
+//+ core_get_surface
+static PyObject *core_get_surface(PyObject *self)
+{
+    Py_RETURN_MUIObject(self, gSurface);
+}
+//-
 
 //+ _CoreMethods
 static PyMethodDef _CoreMethods[] = {
@@ -377,6 +383,7 @@ static PyMethodDef _CoreMethods[] = {
     {"set_active_brush", core_active_brush, METH_VARARGS, NULL},
     {"set_color", core_set_color, METH_VARARGS, NULL},
     {"get_color", (PyCFunction)core_get_color, METH_O, NULL},
+    {"get_surface", (PyCFunction)core_get_surface, METH_NOARGS, NULL},
 
     {0}
 };

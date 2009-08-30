@@ -1,5 +1,3 @@
-print dir()
-
 import os
 from application import App
 

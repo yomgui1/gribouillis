@@ -2,9 +2,11 @@
 #include "surface_mcc.h"
 
 #include <proto/graphics.h>
+#include <proto/utility.h>
 
 typedef struct MCCData {
     struct MUI_EventHandlerNode ehnode;
+    struct SurfaceST_MotionEvent mevt;
 } MCCData;
 
 //+ mAskMinMax
@@ -26,8 +28,6 @@ static ULONG mAskMinMax(struct IClass *cl, Object *obj, struct MUIP_AskMinMax *m
 //+ mDraw
 static ULONG mDraw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
 {
-    MCCData *data = INST_DATA(cl, obj);
-
     DoSuperMethodA(cl, obj, msg);
 
     if (!(msg->flags & (MADF_DRAWOBJECT|MADF_DRAWUPDATE)))
@@ -68,18 +68,59 @@ static ULONG mHandleEvent(struct IClass *cl, Object *obj, struct MUIP_HandleEven
     #define _isinobject(x,y) (_between(_mleft(obj),(x),_mright(obj)) && _between(_mtop(obj),(y),_mbottom(obj)))
 
     MCCData *data = INST_DATA(cl, obj);
+    struct IntuiMessage *imsg = msg->imsg;
+    
+    if (NULL != imsg) {
+        struct TabletData *td = ((struct ExtIntuiMessage *)imsg)->eim_TabletData;
 
-    if (msg->imsg) {
         switch (msg->imsg->Class) {
             case IDCMP_MOUSEBUTTONS:
                 if (SELECTDOWN == msg->imsg->Code)
-                    if (_isinobject(msg->imsg->MouseX, msg->imsg->MouseY))
-                        ;
+                    if (_isinobject(msg->imsg->MouseX, msg->imsg->MouseY)) {
+                        if (NULL != td) {        
+                        } else {
+                        }
+                    }
                 break;
 
             case IDCMP_MOUSEMOVE:
-                if (_isinobject(msg->imsg->MouseX, msg->imsg->MouseY))
-                    ;
+                if (_isinobject(msg->imsg->MouseX, msg->imsg->MouseY)) {
+                    struct Screen *scr = _screen(obj); 
+                    
+                    if (NULL != td) {
+                        struct TagItem *tag, *tags = td->td_TagList;
+
+                        data->mevt.X = td->td_TabletX;
+                        data->mevt.Y = td->td_TabletY;
+                        data->mevt.RangeX = td->td_RangeX;
+                        data->mevt.RangeY = td->td_RangeY;
+
+                        while (NULL != (tag = NextTagItem(&tags))) {
+                            switch (tag->ti_Tag) {
+                                case TABLETA_Pressure: data->mevt.Pressure = tag->ti_Data; break;
+                                case TABLETA_InProximity: data->mevt.InProximity = tag->ti_Data; break;
+                                case TABLETA_TabletZ: data->mevt.Z = tag->ti_Data; break;
+                                case TABLETA_RangeZ: data->mevt.RangeZ = tag->ti_Data; break;
+                                case TABLETA_AngleX: data->mevt.AngleX = tag->ti_Data; break;
+                                case TABLETA_AngleY: data->mevt.AngleY = tag->ti_Data; break;
+                                case TABLETA_AngleZ: data->mevt.AngleZ = tag->ti_Data; break;
+                            }
+                        }
+                    } else {
+                        data->mevt.X = imsg->MouseX - _mleft(obj);
+                        data->mevt.Y = imsg->MouseY - _mtop(obj);
+                        data->mevt.Z = 0;
+                        data->mevt.AngleX = 0;
+                        data->mevt.AngleY = 0;
+                        data->mevt.AngleZ = 0;
+                        data->mevt.RangeX = scr->Width;
+                        data->mevt.RangeY = scr->Height;
+                        data->mevt.RangeZ = 0;
+                        data->mevt.Pressure = 0;
+                    }
+
+                    set(obj, MA_Surface_MotionEvent, &data->mevt);
+                }
                 break;
         }
     }

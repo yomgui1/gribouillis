@@ -4,6 +4,7 @@ MUIA_Selected = 0x8042654b
 MUIA_Window_Open = 0x80428aa0
 MUIA_Coloradjust_RGB = 0x8042f899
 MUIV_EveryTime = 0x49893131
+MUIV_TriggerValue = 0x49893131
 
 class MUIObject(object):
     def __init__(self, obj=None):
@@ -11,9 +12,18 @@ class MUIObject(object):
         self._muio = obj
 
     def _notify_cb(self, attr, v):
-        tv, cb, a = self._notify[attr]
+        try:
+            tv, cb, a = self._notify[attr]
+        except KeyError:
+            raise KeyError("No attribute %x" % attr)
+
         if tv == MUIV_EveryTime or tv == v:
-            cb(*a)
+            def args_filter(x):
+                if x == MUIV_TriggerValue:
+                    return v
+                else:
+                    return x
+            cb(*tuple(args_filter(x) for x in a))
 
     def notify(self, trigAttr, trigValue, callback, *args):
         self._notify[trigAttr] = (trigValue, callback, args)

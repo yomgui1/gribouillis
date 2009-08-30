@@ -148,6 +148,7 @@ $(TARGET).db: $(TARGET_OBJS)
 $(TARGET): $(TARGET).db
 	@$(CREATING)
 	$(STRIP) $(STRIPFLAGS)
+	chmod +x $@
 
 ##########################################################################
 # General Rules

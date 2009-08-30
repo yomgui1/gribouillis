@@ -1,12 +1,11 @@
 #include "common.h"
+#include "surface_mcc.h"
 #include "brush_mcc.h"
 
 #define Py_RETURN_MUIObject(s, o) ({ \
     s = PyCObject_FromVoidPtr(o, free_mo); \
     if (NULL == s) free_mo(o); \
     return s; })
-
-#define Image(f) MUI_NewObject(MUIC_Dtpic, MUIA_Dtpic_Name, (f), TAG_DONE)
 
 #define BRUSH_SIZE 64
 #define RB CHECKIT
@@ -115,10 +114,8 @@ static Object *do_DrawingWindow(void)
         MUIA_Window_ID, MAKE_ID('D','R','A','W'),
         MUIA_Window_Open, TRUE,
         WindowContents, VGroup,
-            Child, RectangleObject,
+            Child, SurfaceObject,
                 MUIA_Background, MUII_SHINE,
-                MUIA_FixWidth, 320,
-                MUIA_FixHeight, 320,
             End,
         End,
     End;

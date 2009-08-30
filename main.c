@@ -1,6 +1,7 @@
 #include <Python.h>
 
 #include "common.h"
+#include "surface_mcc.h"
 #include "brush_mcc.h"
 
 #define LAST_COLORS_NUM 4
@@ -10,6 +11,7 @@
 extern void init_muimodule(void);
 extern void init_coremodule(void);
 
+struct MUI_CustomClass *gSurfaceMCC=NULL;
 struct MUI_CustomClass *gBrushMCC=NULL;
 ULONG __stack = 1024*128;
 Object *gApp = NULL;
@@ -22,6 +24,12 @@ void exit_handler(void)
         MUI_DisposeObject(gApp);
         gApp = NULL;
     }
+
+    if (NULL != gSurfaceMCC)
+        SurfaceMCC_Term(gSurfaceMCC);
+
+    if (NULL != gBrushMCC)
+        BrushMCC_Term(gBrushMCC);
 }
 //-
 //+ myexit
@@ -35,9 +43,6 @@ static void myexit(char *str)
     }
 
     Py_Finalize();
-
-    if (NULL != gBrushMCC)
-        BrushMCC_Term(gBrushMCC);
 
     if (str || pyerr) {
         if (str)
@@ -75,7 +80,11 @@ int main(int argc, char **argv)
     /*--- MCCs creation ---*/
     gBrushMCC = BrushMCC_Init();
     if (NULL == gBrushMCC)
-        myexit("Failed to create MCC 'Image'");
+        myexit("Failed to create MCC 'Brush'");
+
+    gSurfaceMCC = SurfaceMCC_Init();
+    if (NULL == gSurfaceMCC)
+        myexit("Failed to create MCC 'Surface'");
 
     /*--- Run Python code ---*/
     if (PyRun_SimpleString("from startup import start; start()"))

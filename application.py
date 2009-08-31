@@ -19,6 +19,7 @@ class App(mui.Application):
         win_names = ( 'window_drawing',
                       'window_color',
                       'window_brushselect',
+                      'window_brusheditor',
                       )
         for name in win_names:
             m = __import__(name, gd, ld)

@@ -1,6 +1,7 @@
 #include "common.h"
 #include "surface_mcc.h"
 #include "brush_mcc.h"
+#include "curve_mcc.h"
 
 #define Py_RETURN_MUIObject(s, o) ({ \
     s = PyCObject_FromVoidPtr(o, free_mo); \
@@ -197,6 +198,31 @@ static Object *do_BrushSelectWindow(PyObject *app)
     return win;
 }
 //-
+//+ do_BrushEditorWindow
+static Object *do_BrushEditorWindow(void)
+{
+    Object *win;
+
+    win = WindowObject,
+        MUIA_Window_ID, MAKE_ID('B', 'E', 'D', 'T'),
+        MUIA_Window_Title, "Brush Editor",
+        WindowContents, VGroup,
+            Child, CurveObject,
+            End,
+        End,
+    End;
+
+    dprintf("New BrushEditor window: %p\n", win);
+
+    if (NULL != win) {
+        /* Close window when requested */
+        DoMethod(win, MUIM_Notify, MUIA_Window_CloseRequest, TRUE,
+                 MUIV_Notify_Self, 3, MUIM_Set, MUIA_Window_Open, FALSE);
+    }
+
+    return win;
+}
+//-
 //+ OnColorChanged
 static void OnColorChanged(struct Hook *hook, Object *caller, ULONG *args)
 {
@@ -369,6 +395,19 @@ static PyObject *core_get_surface(PyObject *self)
     Py_RETURN_MUIObject(self, gSurface);
 }
 //-
+//+ core_do_win_brusheditor
+static PyObject *core_do_win_brusheditor(PyObject *self)
+{
+    Object *mo = do_BrushEditorWindow();
+
+    if (NULL == mo) {
+        PyErr_SetString(PyExc_SystemError, "MUI BrushEditor window failed");
+        return NULL;
+    }
+
+    Py_RETURN_MUIObject(self, mo);
+}
+//-
 
 //+ _CoreMethods
 static PyMethodDef _CoreMethods[] = {
@@ -377,6 +416,7 @@ static PyMethodDef _CoreMethods[] = {
     {"do_win_color", (PyCFunction)core_do_win_color, METH_O, NULL},
     {"do_win_drawing", (PyCFunction)core_do_win_drawing, METH_NOARGS, NULL},
     {"do_win_brushselect", core_do_win_brushselect, METH_O, NULL},
+    {"do_win_brusheditor", (PyCFunction)core_do_win_brusheditor, METH_NOARGS, NULL},
     {"do_color_adjust", (PyCFunction)core_do_color_adjust, METH_NOARGS, NULL},
 
     {"do_brush", core_do_brush, METH_VARARGS, NULL},

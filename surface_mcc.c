@@ -175,11 +175,11 @@ static ULONG mHandleEvent(struct IClass *cl, Object *obj, struct MUIP_HandleEven
     if (NULL != imsg) {
         struct TabletData *td = ((struct ExtIntuiMessage *)imsg)->eim_TabletData;
 
-        switch (msg->imsg->Class) {
+        switch (imsg->Class) {
             case IDCMP_MOUSEBUTTONS:
-                if (_isinobject(msg->imsg->MouseX, msg->imsg->MouseY)) { 
-                    BOOL down = (msg->imsg->Code & IECODE_UP_PREFIX) == 0;
-                    BOOL select = (msg->imsg->Code & IECODE_LBUTTON) == IECODE_LBUTTON;
+                if (_isinobject(imsg->MouseX, imsg->MouseY)) { 
+                    BOOL down = (imsg->Code & IECODE_UP_PREFIX) == 0;
+                    BOOL select = (imsg->Code & IECODE_LBUTTON) == IECODE_LBUTTON;
 
                     if (NULL != td) {
                         if (select)
@@ -195,7 +195,7 @@ static ULONG mHandleEvent(struct IClass *cl, Object *obj, struct MUIP_HandleEven
                 break;
 
             case IDCMP_MOUSEMOVE:
-                if (_isinobject(msg->imsg->MouseX, msg->imsg->MouseY)) {
+                if (_isinobject(imsg->MouseX, imsg->MouseY)) {
                     struct Screen *scr = _screen(obj); 
                     
                     if (NULL != td) {

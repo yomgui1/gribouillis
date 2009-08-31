@@ -135,6 +135,7 @@ TARGET = $(BUILDDIR)/Gribouillis
 
 TARGET_SRCS = main.c _muimodule.c _coremodule.c brush_mcc.c
 TARGET_SRCS += surface_mcc.c _surfacemodule.c
+TARGET_SRCS += curve_mcc.c
 ALL_SOURCES += $(TARGET_SRCS)
 
 TARGET_OBJS = $(TARGET_SRCS:%.c=$(OBJDIR)/%.o)

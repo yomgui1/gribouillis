@@ -5,9 +5,9 @@
 
 #define SurfaceObject NewObject(gSurfaceMCC->mcc_Class, NULL
 
-#define MA_Surface_MotionEvent (MYTAGBASE+1)
-#define MA_Surface_LeftButtonPressed (MYTAGBASE+2)
-#define MM_Surface_Draw (MYTAGBASE+3)
+#define MA_Surface_MotionEvent (MYTAGBASE+0x00)
+#define MA_Surface_LeftButtonPressed (MYTAGBASE+0x01)
+#define MM_Surface_Draw (MYTAGBASE+0x02)
 
 #define PRESSURE_MAX 0x7ffff800
 

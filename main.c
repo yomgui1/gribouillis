@@ -1,6 +1,7 @@
 #include "common.h"
 #include "surface_mcc.h"
 #include "brush_mcc.h"
+#include "curve_mcc.h"
 
 #include <devices/usb.h>
 #include <devices/usb_hid.h>
@@ -38,6 +39,7 @@ void FreeWacom(struct ClassWacom *);
 struct Library *PsdBase=NULL;
 struct MUI_CustomClass *gSurfaceMCC=NULL;
 struct MUI_CustomClass *gBrushMCC=NULL;
+struct MUI_CustomClass *gCurveMCC=NULL;
 ULONG __stack = 1024*128;
 Object *gApp = NULL;
 struct ClassWacom *gWacomHandle;
@@ -57,6 +59,9 @@ void exit_handler(void)
 
     if (NULL != gBrushMCC)
         BrushMCC_Term(gBrushMCC);
+
+    if (NULL != gCurveMCC)
+        CurveMCC_Term(gCurveMCC);
 
     if (NULL != gWacomHandle)
         FreeWacom(gWacomHandle);
@@ -292,14 +297,6 @@ int main(int argc, char **argv)
     Py_Initialize();
     PySys_SetArgv(argc, argv);
 
-    m = PyImport_AddModule("__main__"); /* BR */
-    if (NULL == m)
-        myexit(FATAL_PYTHON_ERROR);
-
-    init_muimodule();
-    init_coremodule();
-    init_surfacemodule();
-
     /*--- Other init ---*/
     PsdBase = OpenLibrary("poseidon.library", 1);
     if (NULL == PsdBase)
@@ -310,6 +307,10 @@ int main(int argc, char **argv)
         SetupWacom(gWacomHandle);
 
     /*--- MCCs creation ---*/
+    gCurveMCC = CurveMCC_Init();
+    if (NULL == gCurveMCC)
+        myexit("Failed to create MCC 'Curve'");
+
     gBrushMCC = BrushMCC_Init();
     if (NULL == gBrushMCC)
         myexit("Failed to create MCC 'Brush'");
@@ -319,6 +320,14 @@ int main(int argc, char **argv)
         myexit("Failed to create MCC 'Surface'");
 
     /*--- Run Python code ---*/
+    m = PyImport_AddModule("__main__"); /* BR */
+    if (NULL == m)
+        myexit(FATAL_PYTHON_ERROR);
+
+    init_muimodule();
+    init_coremodule();
+    init_surfacemodule();
+
     if (PyRun_SimpleString("from startup import start; start()"))
         myexit(FATAL_PYTHON_ERROR);
 

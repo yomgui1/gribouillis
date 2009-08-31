@@ -201,13 +201,15 @@ static Object *do_BrushSelectWindow(PyObject *app)
 //+ do_BrushEditorWindow
 static Object *do_BrushEditorWindow(void)
 {
-    Object *win;
+    Object *win, *curve, *bDelAll;
 
     win = WindowObject,
         MUIA_Window_ID, MAKE_ID('B', 'E', 'D', 'T'),
         MUIA_Window_Title, "Brush Editor",
         WindowContents, VGroup,
-            Child, CurveObject,
+            Child, curve = CurveObject, End,
+            Child, HGroup,
+                Child, bDelAll = SimpleButton("_Delete All"),
             End,
         End,
     End;
@@ -218,6 +220,9 @@ static Object *do_BrushEditorWindow(void)
         /* Close window when requested */
         DoMethod(win, MUIM_Notify, MUIA_Window_CloseRequest, TRUE,
                  MUIV_Notify_Self, 3, MUIM_Set, MUIA_Window_Open, FALSE);
+
+        DoMethod(bDelAll, MUIM_Notify, MUIA_Pressed, FALSE,
+                 curve, 1, MM_Curve_DeleteAll);
     }
 
     return win;

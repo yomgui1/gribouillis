@@ -27,7 +27,7 @@ class Gribouillis(Application):
 
         self.init_brushes() 
 
-        #self.window_color.add_watcher(self.OnColorChanged)
+        self.win_Color.add_watcher(self.OnColorChanged)
         self.set_active_brush(self.brushes[0])
         self.set_color(0, 0, 0)
 

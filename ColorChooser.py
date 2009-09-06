@@ -26,14 +26,13 @@ class ColorChooser(Window):
 
         top.AddChild(self.coladj, bar, g)
 
-        self.coladj.Notify('Red', MUIV_EveryTime, self.OnColorChanged)
+        self.coladj.Notify('RGB', MUIV_EveryTime, self.OnColorChanged)
         self._colstr.Notify('Acknowledge', MUIV_EveryTime, self.OnColStrChanged)
 
         self.color = (0, 0, 0)
 
     def OnColStrChanged(self):
         s = self._colstr.Contents
-        print s
         if not s:
             self._colstr.Contents = self._colstr_save
         else:
@@ -44,8 +43,8 @@ class ColorChooser(Window):
             self.color = c
 
     def OnColorChanged(self):
-        self._color = (self.coladj.Red >> 24, self.coladj.Green >> 24, self.coladj.Blue >> 24)
-        self._colstr_save = "#%02x%02x%02x" % self._color
+        self._color = self.coladj.RGB
+        self._colstr_save = "#%s%s%s" % tuple(hex(x)[2:4] for x in self._color)
         self._colstr.Contents = self._colstr_save
 
         for cb in self.watchers:
@@ -68,9 +67,7 @@ class ColorChooser(Window):
         b = clamp(0, b, 255)
 
         # Notify only after the blue
-        self.coladj.Green = g << 24
-        self.coladj.Blue = b << 24
-        self.coladj.Red = (r << 24) + (r << 16) + (r << 8) + r # Notify only after the Red
+        self.coladj.RGB = (r << 24, g << 24, b << 24)
 
     def DelColor(self):
         self.color = self.default_color

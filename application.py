@@ -1,39 +1,59 @@
 from __future__ import with_statement
-import os, _core, mui, sys
+import os, sys
+from pymui import *
 from brush import Brush
 
-class App(mui.Application):
-    def __init__(self, datapath, userpath=None):
-        super(App, self).__init__(_core.create_app())
+from DrawWindow import DrawWindow
+from ColorChooser import ColorChooser
+from BrushSelect import BrushSelect
 
+class Gribouillis(Application):
+    VERSION = 1.0
+    DATE    = "05/09/2009"
+
+    def __init__(self, datapath, userpath=None):
         if userpath is None:
             userpath = datapath
 
-        self.paths = dict(data=datapath, user=userpath)
-        
-        self.init_brushes()
+        self.paths = dict(data=datapath, user=userpath) 
 
-        # GUI creation
-        gd = globals()
-        ld = locals()
-        win_names = ( 'window_drawing',
-                      'window_color',
-                      'window_brushselect',
-                      'window_brusheditor',
-                      )
-        for name in win_names:
-            m = __import__(name, gd, ld)
-            win = m.window(self)
-            self.__dict__[name] = win
-            win.open()
+        super(Gribouillis, self).__init__(
+            Title       = "Gribouillis",
+            Version     = "$VER: Gribouillis %s (%s)" % (self.VERSION, self.DATE),
+            Copyright   = "\xa92009, Guillaume ROGUEZ",
+            Author      = "Guillaume ROGUEZ",
+            Description = "Simple Painting program for MorphOS",
+            Base        = "Gribouillis")
 
-        self.window_color.add_watcher(self.OnColorChanged)   
-        
-        self.set_active_brush(self.brushes[0]) 
+        self.init_brushes() 
+
+        #self.window_color.add_watcher(self.OnColorChanged)
+        self.set_active_brush(self.brushes[0])
         self.set_color(0, 0, 0)
 
+        self.win_Draw.Open()
+        self.win_Color.Open()
+        self.win_BSel.Open()
+
+    def _create(self, *args):
+        super(Gribouillis, self)._create(*args)
+        
+        self.win_Draw = DrawWindow("Draw Area")
+        self.win_Color = ColorChooser("Color Selection")
+        self.win_BSel = BrushSelect("Brush Selection")
+
+        self.win_Draw.Notify('CloseRequest', True, self.Quit)
+        self.win_Color.Notify('CloseRequest', True, self.win_Color.Close)
+        self.win_BSel.Notify('CloseRequest', True, self.win_BSel.Close)
+
+        # We can't open a window if it has not been attached to the application
+        self.AddWindow(self.win_Draw)
+        self.AddWindow(self.win_Color)
+        self.AddWindow(self.win_BSel)
+
     def init_brushes(self):
-        self._brush = Brush()
+        self._main_brush = self.win_BSel.brush
+        self._brush = None
         
         self.paths['builtins_brushes'] = os.path.join(self.paths['data'], 'brushes')
         self.paths['user_brushes'] = os.path.join(self.paths['user'], 'brushes')
@@ -62,28 +82,33 @@ class App(mui.Application):
 
         self.brushes_names = unsorted_brushes + sorted_brushes
 
-        self.brushes = []
         paths = (self.paths['user_brushes'], self.paths['builtins_brushes'])
+        self.brushes = []
         for name in self.brushes_names:
             b = Brush()
             b.load(paths, name)
-            b.notify(mui.MUIA_Selected, mui.MUIV_EveryTime, self.OnSelectBrush, b)
+            b.Notify(MUIA_Selected, MUIV_EveryTime, self.OnSelectBrush, b)
             self.brushes.append(b)
+        self.win_BSel.SetBrushes(self.brushes)
 
     def set_color(self, *rgb):
-        self.window_color.color = rgb # Coloradjust object will call OnColor method
+        self.win_Color.color = rgb # Coloradjust object will call OnColor method
 
     def OnColorChanged(self, color): # Called by the ColorChooser window
         self.brush.color = color
 
     def OnSelectBrush(self, brush):
-        mui.nnset(self.brush.mui, mui.MUIA_Selected, False) 
-        self.brush = brush
+        if not self._brush is brush:
+            self.brush = brush
+        else:
+            brush.NNSet(MUIA_Selected, True)    
 
     def set_active_brush(self, brush):
-        self._brush.copy(brush)
-        mui.nnset(brush.mui, mui.MUIA_Selected, True)
-        _core.set_active_brush(brush.path)
+        self._main_brush.copy(brush)
+        if self._brush:
+            self._brush.NNSet(MUIA_Selected, False)
+        self._brush = brush
+        brush.NNSet(MUIA_Selected, True)
 
-    brush = property(fget=lambda self: self._brush, fset=set_active_brush)
+    brush = property(fget=lambda self: self._main_brush, fset=set_active_brush)
 

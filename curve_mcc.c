@@ -1,10 +1,58 @@
 #include "common.h"
-#include "curve_mcc.h"
+
+#define MA_Curve_Points    (MYTAGBASE+0x10)
+#define MA_Curve_Count     (MYTAGBASE+0x11)
+#define MM_Curve_DeleteAll (MYTAGBASE+0x12)
+#define MM_Curve_MapValue  (MYTAGBASE+0x13)
+
+struct MP_Curve_MapValue { ULONG MethodID; FLOAT *Value; };
+
+#define SUPERCLASS MUIC_Area
+#define UserLibID "$VER: "CLASS" "VERSION_STR" ("__DATE__")"
+
+#define LIBQUERYID "CURVE_MCC"
+#define LIBQUERYDESCRIPTION "Curve editor MCC"
+
+#define ClassInit ClassInitFunc
+#define ClassExit ClassExitFunc
+
+#ifdef NDEBUG
+#define D(x)
+#else
+#define D(x) x
+#endif
+
+#define bug dprintf
+
+typedef struct FloatPoint
+{
+    FLOAT x, y;
+} FloatPoint;
+
+typedef struct KnotNode {
+    struct MinNode kn_Node;
+    FloatPoint     kn_Position;
+} KnotNode;
+
+typedef struct Data
+{
+    struct MinList              KnotList;
+    struct MUI_EventHandlerNode EventNode;
+    struct Region *             ClipRegion;
+    KnotNode *                  GrabNode;
+    KnotNode *                  LastAdded;
+    ULONG Pen_Bg, Pen_Grid, Pen_Line, Pen_Knot;
+    FloatPoint                  Old;
+} Data;
+ 
+#include "mui/mccheader.c"
 
 #include <graphics/gfxmacros.h>
 
 #include <proto/graphics.h>
 #include <proto/layers.h>
+
+#include <string.h> /* memset */
 
 #define CLAMP(v, min, max) ({                             \
             typeof(v) _v = (v);                                 \
@@ -23,25 +71,7 @@
 #define GRID_DIVX 4
 #define GRID_DIVY 4
 
-typedef struct FloatPoint
-{
-    FLOAT x, y;
-} FloatPoint;
-
-typedef struct KnotNode {
-    struct MinNode kn_Node;
-    FloatPoint     kn_Position;
-} KnotNode;
-
-typedef struct MCCData {
-    struct MinList              KnotList;
-    struct MUI_EventHandlerNode EventNode;
-    struct Region *             ClipRegion;
-    KnotNode *                  GrabNode;
-    KnotNode *                  LastAdded;
-    ULONG Pen_Bg, Pen_Grid, Pen_Line, Pen_Knot;
-    FloatPoint                  Old;
-} MCCData;
+static struct Library *LayersBase;
 
 //+ new_knot
 static KnotNode *new_knot(FLOAT x, FLOAT y)
@@ -56,7 +86,7 @@ static KnotNode *new_knot(FLOAT x, FLOAT y)
 }
 //-
 //+ add_knot
-static KnotNode *add_knot(MCCData *data, FLOAT x, FLOAT y)
+static KnotNode *add_knot(Data *data, FLOAT x, FLOAT y)
 {
     KnotNode *node, *new_node = NULL;
 
@@ -95,14 +125,14 @@ static KnotNode *add_knot(MCCData *data, FLOAT x, FLOAT y)
             if (new_node != NULL)
                 ADDTAIL(&data->KnotList, new_node);
         } else
-            fprintf(stderr, "%s:%u: bad case!\n", __FUNCTION__, __LINE__);
+            D(bug("%s:%u: bad case!\n", __FUNCTION__, __LINE__));
     }
 
     return new_node;
 }
 //-
 //+ del_knot
-static void del_knot(MCCData *data, KnotNode *node)
+static void del_knot(Data *data, KnotNode *node)
 {
     if ((node != (KnotNode *)GetHead(&data->KnotList)) && (node != (KnotNode *)GetTail(&data->KnotList)))
         REMOVE(node);
@@ -111,7 +141,7 @@ static void del_knot(MCCData *data, KnotNode *node)
 }
 //-
 //+ find_knot
-static KnotNode *find_knot(MCCData *data, FLOAT x, FLOAT y, FLOAT radius)
+static KnotNode *find_knot(Data *data, FLOAT x, FLOAT y, FLOAT radius)
 {
     KnotNode *node;
 
@@ -130,6 +160,9 @@ static void set_knot(KnotNode *node, FLOAT x, FLOAT y)
 {
     KnotNode *pred, *succ;
 
+    x = CLAMP(x, 0.0, 1.0);
+    y = CLAMP(y, 0.0, 1.0);
+
     pred = (KnotNode *)GetPred(node);
     succ = (KnotNode *)GetSucc(node);
 
@@ -144,12 +177,28 @@ static void set_knot(KnotNode *node, FLOAT x, FLOAT y)
 }
 //-
 
+//+ ClassInitFunc
+BOOL ClassInitFunc(void)
+{
+    LayersBase = OpenLibrary("layers.library", 50);
+    dprintf("layer library: %p\n", LayersBase);
+    return NULL != LayersBase;
+}
+//-
+//+ ClassExitFunc
+VOID ClassExitFunc(void)
+{
+    if (NULL != LayersBase)
+        CloseLibrary(LayersBase);
+}
+//-
+
 /*-----------------------------------------------------------------------------------------------------------*/
 
 //+ mNew
 static ULONG mNew(struct IClass *cl, Object *obj, Msg msg)
 {
-    MCCData *data;
+    Data *data;
     struct TagItem *tags, *tag;
 
     obj = (Object *)DoSuperMethodA(cl, obj, msg);
@@ -207,7 +256,7 @@ static ULONG mAskMinMax(struct IClass *cl, Object *obj, struct MUIP_AskMinMax *m
 //+ mSetup
 static ULONG mSetup(struct IClass *cl, Object *obj, Msg msg)
 {
-    MCCData *data = INST_DATA(cl, obj);
+    Data *data = INST_DATA(cl, obj);
     
     if (!DoSuperMethodA(cl, obj, msg))
         return FALSE;
@@ -229,7 +278,7 @@ static ULONG mSetup(struct IClass *cl, Object *obj, Msg msg)
 //+ mCleanup
 static ULONG mCleanup(struct IClass *cl, Object *obj, Msg msg)
 {
-    MCCData *data = INST_DATA(cl, obj);
+    Data *data = INST_DATA(cl, obj);
     
     DoMethod(_win(obj), MUIM_Window_RemEventHandler, &data->EventNode);
     return DoSuperMethodA(cl, obj, msg);
@@ -238,7 +287,7 @@ static ULONG mCleanup(struct IClass *cl, Object *obj, Msg msg)
 //+ mShow
 static ULONG mShow(struct IClass *cl, Object *obj, Msg msg)
 {
-    MCCData *data = INST_DATA(cl, obj);
+    Data *data = INST_DATA(cl, obj);
 
     data->ClipRegion = NewRegion();
     if (NULL != data->ClipRegion) {
@@ -254,7 +303,7 @@ static ULONG mShow(struct IClass *cl, Object *obj, Msg msg)
 //+ mHide
 static ULONG mHide(struct IClass *cl, Object *obj, Msg msg)
 {
-    MCCData *data = INST_DATA(cl, obj);
+    Data *data = INST_DATA(cl, obj);
 
     DisposeRegion(data->ClipRegion);
     return DoSuperMethodA(cl, obj, msg);
@@ -263,7 +312,7 @@ static ULONG mHide(struct IClass *cl, Object *obj, Msg msg)
 //+ mDraw
 static ULONG mDraw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
 {
-    MCCData *data = INST_DATA(cl, obj);
+    Data *data = INST_DATA(cl, obj);
     struct RastPort *rp;
     struct Region *oldregion;
     UWORD left, right, top, bottom, width, height;
@@ -348,7 +397,7 @@ static ULONG mHandleEvent(struct IClass *cl, Object *obj, struct MUIP_HandleEven
 {
     #define _isinobject(x,y) (_between(_mleft(obj),(x),_mright(obj)) && _between(_mtop(obj),(y),_mbottom(obj)))
 
-    MCCData *data = INST_DATA(cl, obj);
+    Data *data = INST_DATA(cl, obj);
     
     if (NULL != msg->imsg) {
         switch (msg->imsg->Class) {
@@ -374,7 +423,7 @@ static ULONG mHandleEvent(struct IClass *cl, Object *obj, struct MUIP_HandleEven
                 break;
 
             case IDCMP_MOUSEBUTTONS:
-                if (_isinobject(msg->imsg->MouseX, msg->imsg->MouseY)) {
+                {
                     BOOL down = (msg->imsg->Code & IECODE_UP_PREFIX) == 0;
                     BOOL button = msg->imsg->Code & (IECODE_LBUTTON|IECODE_MBUTTON|IECODE_RBUTTON);
                     FLOAT fx, fy;
@@ -383,40 +432,44 @@ static ULONG mHandleEvent(struct IClass *cl, Object *obj, struct MUIP_HandleEven
                     /* Convert raster position into [0.0, 1.0] range */
                     fx = (FLOAT)(msg->imsg->MouseX - _mleft(obj)) / (_mwidth(obj) - 1);
                     fy = 1.0 - (FLOAT)(msg->imsg->MouseY - _mtop(obj)) / (_mheight(obj) - 1);
+ 
+                    if (_isinobject(msg->imsg->MouseX, msg->imsg->MouseY)) {
+                        if (NULL == data->GrabNode) { /* Not in grab mode */
+                            if ((button == IECODE_LBUTTON) && down) {
+                                FLOAT fr;
 
-                    if (NULL == data->GrabNode) { /* Not in grab mode */
-                        if ((button == IECODE_LBUTTON) && down) {
-                            FLOAT fr;
+                                /* convert pixel radius into float radius */
+                                fr = (FLOAT)(KNOT_RADIUS+1) / (_mwidth(obj) - 1);
 
-                            /* convert pixel radius into float radius */
-                            fr = (FLOAT)(KNOT_RADIUS+1) / (_mwidth(obj) - 1);
+                                node = find_knot(data, fx, fy, fr);
+                                if (NULL != node) { /* Click on an existing knot */
+                                    data->GrabNode = node; /* Enter in grab mode */
+                                    set_knot(node, fx, fy); /* move the knot */
+                                } else { /* New knot wanted */
+                                    node = add_knot(data, fx, fy); /* may return an existing node if user click
+                                                                    * just perfectly on the same y-level.
+                                                                    */
+                                    data->GrabNode = node; /* Enter in grab mode */
+                                    set_knot(node, fx, fy); /* move the knot */
+                                }
 
-                            node = find_knot(data, fx, fy, fr);
-                            if (NULL != node) { /* Click on an existing knot */
-                                data->GrabNode = node; /* Enter in grab mode */
-                                set_knot(node, fx, fy); /* move the knot */
-                            } else { /* New knot wanted */
-                                node = add_knot(data, fx, fy); /* may return an existing node if user click
-                                                                * just perfectly on the same y-level.
-                                                                */
-                                data->GrabNode = node; /* Enter in grab mode */
-                                set_knot(node, fx, fy); /* move the knot */
+                                data->Old = node->kn_Position;
+
+                                /* We enter in grab mode => listen to mouse move */
+                                DoMethod(_win(obj), MUIM_Window_RemEventHandler, &data->EventNode);
+                                data->EventNode.ehn_Events |= IDCMP_MOUSEMOVE | IDCMP_VANILLAKEY;
+                                DoMethod(_win(obj), MUIM_Window_AddEventHandler, &data->EventNode);
+
+                                MUI_Redraw(obj, MADF_DRAWOBJECT);
+                                return MUI_EventHandlerRC_Eat;
                             }
-
-                            data->Old = node->kn_Position;
-
-                            /* We enter in grab mode => listen to mouse move */
-                            DoMethod(_win(obj), MUIM_Window_RemEventHandler, &data->EventNode);
-                            data->EventNode.ehn_Events |= IDCMP_MOUSEMOVE | IDCMP_VANILLAKEY;
-                            DoMethod(_win(obj), MUIM_Window_AddEventHandler, &data->EventNode);
-
-                            MUI_Redraw(obj, MADF_DRAWOBJECT);
-                            return MUI_EventHandlerRC_Eat;
                         }
-                    } else { /* In grab mode */
+                    }
+
+                    if (NULL != data->GrabNode) { /* In grab mode */
                         if ((button == IECODE_LBUTTON) && !down) {
                             /* Was in grab mode => confirm node position and return to normal mode */
-                            set_knot(data->GrabNode, fx, fy);
+                            set_knot(data->GrabNode, data->GrabNode->kn_Position.x, data->GrabNode->kn_Position.y);
                             data->GrabNode = NULL;
                             data->LastAdded = NULL; /* or it can be deleted to next move+rbutton */
 
@@ -426,7 +479,7 @@ static ULONG mHandleEvent(struct IClass *cl, Object *obj, struct MUIP_HandleEven
                             DoMethod(_win(obj), MUIM_Window_AddEventHandler, &data->EventNode);
 
                             MUI_Redraw(obj, MADF_DRAWOBJECT);
-                        } 
+                        }
 
                         if ((button == IECODE_RBUTTON) && down) {
                             /* Cancel move/delete new knot and leave the grab mode */
@@ -434,7 +487,7 @@ static ULONG mHandleEvent(struct IClass *cl, Object *obj, struct MUIP_HandleEven
                                 del_knot(data, data->GrabNode);
                             else
                                 set_knot(data->GrabNode, data->Old.x, data->Old.y);
-                            data->GrabNode = NULL; 
+                            data->GrabNode = NULL;
 
                             DoMethod(_win(obj), MUIM_Window_RemEventHandler, &data->EventNode);
                             data->EventNode.ehn_Events &= ~(IDCMP_MOUSEMOVE | IDCMP_VANILLAKEY);
@@ -473,7 +526,7 @@ static ULONG mHandleEvent(struct IClass *cl, Object *obj, struct MUIP_HandleEven
 //+ mDeleteAll
 static ULONG mDeleteAll(struct IClass *cl, Object *obj, Msg msg)
 {
-    MCCData *data = INST_DATA(cl, obj);
+    Data *data = INST_DATA(cl, obj);
     KnotNode *node, *head, *tail;
     APTR next;
 
@@ -501,7 +554,7 @@ static ULONG mDeleteAll(struct IClass *cl, Object *obj, Msg msg)
 //+ mMapValue
 static ULONG mMapValue(struct IClass *cl, Object *obj, struct MP_Curve_MapValue *msg)
 {
-    MCCData *data = INST_DATA(cl, obj);
+    Data *data = INST_DATA(cl, obj);
     KnotNode *succ, *pred;
 
     if ((*msg->Value < 0.0) || (*msg->Value > 1.0))
@@ -535,9 +588,13 @@ static ULONG mMapValue(struct IClass *cl, Object *obj, struct MP_Curve_MapValue 
     }
 }
 //-
-//+ DISPATCHER
-DISPATCHER(mcc)
+//+ _Dispatcher
+ULONG _Dispatcher(VOID)
 {
+    struct IClass *cl = (APTR)REG_A0;
+    Object *obj = (APTR)REG_A2;
+    Msg msg = (APTR)REG_A1;
+ 
     switch (msg->MethodID) {
         case OM_NEW            : return mNew        (cl, obj, (APTR)msg);
         case OM_DISPOSE        : return mDispose    (cl, obj, (APTR)msg);
@@ -554,20 +611,5 @@ DISPATCHER(mcc)
 
     return DoSuperMethodA(cl, obj, msg);
 }
-DISPATCHER_END
 //-
 
-/*-----------------------------------------------------------------------------------------------------------*/
-
-//+ CurveMCC_Init
-struct MUI_CustomClass * CurveMCC_Init(void)
-{
-    return MUI_CreateCustomClass(NULL, MUIC_Area, NULL, sizeof(MCCData), DISPATCHER_REF(mcc));
-}
-//-
-//+ CurveMCC_Term
-void CurveMCC_Term(struct MUI_CustomClass * mcc)
-{
-    MUI_DeleteCustomClass(mcc);
-}
-//-

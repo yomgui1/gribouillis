@@ -32,13 +32,6 @@ static ULONG Name##_Dispatcher(void) { struct IClass *cl=(struct IClass*)REG_A0;
     _h->h_Entry = (APTR) HookEntry; \
     _h->h_SubEntry = (APTR) (f); }
 
-#define PYOBJECT2OBJECT(pyo) ({ \
-    PyObject *_pyo = (PyObject *)(pyo); \
-    Object *_mo = PyCObject_AsVoidPtr(_pyo); \
-    if ((NULL == _mo) && !PyErr_Occurred()) \
-        PyErr_SetString(PyExc_ValueError, "python C object not associated to a MUI object"); \
-    _mo; })
-
 #define MYTAGBASE (TAG_USER | 0x95fe0000)
 
 #define INSI(m, s, v) if (PyModule_AddIntConstant(m, s, v)) return -1
@@ -47,6 +40,5 @@ static ULONG Name##_Dispatcher(void) { struct IClass *cl=(struct IClass*)REG_A0;
 
 extern struct Library *PythonBase;
 extern void dprintf(char*fmt, ...);
-extern Object *gApp;
 
 #endif /* COMMON_H */

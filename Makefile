@@ -42,6 +42,8 @@ INCLUDES = $(SRCDIR) $(OBJDIR) .
 
 ifneq ("$(OS)", "MorphOS")
 INCLUDES += /opt/gg/os-private
+else
+INCLUDES += /MOSPRVINC
 endif
 
 INCLUDES += $(PYTHON_INCDIR)
@@ -71,7 +73,7 @@ CVINCLUDE = cvinclude.pl
 ARFLAGS = rcsv
 
 CFLAGS = -noixemul -g
-OPT = -O2 -mstring -mregnames -fomit-frame-pointer -fno-strict-aliasing -fcall-saved-r13
+OPT = -O2 -mstring -mregnames -fomit-frame-pointer -fno-strict-aliasing -fcall-saved-r13 -ffixed-r13
 CC_WARNS = \
 	-Wall \
 	-Wno-format \
@@ -83,8 +85,12 @@ CPPFLAGS = $(CFLAGS) $(CC_WARNS) $(OPT) $(DEFINES:%=-D%) $(INCLUDES:%=-I%)
 LINKFLAGS = $(CFLAGS) -Wl,--traditional-format \
 	-Wl,--cref -Wl,--stats -Wl,-Map=mapfile.txt \
 	-Wl,--warn-common -Wl,--warn-once
+LDFLAGS_SHARED = --traditional-format \
+	--cref -Map=$(BUILDDIR)/mapfile.txt -m morphos \
+	-fl libnix --warn-common --warn-once
+LDLIBS = -lc -laboxstubs -labox -lc -lm -lmath -ldl
 
-LIBS = -L$(PREFIX)/lib -lpython -lauto -lsyscall
+LIBS = -L$(PREFIX)/lib -lpython -lsyscall
 ifneq ("$(OS)", "MorphOS")
 LDLIBS += -lnix
 endif
@@ -108,7 +114,7 @@ MAKINGDIR = $(ECHO) $(COLOR_HIGHLIGHT2)">> Making directory "$(COLOR_BOLD)"$(@D)
 ######### Automatic rules
 
 .SUFFIXES:
-.SUFFIXES: .c .h .s .o .d .db .sym
+.SUFFIXES: .c .h .s .o .d .db .sym .mcc
 
 $(OBJDIR)/%.o : $(SRCDIR)/%.c
 	-@test ! -d $(@D) && $(MAKINGDIR) && mkdir -p $(@D)
@@ -131,26 +137,15 @@ $(DEPDIR)/%.d : %.c
 ##########################################################################
 # Target Rules and defines
 
-TARGET = $(BUILDDIR)/Gribouillis
+ALL_SOURCES += $(MCC_SRCS)
 
-TARGET_SRCS = main.c _muimodule.c _coremodule.c brush_mcc.c
-TARGET_SRCS += surface_mcc.c _surfacemodule.c
-TARGET_SRCS += curve_mcc.c
-ALL_SOURCES += $(TARGET_SRCS)
-
-TARGET_OBJS = $(TARGET_SRCS:%.c=$(OBJDIR)/%.o)
-
-$(TARGET).db: DEFINES+=VERSION_STR=\"$(VERSION)\"
-$(TARGET).db: OBJS=$(TARGET_OBJS)
-
-$(TARGET).db: $(TARGET_OBJS)
-	@$(COMPILING)
-	$(CC) $(LINKFLAGS) -o $@ $^ $(LIBS)
-
-$(TARGET): $(TARGET).db
-	@$(CREATING)
-	$(STRIP) $(STRIPFLAGS)
-	chmod +x $@
+%.mcc.db:
+	$(MAKE) $(MCC_OBJS) DEFINES="$(DEFINES) CLASS=\\\"$(MCC).mcc\\\" \
+		VERSION=$(VERSION) REVISION=$(REVISION) VERSION_STR=\\\"$(VERSION).$(REVISION)\\\" \
+		VERSION_STR=\\\"$(VERSION).$(REVISION)\\\""
+	-@test ! -d $(@D) && $(MAKINGDIR) && mkdir -p $(@D)
+	@$(LINKING)
+	$(LD) -o $@ $(LDFLAGS_SHARED) $(MCC_OBJS) $(LDLIBS) $(LIBS)
 
 ##########################################################################
 # General Rules
@@ -163,22 +158,23 @@ force:;
 debug final:
 
 clean:
-	rm -f mapfile.txt $(TARGET).* $(TARGET)
+	rm -f mapfile.txt *.db *.sym
 	-[ -d $(OBJDIR) ] && find $(OBJDIR) -name "*.o" -exec rm -v {} ";"
 
 distclean: clean
 	rm -rf $(BUILDDIR)/deps $(BUILDDIR)/objs $(BUILDDIR)/libs $(BUILDDIR)/include
 
-all: $(TARGET) $(TARGET).sym
+all: $(BUILDDIR)/Curve.mcc.sym $(BUILDDIR)/Curve.mcc
 
-release : $(TARGET).tar.bz2
+$(BUILDDIR)/Curve.mcc.db: MCC:=Curve
+$(BUILDDIR)/Curve.mcc.db: MCC_SRCS:=curve_mcc.c
+$(BUILDDIR)/Curve.mcc.db: MCC_OBJS= $(MCC_SRCS:%.c=$(OBJDIR)/%.o)
+$(BUILDDIR)/Curve.mcc.db: VERSION:=1
+$(BUILDDIR)/Curve.mcc.db: REVISION:=0
 
-$(TARGET).tar.bz2: $(TARGET) *.py brushes/*.png brushes/*.myb brushes/*.conf
-	@$(CREATING)
-	-rm -f $(TARGET).tar $@
-	tar cf $(TARGET).tar $^
-	bzip2 -cz9 $(TARGET).tar > $@
-	-rm -f $(TARGET).tar
+$(BUILDDIR)/Curve.mcc: $(BUILDDIR)/Curve.mcc.db
+	$(STRIP) $(STRIPFLAGS)
+	chmod +x $@
 
 ######### Automatic deps inclusion
 

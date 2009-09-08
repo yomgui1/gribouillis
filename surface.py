@@ -1,4 +1,4 @@
-from pymui import Rectangle
+from pymui import *
 from array import array
 
 T_SIZE = 16
@@ -20,15 +20,23 @@ if DEBUG:
 
 class Surface(Rectangle):
     def __init__(self):
-        super(Surface, self).__init__()
+        super(Surface, self).__init__(Background=MUII_SHINE, InnerTop=0, InnerLeft=0, InnerRight=0, InnerBottom=0, FillArea=False, MCC=True)
         self.scale = 1.0
         self.sx = 0.0
         self.sy = 0.0
+
+    def MCC_Draw(self, flags):
+        if flags & MADF_DRAWOBJECT != MADF_DRAWOBJECT:
+            return
+
+        #self.DoMethod(MUIM_DrawBackground, self.mleft, self.mtop, self.mwidth, self.mheight, 0, 0, 0)
+        self.Render(0, 0, self.mleft, self.mtop, self.mwidth, self.mheight)
 
 class TiledSurface(Surface):
     def __init__(self):
         super(TiledSurface, self).__init__()
         self.tiles = {}
+        self.tmp_rgba8 = array('B')
 
     def GetTileBuffer(self, create=False, *p):
         """GetTileBuffer(x, y, create=False) -> Tile buffer
@@ -48,18 +56,20 @@ class TiledSurface(Surface):
             self.tiles[p] = tile
             return tile.buffer
 
-    def Render(self, sx, sy, rx, rh, rw, rh):
+    def Render(self, sx, sy, rx, ry, rw, rh):
         # point (sx, sy) gives the position in the surface of the raster origin
         # (rx, ry) => Blit start position in the raster (pixels)
         # (rw, rh) => Blit size in the raster (pixels)
 
         raster = self._get_raster()
-        ts = T_SIZE*self.scale
+        ts = int(T_SIZE*self.scale)
+        if ts == 0:
+            return
 
         # Loop on all tiles visible through the raster
-        for j in xrange(0, (rh + self.scale) / self.scale, T_SIZE):
+        for j in xrange(0, int((rh + self.scale) / self.scale), T_SIZE):
             ty = int(j*self.scale)
-            for i in xrange(0, (rw + self.scale) / self.scale, T_SIZE):
+            for i in xrange(0, int((rw + self.scale) / self.scale), T_SIZE):
                 tx = int(i*self.scale)
                 if DEBUG:
                     if i+j == 0:
@@ -68,8 +78,8 @@ class TiledSurface(Surface):
                         buf = green_rgba8
                     else:
                         buf = blue_rgba8
-                    raster.ScaledBlit8(buf, T_SIZE, T_SIZE, rx + tx, ry + ty, ts, ts)
+                    raster.ScaledBlit8(buf, T_SIZE, T_SIZE, int(rx + tx), int(ry + ty), ts, ts)
                 else:
                     buf = self.GetTileBuffer(sx + i, sy + j)
                     if buf:
-                        raster.ScaledBlit15(buf, T_SIZE, T_SIZE, rx + tx, ry + ty, ts, ts)
+                        raster.ScaledBlit15(buf, self.tmp_rgba8, T_SIZE, T_SIZE, rx + tx, ry + ty, ts, ts)

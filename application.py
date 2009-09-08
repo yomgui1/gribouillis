@@ -25,7 +25,7 @@ class Gribouillis(Application):
             Description = "Simple Painting program for MorphOS",
             Base        = "Gribouillis")
 
-        self.init_brushes() 
+        self.init_brushes()
 
         self.win_Color.add_watcher(self.OnColorChanged)
         self.set_active_brush(self.brushes[0])

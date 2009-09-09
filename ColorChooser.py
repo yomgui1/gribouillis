@@ -10,16 +10,19 @@ class ColorChooser(Window):
         
         super(ColorChooser, self).__init__(title, ID="COL0", RightEdge=64, TopEdge=64)
 
-        top = Group.VGroup()
+        top = VGroup()
         self.RootObject = top
 
-        self._colstr = String(Accept="0123456789abcdefABCDEF#", MaxLen=8, FixWidthTxt="#000000*", Frame=MUIV_Frame_String)
+        self._colstr = String(Accept="0123456789abcdefABCDEF#",
+                              MaxLen=8,
+                              FixWidthTxt="#000000*",
+                              Frame=MUIV_Frame_String)
 
-        g = Group.ColGroup(2)
+        g = ColGroup(2)
         g.AddChild(Text("Hex value:", Weight=0),
                    self._colstr)
 
-        g = Group.HGroup(Child=(g, Rectangle.HSpace(0)))
+        g = HGroup(Child=(g, HSpace(0)))
 
         self.coladj = Coloradjust()
         bar = Rectangle(Weight=0, HBar=True)

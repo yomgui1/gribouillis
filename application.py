@@ -17,30 +17,66 @@ class Gribouillis(Application):
 
         self.paths = dict(data=datapath, user=userpath) 
 
+        # Create Windows
+        self.win_Draw = DrawWindow("Draw Area")
+        self.win_Color = ColorChooser("Color Selection")
+        self.win_BSel = BrushSelect("Brush Selection")
+
+        # Create Menus
+        strip = Menustrip()
+        
+        menu = Menu('Project')
+        strip.AddTail(menu)
+
+        item = Menuitem('Quit', 'Q')
+        item.action(self.Quit)
+        menu.AddTail(item)
+
+        menu = Menu('Edit')
+        strip.AddTail(menu)
+        
+        item = Menuitem('Increase Zoom', '+')
+        item.action(self.win_Draw.AddZoom, +0.5)
+        menu.AddTail(item)
+
+        item = Menuitem('Decrease Zoom', '-')
+        item.action(self.win_Draw.AddZoom, -0.5)
+        menu.AddTail(item)
+
+        item = Menuitem('Reset Zoom', '0')
+        item.action(self.win_Draw.ResetZoom)
+        menu.AddTail(item)
+
+        for i, name in enumerate(os.listdir("backgrounds")[:9]):
+            item = Menuitem('Set background #%u' % i, str(i))
+            item.action(self.win_Draw.SetBackground, os.path.join("backgrounds", name))
+            menu.AddTail(item)
+
+        menu = Menu('Windows')
+        strip.AddTail(menu)
+
+        item = Menuitem('Draw Surface', 'D')
+        item.action(self.win_Draw.Open)
+        menu.AddTail(item)
+ 
+        item = Menuitem('Color Chooser', 'C')
+        item.action(self.win_Color.Open)
+        menu.AddTail(item)
+
+        item = Menuitem('Brush Selection', 'B')
+        item.action(self.win_BSel.Open)
+        menu.AddTail(item)
+ 
+        # Create Application object
         super(Gribouillis, self).__init__(
             Title       = "Gribouillis",
             Version     = "$VER: Gribouillis %s (%s)" % (self.VERSION, self.DATE),
             Copyright   = "\xa92009, Guillaume ROGUEZ",
             Author      = "Guillaume ROGUEZ",
             Description = "Simple Painting program for MorphOS",
-            Base        = "Gribouillis")
-
-        self.init_brushes()
-
-        self.win_Color.add_watcher(self.OnColorChanged)
-        self.set_active_brush(self.brushes[0])
-        self.set_color(0, 0, 0)
-
-        self.win_Draw.Open()
-        self.win_Color.Open()
-        self.win_BSel.Open()
-
-    def _create(self, *args):
-        super(Gribouillis, self)._create(*args)
-        
-        self.win_Draw = DrawWindow("Draw Area")
-        self.win_Color = ColorChooser("Color Selection")
-        self.win_BSel = BrushSelect("Brush Selection")
+            Base        = "Gribouillis",
+            Menustrip   = strip,
+        )
 
         self.win_Draw.Notify('CloseRequest', True, self.Quit)
         self.win_Color.Notify('CloseRequest', True, self.win_Color.Close)
@@ -50,6 +86,16 @@ class Gribouillis(Application):
         self.AddWindow(self.win_Draw)
         self.AddWindow(self.win_Color)
         self.AddWindow(self.win_BSel)
+
+        self.init_brushes()     
+
+        self.win_Color.add_watcher(self.OnColorChanged)
+        self.set_active_brush(self.brushes[0])
+        self.set_color(0, 0, 0)
+
+        self.win_Draw.Open()
+        self.win_Color.Open()
+        self.win_BSel.Open()
 
     def init_brushes(self):
         self._main_brush = self.win_BSel.brush

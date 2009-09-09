@@ -14,14 +14,15 @@ class Tile:
         return None
 
 if DEBUG:
-    red_rgba8 = array('B', '\xFF\x00\x00\x00' * T_SIZE**2)
-    green_rgba8 = array('B', '\x00\xFF\x00\x00' * T_SIZE**2)
-    blue_rgba8 = array('B', '\x00\x00\xFF\x00' * T_SIZE**2)
+    red_rgba8 = array('B', '\xff\x00\x00\x00' * T_SIZE**2)
+    green_rgba8 = array('B', '\x55\x55\x55\x00' * T_SIZE**2)
+    blue_rgba8 = array('B', '\xaa\xaa\xaa\x00' * T_SIZE**2)
 
 class Surface(Rectangle):
     def __init__(self):
-        super(Surface, self).__init__(Background=MUII_SHINE, InnerTop=0, InnerLeft=0, InnerRight=0, InnerBottom=0, FillArea=False, MCC=True)
-        self.scale = 1.0
+        super(Surface, self).__init__(Background=MUII_SHINE, InnerTop=0, InnerLeft=0, InnerRight=0, InnerBottom=0, MCC=True)
+        self._clip = True # enable clipping during MCC_Draw
+        self._scale = 1.0
         self.sx = 0.0
         self.sy = 0.0
 
@@ -30,7 +31,16 @@ class Surface(Rectangle):
             return
 
         #self.DoMethod(MUIM_DrawBackground, self.mleft, self.mtop, self.mwidth, self.mheight, 0, 0, 0)
-        self.Render(0, 0, self.mleft, self.mtop, self.mwidth, self.mheight)
+        #self.Render(0, 0, self.mleft, self.mtop, self.mwidth, self.mheight)
+
+    def SetScale(self, n):
+        if n <= 0: return
+        self._scale = n
+
+    def ResetScale(self):
+        self._scale = 1.0
+
+    scale = property(fget=lambda self: self._scale, fset=SetScale, fdel=ResetScale)
 
 class TiledSurface(Surface):
     def __init__(self):

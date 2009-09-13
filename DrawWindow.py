@@ -9,12 +9,17 @@ class DrawWindow(Window):
     def __init__(self, title):
         super(DrawWindow, self).__init__(title, ID="DRAW",
                                          Width=800, Height=600,
-                                         LeftEdge=64, TopEdge=64)
+                                         LeftEdge=64, TopEdge=64,
+                                         TabletMessages=False)
 
         self.surface = TiledSurface()
         self.surface.Background = MUII_SHINE
 
         self.RootObject = self.surface
+
+    def _isfile(self, path):
+        if not os.path.isfile(path):
+            raise IOError("given path doesn't exist or not a file: '%s'" % path)
 
     def AddZoom(self, n):
         self.surface.scale += n
@@ -22,10 +27,13 @@ class DrawWindow(Window):
 
     def ResetZoom(self):
         del self.surface.scale
+        self.surface.sx = self.surface.sy = 0.0
         self.surface.Redraw(MADF_DRAWOBJECT)      
 
     def SetBackground(self, path):
-        if os.path.isfile(path):
-            self.surface.Background = "5:"+path
-        else:
-            raise IOError("given path doesn't exist: '%s'" % path)
+        self._isfile(path)
+        self.surface.Background = "5:"+path
+
+    def LoadImage(self, path):
+        self._isfile(path)
+        self.surface.SetBackgroundImage(path)

@@ -34,9 +34,23 @@ static ULONG Name##_Dispatcher(void) { struct IClass *cl=(struct IClass*)REG_A0;
 
 #define MYTAGBASE (TAG_USER | 0x95fe0000)
 
+#define OBJ_TNAME(o) (((PyObject *)(o))->ob_type->tp_name)
+#define OBJ_TNAME_SAFE(o) ({                                            \
+            PyObject *_o = (PyObject *)(o);                             \
+            NULL != _o ? _o->ob_type->tp_name : "nil"; })
+
 #define INSI(m, s, v) if (PyModule_AddIntConstant(m, s, v)) return -1
 #define INSL(m, s, v) if (PyModule_AddObject(m, s, PyLong_FromUnsignedLong(v))) return -1
 #define INSS(m, s, v) if (PyModule_AddStringConstant(m, s, v)) return -1
+
+#define ADD_TYPE(m, s, t) {Py_INCREF(t); PyModule_AddObject(m, s, (PyObject *)(t));}
+
+#define ADDVAFUNC(name, func, doc...) {name, (PyCFunction) func, METH_VARARGS ,## doc}
+#define ADD0FUNC(name, func, doc...) {name, (PyCFunction) func, METH_NOARGS ,## doc}
+
+#define SIMPLE0FUNC(fname, func) static PyObject * fname(PyObject *self){ func(); Py_RETURN_NONE; }
+#define SIMPLE0FUNC_bx(fname, func, x) static PyObject * fname(PyObject *self){ return Py_BuildValue(x, func()); }
+#define SIMPLE0FUNC_fx(fname, func, x) static PyObject * fname(PyObject *self){ return x(func()); }
 
 extern struct Library *PythonBase;
 extern void dprintf(char*fmt, ...);

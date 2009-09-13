@@ -1,8 +1,34 @@
+###############################################################################
+# Copyright (c) 2009 Guillaume Roguez
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation
+# files (the "Software"), to deal in the Software without
+# restriction, including without limitation the rights to use,
+# copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the
+# Software is furnished to do so, subject to the following
+# conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+# OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+# HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+# FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+###############################################################################
+
 from __future__ import with_statement
 import os, sys
+
+import pymui
 from pymui import *
 from brush import Brush
-
 from DrawWindow import DrawWindow
 from ColorChooser import ColorChooser
 from BrushSelect import BrushSelect
@@ -17,6 +43,7 @@ class Gribouillis(Application):
             userpath = datapath
 
         self.paths = dict(data=datapath, user=userpath) 
+        self.last_loaded_dir = None
 
         # Create Windows
         self.win_Draw = DrawWindow("Draw Area")
@@ -25,42 +52,29 @@ class Gribouillis(Application):
         self.win_MiniBGSel = MiniBackgroundSelect()
 
         # Create Menus
-        strip = Menustrip()
-        
-        menu = Menu('Project')
-        strip.AddTail(menu)
+        menu_def = { 'Project': (('Load Image...', 'L', self.OnLoadImage),
+                                 ('Quit',          'Q', self.OnQuitRequest, None),
+                                ),
+                     'Edit':    (('Increase Zoom', '+', self.win_Draw.AddZoom, +0.1),
+                                 ('Decrease Zoom', '-', self.win_Draw.AddZoom, -0.1),
+                                 ('Reset Zoom',    '=', self.win_Draw.ResetZoom),
+                                ),
+                     'Window':  (('Draw Surface',    'D', self.win_Draw.Open),
+                                 ('Color Chooser',   'C', self.win_Color.Open),
+                                 ('Brush Selection', 'B', self.win_BSel.Open),
+                                 ('Mini Background Selection', 'G', self.win_MiniBGSel.Open),
+                                ),
+                   }
 
-        item = Menuitem('Quit', 'Q')
-        item.action(self.Quit)
-        menu.AddTail(item)
+        strip = Menustrip()   
+        for k, v in menu_def.iteritems():
+            menu = Menu(k)
+            strip.AddTail(menu)
 
-        menu = Menu('Edit')
-        strip.AddTail(menu)
-        
-        item = Menuitem('Increase Zoom', '+')
-        item.action(self.win_Draw.AddZoom, +0.5)
-        menu.AddTail(item)
-
-        item = Menuitem('Decrease Zoom', '-')
-        item.action(self.win_Draw.AddZoom, -0.5)
-        menu.AddTail(item)
-
-        item = Menuitem('Reset Zoom', '0')
-        item.action(self.win_Draw.ResetZoom)
-        menu.AddTail(item)
-
-        menu = Menu('Windows')
-        strip.AddTail(menu)
-
-        # Add shortcut to open windows
-        for t in ( (('Draw Surface', 'D'), self.win_Draw),
-                   (('Color Chooser', 'C'), self.win_Color),
-                   (('Brush Selection', 'B'), self.win_BSel),
-                   (('Mini Background Selection', 'G'), self.win_MiniBGSel),
-                   ):
-            item = Menuitem(*t[0])
-            item.action(t[1].Open)
-            menu.AddTail(item)
+            for t in v:
+                item = Menuitem(t[0], t[1])
+                item.action(*t[2:])
+                menu.AddTail(item)
  
         # Create Application object
         super(Gribouillis, self).__init__(
@@ -166,3 +180,12 @@ class Gribouillis(Application):
 
     def UseBackground(self, bg):
         self.win_Draw.SetBackground(bg.Name)
+
+    def OnLoadImage(self):
+        filename = pymui.getfilename(self.win_Draw, "Select image to load", self.last_loaded_dir, "#?.(png|jpeg|jpg|targa|tga|gif)", False)
+        if filename:
+            self.last_loaded_dir = os.path.dirname(filename)
+            self.win_Draw.LoadImage(filename)
+
+    def OnQuitRequest(self):
+        self.Quit()

@@ -29,7 +29,7 @@ import os, sys
 import pymui
 from pymui import *
 from brush import Brush
-from DrawWindow import DrawWindow
+from DrawWindow import DrawWindow, DrawControler
 from ColorChooser import ColorChooser
 from BrushSelect import BrushSelect
 from BGSelect import MiniBackgroundSelect
@@ -111,6 +111,11 @@ class Gribouillis(Application):
         self.win_MiniBGSel.add_watcher(self.UseBackground)
         for name in sorted(os.listdir("backgrounds")):
             self.win_MiniBGSel.AddImage(os.path.join("backgrounds", name))
+
+        # Init draw controler
+        view = self.win_Draw.raster
+        model = Layers()
+        self.controler = DrawControler(view, model)
 
         # Open windows now
         self.win_Draw.Open()

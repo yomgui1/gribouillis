@@ -218,7 +218,7 @@ VOID ClassExitFunc(void)
 }
 //-
 
-/*-----------------------------------------------------------------------------------------------------------*/
+/********************************************************************************************/
 
 //+ mNew
 static ULONG mNew(struct IClass *cl, Object *obj, Msg msg)
@@ -637,3 +637,5 @@ ULONG _Dispatcher(VOID)
     return DoSuperMethodA(cl, obj, msg);
 }
 //-
+
+/* EOF */

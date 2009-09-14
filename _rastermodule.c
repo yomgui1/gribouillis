@@ -1,3 +1,28 @@
+/******************************************************************************
+Copyright (c) 2009 Guillaume Roguez
+
+Permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation
+files (the "Software"), to deal in the Software without
+restriction, including without limitation the rights to use,
+copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+******************************************************************************/
+
 #include "common.h"
 
 #include <cybergraphx/cybergraphics.h>
@@ -17,12 +42,13 @@ typedef struct PyPixelArray_STRUCT {
     UBYTE nc;            /* Number of components per pixels */
     UBYTE bpc;           /* Number of bits for each components */
     ULONG bpr;           /* Number of bytes per row */
-    APTR  data;         /* Pixels data */
+    APTR  data;          /* Pixels data */
 } PyPixelArray;
 
 static struct Library *MUIMasterBase;
 static struct Library *CyberGfxBase;
 static PyTypeObject PyPixelArray_Type;
+
 
 /*******************************************************************************************
 ** Private routines
@@ -432,9 +458,13 @@ void init_surface(void)
     if (NULL == CyberGfxBase)
         return;
 
+    gRasterMCC = RasterMCC_Init();
+    if (NULL == gRasterMCC)
+        return;
+
     if (PyType_Ready(&PyPixelArray_Type) < 0) return;
 
-    m = Py_InitModule("_surface", methods);
+    m = Py_InitModule("_raster", methods);
     if (NULL == m)
         return;
 

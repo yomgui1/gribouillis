@@ -19,6 +19,12 @@
 #define MAKE_ID(a,b,c,d) ((ULONG) (a)<<24 | (ULONG) (b)<<16 | (ULONG) (c)<<8 | (ULONG) (d))
 #endif
 
+#ifdef NDEBUG
+#define D(x)
+#else
+#define D(x) x
+#endif
+
 #ifndef DISPATCHER
 #define DISPATCHER(Name) \
 static ULONG Name##_Dispatcher(void); \

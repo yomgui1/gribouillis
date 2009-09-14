@@ -1,39 +1,44 @@
 from pymui import *
-from surface import TiledSurface
+from raster import Raster
 import os.path
 
-MUIA_Bitmap_PNGData = 0x8042f4ba # V20 isg (UBYTE *)
-MUIA_Bitmap_PNGSize = 0x8042a0ea # V20 isg LONG
+class DrawControler(object):
+    def __init__(self, view, model):
+        self.view = view
+        self.model = model
+
+        self.view.add_watcher('mouse-button', self.OnMouseButton)
+        self.view.add_watcher('mouse-motion', self.OnMouseMotion)
+        self.view.add_watcher('key-released', self.OnKey)
 
 class DrawWindow(Window):
     def __init__(self, title):
         super(DrawWindow, self).__init__(title, ID="DRAW",
                                          Width=800, Height=600,
                                          LeftEdge=64, TopEdge=64,
-                                         TabletMessages=False)
+                                         TabletMessages=True, # enable tablet events support
+                                         )
 
-        self.surface = TiledSurface()
-        self.surface.Background = MUII_SHINE
-
-        self.RootObject = self.surface
+        self.raster = Raster()
+        self.RootObject = self.raster
 
     def _isfile(self, path):
         if not os.path.isfile(path):
             raise IOError("given path doesn't exist or not a file: '%s'" % path)
 
     def AddZoom(self, n):
-        self.surface.scale += n
-        self.surface.Redraw(MADF_DRAWOBJECT)
+        #self.raster.scale += n
+        self.raster.Redraw(MADF_DRAWOBJECT)
 
     def ResetZoom(self):
-        del self.surface.scale
-        self.surface.sx = self.surface.sy = 0.0
-        self.surface.Redraw(MADF_DRAWOBJECT)      
+        #del self.raster.scale
+        #self.raster.sx = self.surface.sy = 0.0
+        self.raster.Redraw(MADF_DRAWOBJECT)
 
     def SetBackground(self, path):
         self._isfile(path)
-        self.surface.Background = "5:"+path
+        #self.surface.Background = "5:"+path
 
     def LoadImage(self, path):
         self._isfile(path)
-        self.surface.SetBackgroundImage(path)
+        #self.surface.SetBackgroundImage(path)

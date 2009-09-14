@@ -137,11 +137,9 @@ $(DEPDIR)/%.d : %.c
 ##########################################################################
 # Target Rules and defines
 
-ALL_SOURCES += $(MCC_SRCS)
-
-%.mcc.db:
+%.mcc.db: force
 	$(MAKE) $(MCC_OBJS) DEFINES="$(DEFINES) CLASS=\\\"$(MCC).mcc\\\" \
-		VERSION=$(VERSION) REVISION=$(REVISION) VERSION_STR=\\\"$(VERSION).$(REVISION)\\\" \
+		VERSION=$(VERSION) REVISION=$(REVISION) \
 		VERSION_STR=\\\"$(VERSION).$(REVISION)\\\""
 	-@test ! -d $(@D) && $(MAKINGDIR) && mkdir -p $(@D)
 	@$(LINKING)
@@ -164,7 +162,9 @@ clean:
 distclean: clean
 	rm -rf $(BUILDDIR)/deps $(BUILDDIR)/objs $(BUILDDIR)/libs $(BUILDDIR)/include
 
-all: $(BUILDDIR)/Curve.mcc.sym $(BUILDDIR)/Curve.mcc
+all: \
+	$(BUILDDIR)/Curve.mcc.sym $(BUILDDIR)/Curve.mcc \
+	$(BUILDDIR)/Raster.mcc.sym $(BUILDDIR)/Raster.mcc
 
 $(BUILDDIR)/Curve.mcc.db: MCC:=Curve
 $(BUILDDIR)/Curve.mcc.db: MCC_SRCS:=curve_mcc.c
@@ -172,7 +172,21 @@ $(BUILDDIR)/Curve.mcc.db: MCC_OBJS= $(MCC_SRCS:%.c=$(OBJDIR)/%.o)
 $(BUILDDIR)/Curve.mcc.db: VERSION:=1
 $(BUILDDIR)/Curve.mcc.db: REVISION:=0
 
+ALL_SOURCES += curve_mcc.c
+
 $(BUILDDIR)/Curve.mcc: $(BUILDDIR)/Curve.mcc.db
+	$(STRIP) $(STRIPFLAGS)
+	chmod +x $@
+
+$(BUILDDIR)/Raster.mcc.db: MCC:=Raster
+$(BUILDDIR)/Raster.mcc.db: MCC_SRCS:=raster_mcc.c
+$(BUILDDIR)/Raster.mcc.db: MCC_OBJS= $(MCC_SRCS:%.c=$(OBJDIR)/%.o)
+$(BUILDDIR)/Raster.mcc.db: VERSION:=1
+$(BUILDDIR)/Raster.mcc.db: REVISION:=0
+
+ALL_SOURCES += raster_mcc.c
+
+$(BUILDDIR)/Raster.mcc: $(BUILDDIR)/Raster.mcc.db
 	$(STRIP) $(STRIPFLAGS)
 	chmod +x $@
 

@@ -114,7 +114,7 @@ class Gribouillis(Application):
 
         # Init draw controler
         view = self.win_Draw.raster
-        model = Layers()
+        model = None #Layers()
         self.controler = DrawControler(view, model)
 
         # Open windows now

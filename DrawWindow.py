@@ -7,9 +7,20 @@ class DrawControler(object):
         self.view = view
         self.model = model
 
+        # Inputs comes from the view
         self.view.add_watcher('mouse-button', self.OnMouseButton)
         self.view.add_watcher('mouse-motion', self.OnMouseMotion)
         self.view.add_watcher('key-released', self.OnKey)
+
+    def OnMouseButton(self, evt):
+        pass
+
+    def OnMouseMotion(self, evt):
+        pass
+    
+    def OnKey(self, evt):
+        pass
+
 
 class DrawWindow(Window):
     def __init__(self, title):

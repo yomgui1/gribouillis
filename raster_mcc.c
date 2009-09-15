@@ -31,14 +31,19 @@ OTHER DEALINGS IN THE SOFTWARE.
 #define LIBQUERYID "RASTER_MCC"
 #define LIBQUERYDESCRIPTION "Raster MCC"
 
+#define MM_Raster_Move (MYTAGBASE+0x00)
+
 typedef struct Data {
-    APTR Clipping;
     UWORD Width, Height;
     struct BitMap * BitMap; /* Contains the last rasted view */
     struct RastPort RastPort; /* RastPort used with the previous bitmap */
     ULONG UpdateFlags;
     struct Rectangle Rects[4];
 } Data;
+
+struct MP_Raster_Move {
+    ULONG dx, dy;
+}; 
 
 #include "mui/mccheader.c"
 
@@ -143,10 +148,19 @@ static ULONG mDraw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
     DoSuperMethodA(cl, obj, msg);
 
     if (msg->flags & MADF_DRAWOBJECT)
-        BltBitMapRastPort(data->BitMap, _mleft(obj), _mtop(obj), _rp(obj), _mleft(obj), _mtop(obj), _mwidth(obj), _mheight(obj), ABC);
-    else if (msg->flags & MADF_DRAWUPDATE) {
-        data->UpdateFlags = 0;
-    }
+        BltBitMapRastPort(data->BitMap, 0, 0, _rp(obj), _mleft(obj), _mtop(obj), _mwidth(obj), _mheight(obj), 0xc0);
+
+    return 0;
+}
+//-
+//+ mMove
+static ULONG mMove(struct IClass *cl, Object *obj, struct MP_Raster_Move *msg)
+{
+    Data *data = INST_DATA(cl, obj);
+    
+    BltBitMap(data->BitMap, 0, 0, data->BitMap, msg->dx, msg->dy, _mwidth(obj), _mheight(obj), 0xc0, -1, NULL);
+
+    /* TODO: we need to compute which part of the bitmap need to be redraw */
 
     return 0;
 }
@@ -155,7 +169,7 @@ static ULONG mDraw(struct IClass *cl, Object *obj, struct MUIP_Draw *msg)
 /********************************************************************************************/
 
 //+ _Dispatcher
-ULONG _Dispatcher(VOID)
+ULONG _Dispatcher(void)
 {
     struct IClass *cl = (APTR)REG_A0;
     Object *obj = (APTR)REG_A2;
@@ -164,9 +178,10 @@ ULONG _Dispatcher(VOID)
     switch (msg->MethodID) {
         case OM_DISPOSE      : return mDispose    (cl, obj, (APTR)msg);
         case MUIM_AskMinMax  : return mAskMinMax  (cl, obj, (APTR)msg);
-        //case MUIM_Setup      : return mSetup      (cl, obj, (APTR)msg);
+        case MUIM_Setup      : return mSetup      (cl, obj, (APTR)msg);
         //case MUIM_Show       : return mShow       (cl, obj, (APTR)msg);
-        //case MUIM_Draw       : return mDraw       (cl, obj, (APTR)msg);
+        case MUIM_Draw       : return mDraw       (cl, obj, (APTR)msg);
+        case MM_Raster_Move  : return mMove       (cl, obj, (APTR)msg);
     }
 
     return DoSuperMethodA(cl, obj, msg);

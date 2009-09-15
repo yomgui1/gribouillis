@@ -8,6 +8,7 @@
 #include <libraries/mui.h>
 #include <libraries/gadtools.h>
 #include <utility/hooks.h>
+#include <clib/macros.h>
 
 #undef USE_INLINE_STDARG
 #include <clib/alib_protos.h>

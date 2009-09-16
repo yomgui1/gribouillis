@@ -25,6 +25,7 @@
 
 import os
 from pymui import MUIV_InputMode_Toggle, MUIV_Frame_ImageButton, Dtpic
+import _brush
 
 MUIA_Dtpic_Scale = 0x8042ca4c  # private
 

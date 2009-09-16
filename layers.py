@@ -23,45 +23,46 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import os
-from pymui import MUIV_InputMode_Toggle, MUIV_Frame_ImageButton, Dtpic
+from surface import TiledSurface, T_SIZE
+from brush import Brush
 
-MUIA_Dtpic_Scale = 0x8042ca4c  # private
-
-class Brush(Dtpic):
-    BRUSH_SCALE = 48
-
+class LayerModel(object):
     def __init__(self):
-        super(Brush, self).__init__(InputMode=MUIV_InputMode_Toggle, Frame=MUIV_Frame_ImageButton)
-        self._set(MUIA_Dtpic_Scale, self.BRUSH_SCALE)
-        self._color = (0, 0, 0)
-        self.shortname = ''
+        self._layers = []
+        self._active = self.AddLayer()
+        self._rsurface = TiledSurface()
+        self._brush = None
 
-    def load(self, search_paths, name):
-        fullname = name + '_prev.png'
-        
-        for path in search_paths:
-            filename = os.path.join(path, fullname)
-            if not os.path.isfile(filename): continue
+        from PIL.Image import open
 
-            self.shortname = name
-            self.Name = filename
-            return
-        
-        raise RuntimeError('brush "' + name + '" not found')
+        im = open("backgrounds/03_check1.png")
+        im.load()
+        _, _, w, h = im.getbbox()
+        self._rsurface.ImportFromPILImage(im, w, h)
 
-    def set_color(self, color):
-        self._color = color
+    def SetBrush(self, b):
+        assert isinstance(b, Brush)
+        self._brush = b
 
-    color = property(fget=lambda self: self._color, fset=set_color)
+    def AddLayer(self):
+        s = TiledSurface()
+        self._layers.append(s)
+        return s
 
-    def copy(self, brush):
-        self.shortname = brush.shortname
-        self.color = brush.color
-        self.Name = brush.Name # in last because can trig some notification callbacks
+    def BrushMove(self, *a):
+        if self._brush:
+            self._brush.Move(self._rsurface, *a)
 
-    def Move(self, sf, dx, dy):
-        pass
+    def BrushDraw(self, *a, **kwds):
+        if self._brush:
+            self._brush.Draw(self._rsurface, *a, **kwds)
 
-    def Draw(self, sf, dx, dy, p=0.5, xtilt=0.0, ytilt=0.0):
-        pass
+    def GetBuffers(self, xmin, ymin, xmax, ymax):
+        xmin = int(xmin)
+        xmax = int(xmax)
+        ymin = int(ymin)
+        ymax = int(ymax)
+        for ty in xrange(ymin, ymax+1, T_SIZE):
+            for tx in xrange(xmin, xmax+1, T_SIZE):
+                buf = self._rsurface.GetTileBuffer(tx, ty, create=True)
+                yield buf, tx, ty

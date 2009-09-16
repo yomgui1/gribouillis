@@ -27,6 +27,14 @@ from pymui import *
 from raster import Raster
 import os.path
 
+IECODE_UP_PREFIX = 0x80
+IECODE_LBUTTON   = 0x68
+IECODE_RBUTTON   = 0x69
+IECODE_MBUTTON   = 0x6A
+
+NM_WHEEL_UP      = 0x7a
+NM_WHEEL_DOWN    = 0x7b
+
 class DrawControler(object):
     MODE_IDLE = 0
     MODE_DRAW = 1
@@ -35,7 +43,10 @@ class DrawControler(object):
     def __init__(self, view, model):
         self.view = view
         self.model = model
-        self._mode = MODE_IDLE
+
+        self.view.model = model
+
+        self._mode = DrawControler.MODE_IDLE
 
         # Inputs comes from the view
         self.view.add_watcher('mouse-button', self.OnMouseButton)
@@ -43,88 +54,106 @@ class DrawControler(object):
         self.view.add_watcher('rawkey', self.OnKey)
 
     def OnMouseButton(self, evt):
-        if self._mode == MODE_IDLE:
+        if self._mode == DrawControler.MODE_IDLE:
             if not evt.InObject: return
             if evt.Code == IECODE_LBUTTON:
                 if not evt.Up:
-                    self.StartAction(Raster.MODE_DRAW, evt)
+                    self.StartAction(DrawControler.MODE_DRAW, evt)
                     return MUI_EventHandlerRC_Eat
             elif evt.Code == IECODE_MBUTTON:
                 if not evt.Up:
-                    self.StartAction(Raster.MODE_DRAG, evt)
+                    self.StartAction(DrawControler.MODE_DRAG, evt)
                     return MUI_EventHandlerRC_Eat
-        elif self._mode == MODE_DRAW:
+        elif self._mode == DrawControler.MODE_DRAW:
             if evt.Code == IECODE_LBUTTON:
                 if evt.Up:
-                    self.ConfirmAction(Raster.MODE_IDLE, evt)
+                    self.ConfirmAction(DrawControler.MODE_IDLE, evt)
                     return MUI_EventHandlerRC_Eat
-        elif self._mode == MODE_DRAG:
+        elif self._mode == DrawControler.MODE_DRAG:
             if evt.Code == IECODE_LBUTTON:
                 if not evt.Up and evt.InObject:
-                    self.ConfirmAction(Raster.MODE_DRAW, evt)
+                    self.ConfirmAction(DrawControler.MODE_DRAW, evt)
                     return MUI_EventHandlerRC_Eat
             elif evt.Code == IECODE_MBUTTON:
                 if evt.Up:
-                    self.ConfirmAction(Raster.MODE_IDLE, evt)
+                    self.ConfirmAction(DrawControler.MODE_IDLE, evt)
                     return MUI_EventHandlerRC_Eat
             elif evt.Code == IECODE_RBUTTON:
                 if not evt.Up:
-                    self.CancelMode(Raster.MODE_IDLE, evt)
+                    self.CancelMode(DrawControler.MODE_IDLE, evt)
                     return MUI_EventHandlerRC_Eat
 
     def OnMouseMotion(self, evt):
-        if self._mode == Raster.MODE_DRAG:
+        if self._mode == DrawControler.MODE_DRAG:
             # Raster moves never use tablet data, only mouse (pixel unit)
-            self.view.Move(self.mx-evt.MouseX, self.my-evt.MouseY)
-        elif self._mode == Raster.MODE_DRAW:
-            if evt.ValidTD:
-                dx = (evt.td_NormTabletX - self.tbx) * self.view.SRangeX
-                dy = (evt.td_NormTabletY - self.tby) * self.view.SRangeX
+            self.view.Scroll(self.mx-evt.MouseX, self.my-evt.MouseY)
+        elif self._mode == DrawControler.MODE_DRAW:
+            if evt.ValidTD and self.tbx is not None:
+                dx = evt.td_NormTabletX - self.tbx
+                dy = evt.td_NormTabletY - self.tby
             else:
-                dx = double(evt.MouseX - self.mx)
-                dy = double(evt.MouseY - self.my)
-            self.model.BrushDraw(dx, dy)
+                dx = float(evt.MouseX - self.mx) / self.view.SRangeX
+                dy = float(evt.MouseY - self.my) / self.view.SRangeY
+            self.model.BrushDraw(dx / self.view.scale, dy / self.view.scale)
+        
+        self.mx = evt.MouseX
+        self.my = evt.MouseY
+        if evt.ValidTD: 
+            self.tbx = evt.td_NormTabletX
+            self.tby = evt.td_NormTabletY
     
     def OnKey(self, evt):
         pass
 
     def SetMode(self, mode):
         if mode != self._mode:
-            self.view.EnableMouseMoveEvents(mode != Raster.MODE_IDLE)
+            self.view.EnableMouseMoveEvents(mode != DrawControler.MODE_IDLE)
             self._mode = mode
         
     mode = property(fget=lambda self: self._mode, fset=SetMode)
 
     def StartAction(self, mode, evt):
+        # /!\ event MouseX/Y origin is the left/top origin of the window
         self.mx = evt.MouseX
         self.my = evt.MouseY
 
-        self.tbx = evt.td_NormTabletX
-        self.tby = evt.td_NormTabletY
+        # Tablet position available only during move
+        self.tbx = None
         
-        self.mode = mode
-        
-        if mode == Raster.MODE_DRAW:
+        if mode == DrawControler.MODE_DRAW:
             pos = self.view.GetSurfacePos(self.mx, self.my)
             self.model.BrushMove(*pos)
-        elif mode == Raster.MODE_DRAG:
+        elif mode == DrawControler.MODE_DRAG:
             self.view.StartMove()
+
+        self.mode = mode 
         
     def CancelAction(self, mode, evt):
-        if self._mode == Raster.MODE_DRAG:
+        if self._mode == DrawControler.MODE_DRAG:
             self.view.CancelMove()
         self.mode = mode
 
-    def ConfirmAction(self):
-        pass
+    def ConfirmAction(self, mode, evt):
+        self.mode = mode     
 
 
 class DrawWindow(Window):
-    def __init__(self, title):
+    def __init__(self, title, fullscreen=False):
+        kwds = {}
+        if fullscreen:
+            kwds['WidthScreen'] = 100
+            kwds['HeightScreen'] = 100
+            kwds['Borderless'] = True
+            kwds['Backdrop'] = True
+        else:
+            kwds['Width'] = 800
+            kwds['Height'] = 600
+            kwds['LeftEdge'] = 64
+            kwds['TopEdge'] = 64
+
         super(DrawWindow, self).__init__(title, ID="DRAW",
-                                         Width=800, Height=600,
-                                         LeftEdge=64, TopEdge=64,
                                          TabletMessages=True, # enable tablet events support
+                                         **kwds
                                          )
 
         self.raster = Raster()

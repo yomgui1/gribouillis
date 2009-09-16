@@ -56,18 +56,18 @@ static PyTypeObject PyPixelArray_Type;
 
 /* About color format in buffers.
  *
- * Pixels colors are stored as 4 componants (RGBA or YUVA) using fixed point encoding.
+ * Pixels colors are stored as 4 components (ARGB) using fixed point encoding.
  * So the floating point range [0.0, 1.0] is converted into integer range [0, 2**15].
  * Using 2**15 than a more natural 2**16 value gives the way to store the 1.0 value
  * into a short integer (16bits) and permit to use a logical shift operation of 15 bits,
  * when we need to multiply/divide values in fixed-point arithmetic computations.
  *
- * In all the application I'll note rgba15x a RGBA pixel buffer using this convention.
+ * In all the application I'll note argb15x a ARGB pixel buffer using this convention.
  */
 
-//+ rgba15x_to_rgba8
+//+ argb15x_to_argb8
 static void
-rgba15x_to_rgba8(USHORT *src, UBYTE *dst, UWORD w, UWORD h)
+argb15x_to_argb8(USHORT *src, UBYTE *dst, UWORD w, UWORD h)
 {
     ULONG i, n = w * h;
 
@@ -82,61 +82,78 @@ rgba15x_to_rgba8(USHORT *src, UBYTE *dst, UWORD w, UWORD h)
     }
 }
 //-
-//+ rgba15x_to_rgb8
+//+ argb15x_to_rgb8
 static void
-rgba15x_to_rgb8(USHORT *src, UBYTE *dst, UWORD w, UWORD h)
+argb15x_to_rgb8(USHORT *src, UBYTE *dst, UWORD w, UWORD h)
 {
     ULONG i, n = w * h;
 
     for (i=0; i < n; i++) {
-        ULONG alpha = src[3];
+        ULONG alpha = src[0];
 
-        dst[0] = (ULONG)src[0] * 255 / alpha;
-        dst[1] = (ULONG)src[1] * 255 / alpha;
-        dst[2] = (ULONG)src[2] * 255 / alpha;
+        dst[1] = (ULONG)src[0] * 255 / alpha;
+        dst[2] = (ULONG)src[1] * 255 / alpha;
+        dst[3] = (ULONG)src[2] * 255 / alpha;
         
         dst += 3;
         src += 4;
     }
 }
 //-
-//+ rgba8_to_rgba15x
+//+ argb8_to_argb15x
 static void
-rgba8_to_rgba15x(UBYTE *src, USHORT *dst, UWORD w, UWORD h)
+argb8_to_argb15x(UBYTE *src, USHORT *dst, UWORD w, UWORD h)
 {
     ULONG i, n = w * h;
 
     for (i=0; i < n; i++) {
-        USHORT alpha = ((ULONG)src[3] << 15) / 255;
+        USHORT alpha = ((ULONG)src[0] << 15) / 255;
         
-        dst[0] = (ULONG)src[0] * alpha / 255;
+        dst[0] = alpha;
         dst[1] = (ULONG)src[1] * alpha / 255;
         dst[2] = (ULONG)src[2] * alpha / 255;
-        dst[3] = alpha;
+        dst[3] = (ULONG)src[3] * alpha / 255;
 
         src += 4;
         dst += 4;
     }
 }
 //-
-//+ blit_overalpha_rgba15x_to_rgb8
+//+ rgb8_to_argb15x
 static void
-blit_overalpha_rgba15x_to_rgb8(USHORT *src, UBYTE *dst, UWORD w, UWORD h)
+rgb8_to_argb15x(UBYTE *src, USHORT *dst, UWORD w, UWORD h)
 {
     ULONG i, n = w * h;
 
-    // src is a rgba15x with alpha pre-multiplied rgb values.
+    for (i=0; i < n; i++) {
+        dst[0] = 1 << 15;
+        dst[1] = ((ULONG)src[0] << 15) / 255;
+        dst[2] = ((ULONG)src[1] << 15) / 255;
+        dst[3] = ((ULONG)src[2] << 15) / 255;
+
+        src += 3;
+        dst += 4;
+    }
+}
+//-
+//+ blit_overalpha_argb15x_to_rgb8
+static void
+blit_overalpha_argb15x_to_rgb8(USHORT *src, UBYTE *dst, UWORD w, UWORD h)
+{
+    ULONG i, n = w * h;
+
+    // src is a argb15x with alpha pre-multiplied rgb values.
     // dst is not alpha premul.
 
     for (i=0; i < n; i++) {
         // DestAlpha = 1.0 (full opaque surface)
         // Dest[x] = Src[x] + (1.0 - SrcAlpha) * Dst[x]
-        ULONG alpha = src[4];
+        ULONG alpha = src[0];
         ULONG one_minus_alpha = (1 << 15) - alpha;
 
-        dst[0] = (ULONG)src[0] * 255 / alpha + (one_minus_alpha * dst[0] >> 15);
         dst[1] = (ULONG)src[1] * 255 / alpha + (one_minus_alpha * dst[1] >> 15);
         dst[2] = (ULONG)src[2] * 255 / alpha + (one_minus_alpha * dst[2] >> 15);
+        dst[3] = (ULONG)src[3] * 255 / alpha + (one_minus_alpha * dst[3] >> 15);
 
         src += 4;
         dst += 3;
@@ -226,6 +243,14 @@ pixarray_zero(PyPixelArray *self)
     Py_RETURN_NONE;
 }
 //-
+//+ pixarray_one
+static PyObject *
+pixarray_one(PyPixelArray *self)
+{
+    memset(self->data, 0xff, self->bpr * self->height);
+    Py_RETURN_NONE;
+}
+//-
 //+ pixarray_fromstring
 static PyObject *
 pixarray_fromstring(PyPixelArray *self, PyObject *string)
@@ -241,24 +266,46 @@ pixarray_fromstring(PyPixelArray *self, PyObject *string)
     Py_RETURN_NONE;
 }
 //-
-//+ pixarray_rgba8torgba15x
+//+ pixarray_argb8toargb15x
 /* XXX: should be a module method! */
 static PyObject *
-pixarray_rgba8torgba15x(PyPixelArray *self, PyPixelArray *rgba8)
+pixarray_argb8toargb15x(PyPixelArray *self, PyPixelArray *argb8)
 {
-    if (!PyPixelArray_Check(rgba8))
-        return PyErr_Format(PyExc_TypeError, "Instance of PixelArray type needed as first argument, not %s", OBJ_TNAME(rgba8));
+    if (!PyPixelArray_Check(argb8))
+        return PyErr_Format(PyExc_TypeError, "Instance of PixelArray type needed as first argument, not %s", OBJ_TNAME(argb8));
 
     if ((self->nc != 4) || (self->bpc != 16))
         return PyErr_Format(PyExc_TypeError, "Incompatible source PixelArray object");
     
-    if ((rgba8->nc != 4) || (rgba8->bpc != 8))
+    if ((argb8->nc != 4) || (argb8->bpc != 8))
         return PyErr_Format(PyExc_TypeError, "Incompatible destination PixelArray object");
 
-    if ((self->width != rgba8->width) || (self->height != rgba8->height))
+    if ((self->width != argb8->width) || (self->height != argb8->height))
         return PyErr_Format(PyExc_TypeError, "Incompatible dimensions between given PixelArray objects");
 
-    rgba8_to_rgba15x(rgba8->data, self->data, self->width, self->height);
+    argb8_to_argb15x(argb8->data, self->data, self->width, self->height);
+    
+    Py_RETURN_NONE;
+}
+//-
+//+ pixarray_rgb8toargb15x
+/* XXX: should be a module method! */
+static PyObject *
+pixarray_rgb8toargb15x(PyPixelArray *self, PyPixelArray *rgb8)
+{
+    if (!PyPixelArray_Check(rgb8))
+        return PyErr_Format(PyExc_TypeError, "Instance of PixelArray type needed as first argument, not %s", OBJ_TNAME(rgb8));
+
+    if ((self->nc != 4) || (self->bpc != 16))
+        return PyErr_Format(PyExc_TypeError, "Incompatible source PixelArray object");
+    
+    if ((rgb8->nc != 3) || (rgb8->bpc != 8))
+        return PyErr_Format(PyExc_TypeError, "Incompatible destination PixelArray object");
+
+    if ((self->width != rgb8->width) || (self->height != rgb8->height))
+        return PyErr_Format(PyExc_TypeError, "Incompatible dimensions between given PixelArray objects");
+
+    rgb8_to_argb15x(rgb8->data, self->data, self->width, self->height);
     
     Py_RETURN_NONE;
 }
@@ -287,8 +334,10 @@ pixarray_set_component(PyPixelArray *self, PyObject *args)
 
 static struct PyMethodDef pixarray_methods[] = {
     {"zero", (PyCFunction)pixarray_zero, METH_VARARGS, NULL},
+    {"one", (PyCFunction)pixarray_one, METH_VARARGS, NULL},
     {"from_string", (PyCFunction)pixarray_fromstring, METH_O, NULL},
-    {"rgba8_to_rgba15x", (PyCFunction)pixarray_rgba8torgba15x, METH_O, NULL},
+    {"argb8_to_argb15x", (PyCFunction)pixarray_argb8toargb15x, METH_O, NULL},
+    {"rgb8_to_argb15x", (PyCFunction)pixarray_rgb8toargb15x, METH_O, NULL},
     //{"set_component", (PyCFunction)pixarray_set_component, METH_VARARGS, NULL},
     {NULL} /* sentinel */
 };
@@ -383,8 +432,8 @@ static PyObject *mod_renderfull(PyObject *self, PyObject *args)
                 goto err;
             }
 
-            //blit_overalpha_rgba15x_to_rgb8(bufobj->data, tmp_rgba8, size, size);
-            rgba15x_to_rgb8(bufobj->data, tmp_buf8, size, size);
+            //blit_overalpha_argb15x_to_rgb8(bufobj->data, tmp_argb8, size, size);
+            argb15x_to_rgb8(bufobj->data, tmp_buf8, size, size);
 
             tx = (i - sx) * scale;
             ty = (j - sy) * scale;
@@ -406,9 +455,9 @@ err:
     return NULL;
 }
 //-
-//+ mod_rgba8_to_rgba15
+//+ mod_argb8_to_argb15
 static PyObject *
-mod_rgba8_to_rgba15(PyObject *self, PyObject *args)
+mod_argb8_to_argb15(PyObject *self, PyObject *args)
 {
     //if (!PyArg_ParseTuple())
     //    return NULL;
@@ -445,8 +494,8 @@ PyMorphOS_CloseModule(void) {
     }
 }
 //- PyMorphOS_CloseModule
-//+ init_surface
-void init_surface(void)
+//+ init_raster
+void init_raster(void)
 {
     PyObject *m;
 
@@ -456,10 +505,6 @@ void init_surface(void)
 
     CyberGfxBase = OpenLibrary("cybergraphics.library", 50);
     if (NULL == CyberGfxBase)
-        return;
-
-    gRasterMCC = RasterMCC_Init();
-    if (NULL == gRasterMCC)
         return;
 
     if (PyType_Ready(&PyPixelArray_Type) < 0) return;

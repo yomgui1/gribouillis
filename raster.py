@@ -23,27 +23,30 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import pymui, weakref
+import pymui
 
-MYTAGBASE = pymui.TAG_USER | 0x95fe0000
-MM_Raster_Move = MYTAGBASE + 0x00
+DEBUG = True
 
 class Raster(pymui.Area):
-    CLASSID = "Raster.mcc"
-
     EVENTMAP = {
-        IDCMP_MOUSEBUTTONS : 'mouse-button',
-        IDCMP_MOUSEMOVE    : 'mouse-motion',
-        IDCMP_RAWKEY       : 'rawkey',
+        pymui.IDCMP_MOUSEBUTTONS : 'mouse-button',
+        pymui.IDCMP_MOUSEMOVE    : 'mouse-motion',
+        pymui.IDCMP_RAWKEY       : 'rawkey',
         }
 
     def __init__(self):
-        pymui.Area.__init__(self, MCC=True)
+        pymui.Area.__init__(self,
+                            InnerSpacing=(0,)*4,
+                            FillArea=False,
+                            DoubleBuffer=True,
+                            MCC=True)
+        self._clip = True
         self._watchers = {}
         self._ev = pymui.EventHandler()
         self.osx = 0 # X position of the surface origin, in raster origin
         self.osy = 0 # Y position of the surface origin, in raster origin
         self.scale = 1.0 # zoom factor
+        self.model = None
 
     def add_watcher(self, name, cb, *args):
         wl = self._watchers.get(name)
@@ -51,24 +54,45 @@ class Raster(pymui.Area):
             self._watchers[name] = wl = []
         wl.append((cb, args))
 
+    def MCC_AskMinMax(self):
+        return 0, 320, 10000, 0, 320, 10000
+
     def MCC_Setup(self):
         self._ev.install(self, pymui.IDCMP_RAWKEY | pymui.IDCMP_MOUSEBUTTONS)
-        return TRUE
+        return True
 
     def MCC_Cleanup(self):
-        self._ev.unsinstall()
+        self._ev.uninstall()
 
-    def MCC_HandleEvent(self, ev):
-        wl = self._watchers.get(Rater.EVENTMAP.get(evt.Class), [])
+    def MCC_HandleEvent(self, evt):
+        wl = self._watchers.get(Raster.EVENTMAP.get(evt.Class), [])
         for cb, args in wl:
             cb(evt, *args)
 
+    def MCC_Draw(self, flags):
+        if flags & pymui.MADF_DRAWOBJECT:
+            a, b = self.GetSurfacePos(self.MLeft, self.MTop)
+            c, d = self.GetSurfacePos(self.MRight, self.MBottom)
+            for buf, rx, ry in self.model.GetBuffers(a, b, c, d):
+                rx = int(rx * self.scale) + self.osx + self.MLeft
+                ry = int(ry * self.scale) + self.osy + self.MTop
+                if buf:
+                    self._rp.ScaledBlit8(buf, buf.Width, buf.Height, rx, ry, int(buf.Width * self.scale), int(buf.Height * self.scale))
+                if DEBUG:
+                    self._rp.Rect(3, rx, ry, int(buf.Width * self.scale), int(buf.Height * self.scale))
+        elif flags & pymui.MADF_DRAWUPDATE:
+            pass
+
     def EnableMouseMoveEvents(self, state=True):
         self._ev.uninstall()
-        self._ev.install(self, self._ev.idcmp | (pymui.IDCMP_MOUSEMOVE if state else 0))
+        if state:
+            idcmp = self._ev.idcmp | pymui.IDCMP_MOUSEMOVE
+        else:
+            idcmp = self._ev.idcmp & ~pymui.IDCMP_MOUSEMOVE
+        self._ev.install(self, idcmp)
 
     def GetSurfacePos(self, x, y):
-        return (x - self.MLeft - self.osx) * self.scale, (y - self.MTop - self.osy) * self.scale
+        return (x - self.MLeft - self.osx) / self.scale, (y - self.MTop - self.osy) / self.scale
 
     def StartMove(self):
         # save data of the current view
@@ -79,18 +103,15 @@ class Raster(pymui.Area):
     def CancelMove(self):
         pass
         
-    def Move(self, dx, dy):
-        """Move(dx, dy)
+    def Scroll(self, dx, dy):
+        """Scroll(dx, dy)
 
-        Move current displayed surface using normalized vector (dx, dy).
-        dx and dy are given in pixel integer unit.
+        Scroll current displayed surface using pixel vector (dx, dy).
         """
 
         self.osx += dx
         self.osy += dy
 
-        #  This function should return a list of bbox corresponding to surfaces to refresh
-        x = self._do(MM_Raster_Move, dx, dy)
+        self._rp.Scroll(dx, dy, self.MLeft, self.MTop, self.MRight, self.MBottom)
+        self.Redraw(pymui.MADF_DRAWUPDATE)
 
-        # Normally we shouldn't display the result until a complete refresh
-        self.Redraw(pymui.MADF_DRAWOBJECT)

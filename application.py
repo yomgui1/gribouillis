@@ -33,6 +33,7 @@ from DrawWindow import DrawWindow, DrawControler
 from ColorChooser import ColorChooser
 from BrushSelect import BrushSelect
 from BGSelect import MiniBackgroundSelect
+from layers import LayerModel
 
 class Gribouillis(Application):
     VERSION = 0.1
@@ -55,9 +56,9 @@ class Gribouillis(Application):
         menu_def = { 'Project': (('Load Image...', 'L', self.OnLoadImage),
                                  ('Quit',          'Q', self.OnQuitRequest, None),
                                 ),
-                     'Edit':    (('Increase Zoom', '+', self.win_Draw.AddZoom, +0.1),
-                                 ('Decrease Zoom', '-', self.win_Draw.AddZoom, -0.1),
-                                 ('Reset Zoom',    '=', self.win_Draw.ResetZoom),
+                     'Edit':    (('Increase Zoom', '+', None),
+                                 ('Decrease Zoom', '-', None),
+                                 ('Reset Zoom',    '=', None),
                                 ),
                      'Window':  (('Draw Surface',    'D', self.win_Draw.Open),
                                  ('Color Chooser',   'C', self.win_Color.Open),
@@ -99,6 +100,11 @@ class Gribouillis(Application):
         self.AddWindow(self.win_BSel)
         self.AddWindow(self.win_MiniBGSel)
 
+        # Init draw controler
+        model = LayerModel()
+        view = self.win_Draw.raster
+        self.controler = DrawControler(view, model)
+
         # Init brushes
         self.init_brushes()
 
@@ -112,15 +118,10 @@ class Gribouillis(Application):
         for name in sorted(os.listdir("backgrounds")):
             self.win_MiniBGSel.AddImage(os.path.join("backgrounds", name))
 
-        # Init draw controler
-        view = self.win_Draw.raster
-        model = None #Layers()
-        self.controler = DrawControler(view, model)
-
         # Open windows now
-        self.win_Draw.Open()
-        self.win_Color.Open()
         self.win_BSel.Open()
+        self.win_Color.Open() 
+        self.win_Draw.Open() 
 
     def init_brushes(self):
         self._main_brush = self.win_BSel.brush
@@ -180,6 +181,7 @@ class Gribouillis(Application):
             self._brush.NNSet(MUIA_Selected, False)
         self._brush = brush
         brush.NNSet(MUIA_Selected, True)
+        self.controler.model.SetBrush(self.brush)
 
     brush = property(fget=lambda self: self._main_brush, fset=set_active_brush)
 

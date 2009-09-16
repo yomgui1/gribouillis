@@ -45,7 +45,6 @@ typedef struct PyPixelArray_STRUCT {
     APTR  data;          /* Pixels data */
 } PyPixelArray;
 
-static struct Library *MUIMasterBase;
 static struct Library *CyberGfxBase;
 static PyTypeObject PyPixelArray_Type;
 
@@ -470,21 +469,12 @@ PyMorphOS_CloseModule(void) {
         CloseLibrary(CyberGfxBase);
         CyberGfxBase = NULL;
     }
-
-    if (NULL != MUIMasterBase) {
-        CloseLibrary(MUIMasterBase);
-        MUIMasterBase = NULL;
-    }
 }
 //- PyMorphOS_CloseModule
 //+ init_pixbuf
 void init_pixbuf(void)
 {
     PyObject *m;
-
-    MUIMasterBase = OpenLibrary(MUIMASTER_NAME, MUIMASTER_VLATEST);
-    if (NULL == MUIMasterBase)
-        return;
 
     CyberGfxBase = OpenLibrary("cybergraphics.library", 50);
     if (NULL == CyberGfxBase)

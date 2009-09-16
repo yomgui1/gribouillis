@@ -30,7 +30,7 @@ class LayerModel(object):
     def __init__(self):
         self._layers = []
         self._active = self.AddLayer()
-        self._rsurface = TiledSurface()
+        self._rsurface = TiledSurface(bpc=8) # ARGB 8-bits per component surface for display
         self._brush = None
 
         from PIL.Image import open
@@ -62,7 +62,6 @@ class LayerModel(object):
         xmax = int(xmax)
         ymin = int(ymin)
         ymax = int(ymax)
-        for ty in xrange(ymin, ymax+1, T_SIZE):
-            for tx in xrange(xmin, xmax+1, T_SIZE):
-                buf = self._rsurface.GetTileBuffer(tx, ty, create=True)
-                yield buf, tx, ty
+        for ty in xrange(ymin, ymax+T_SIZE-1, T_SIZE):
+            for tx in xrange(xmin, xmax+T_SIZE-1, T_SIZE):
+                yield self._rsurface.GetBuffer(tx, ty)

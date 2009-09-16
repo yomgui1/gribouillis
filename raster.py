@@ -71,17 +71,23 @@ class Raster(pymui.Area):
 
     def MCC_Draw(self, flags):
         if flags & pymui.MADF_DRAWOBJECT:
-            a, b = self.GetSurfacePos(self.MLeft, self.MTop)
-            c, d = self.GetSurfacePos(self.MRight, self.MBottom)
-            for buf, rx, ry in self.model.GetBuffers(a, b, c, d):
-                rx = int(rx * self.scale) + self.osx + self.MLeft
-                ry = int(ry * self.scale) + self.osy + self.MTop
-                if buf:
-                    self._rp.ScaledBlit8(buf, buf.Width, buf.Height, rx, ry, int(buf.Width * self.scale), int(buf.Height * self.scale))
-                if DEBUG:
-                    self._rp.Rect(3, rx, ry, int(buf.Width * self.scale), int(buf.Height * self.scale))
+            self._draw_area(self.MLeft, self.MTop, self.MRight, self.MBottom)
         elif flags & pymui.MADF_DRAWUPDATE:
-            pass
+            for rect in self._damaged:
+                if rect is not None:
+                    self._draw_area(*rect)
+    
+    def _draw_area(self, *bbox):
+        a, b = self.GetSurfacePos(*bbox[:2])
+        c, d = self.GetSurfacePos(*bbox[2:])
+        for buf, rx, ry in self.model.GetBuffers(a, b, c, d):
+            rx = int(rx * self.scale) + self.osx + self.MLeft
+            ry = int(ry * self.scale) + self.osy + self.MTop
+            if buf:
+                self._rp.ScaledBlit8(buf, buf.Width, buf.Height, rx, ry, int(buf.Width * self.scale), int(buf.Height * self.scale))
+            if DEBUG:
+                self._rp.Rect(3, rx, ry, int(buf.Width * self.scale), int(buf.Height * self.scale))
+ 
 
     def EnableMouseMoveEvents(self, state=True):
         self._ev.uninstall()
@@ -109,9 +115,44 @@ class Raster(pymui.Area):
         Scroll current displayed surface using pixel vector (dx, dy).
         """
 
-        self.osx += dx
-        self.osy += dy
+        self.osx -= dx
+        self.osy -= dy
 
-        self._rp.Scroll(dx, dy, self.MLeft, self.MTop, self.MRight, self.MBottom)
+        a, b, c, d = self.MLeft, self.MTop, self.MRight, self.MBottom
+        self._rp.Scroll(dx, dy, a, b, c, d)
+
+        ## Compute the damaged rectangles list...
+        #
+        # It exists 4 damaged rectangles at maximum:
+        #
+        # +==================+
+        # |        #3        |      #1 exists if dx < 0
+        # |----+========+----|      #2 exists if dx > 0
+        # |    |        |    |      #3 exists if dy < 0
+        # | #1 |   OK   | #2 |      #4 exists if dy > 0
+        # |    |        |    |
+        # |----+========+----|  
+        # |        #4        |
+        # +==================+              
+        #
+
+        self._damaged = [None]*4
+        if dx < 0:
+            if dy <= 0:
+                self._damaged[0] = (a, b-dy, a-dx, d)
+            else:
+                self._damaged[0] = (a, b, a-dx, d-dy)
+        elif dx > 0:
+            if dy <= 0:
+                self._damaged[1] = (c-dx, b, c, d-dy)
+            else:
+                self._damaged[1] = (c-dx, b-dy, c, d)
+
+        if dy < 0:
+            self._damaged[2] = (a, b, c, b-dy)
+        elif dy > 0:
+            self._damaged[3] = (a, d-dy, c, d)
+
+        # We're going to redraw only damaged rectangles area
         self.Redraw(pymui.MADF_DRAWUPDATE)
 

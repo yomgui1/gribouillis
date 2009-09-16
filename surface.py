@@ -33,44 +33,66 @@ T_SIZE = 64
 DEBUG = True
 
 class Tile:
-    def __init__(self):
+    def __init__(self, bpc):
         # ARGB buffer, 16-bits per conmposants but we'll using only 15 of them
-        self.pixels = PixelArray(T_SIZE, T_SIZE, 4, 16)
+        self.pixels = PixelArray(T_SIZE, T_SIZE, 4, bpc)
         self.pixels.one()
 
 class Surface(object):
     pass
 
 class TiledSurface(Surface):
-    def __init__(self):
+    def __init__(self, bpc=16):
         Surface.__init__(self)
         self.tiles = {}
+        self._bpc = bpc
+        self._ro_tile = Tile(self._bpc)
+        if DEBUG and bpc == 8:
+            self._red = PixelArray(T_SIZE, T_SIZE, 4, 8)
+            self._green = PixelArray(T_SIZE, T_SIZE, 4, 8)
+            self._blue = PixelArray(T_SIZE, T_SIZE, 4, 8)
+            self._red.from_string("\xff\xff\x00\x00"*T_SIZE**2)
+            self._green.from_string("\xff\x00\xff\x00"*T_SIZE**2)
+            self._blue.from_string("\xff\x00\x00\xff"*T_SIZE**2)
 
-    def GetTileBuffer(self, x, y, create=False):
-        """GetTileBuffer(x, y, create=False) -> Tile buffer
+    def GetBuffer(self, x, y, read=True):
+        """GetBuffer(x, y, read=True) -> (pixel buffer, bx, by)
 
-        Returns the tile buffer containing the point p=(x, y).
-        If no tile exist yet, return None if create is False,
+        Returns the pixel buffer and its left-top corner, containing the point p=(x, y).
+        If no tile exist yet, return a read only buffer if read is True,
         otherwhise create a new tile and returns it.
         """
 
-        p = (int(x // T_SIZE), int(y // T_SIZE))
-        tile = self.tiles.get(p)
+        x = int(x // T_SIZE)
+        y = int(y // T_SIZE)
+
+        tile = self.tiles.get((x, y))
         if tile:
-            return tile.pixels
-        elif create:
-            tile = Tile()
-            self.tiles[p] = tile
-            return tile.pixels
+            return tile.pixels, x*T_SIZE, y*T_SIZE
+        elif read:
+            return self._ro_tile.pixels, x*T_SIZE, y*T_SIZE
+        else:
+            tile = Tile(self._bpc) 
+            self.tiles[(x, y)] = tile 
+            
+            if DEBUG and self._bpc == 8:
+                if x == y == 0:
+                    tile.pixels.from_string(buffer(self._blue))
+                elif (x+y) % 2:
+                    tile.pixels.from_string(buffer(self._green))
+                else:
+                    tile.pixels.from_string(buffer(self._red))
+            
+            return tile.pixels, x*T_SIZE, y*T_SIZE
     
     def ImportFromPILImage(self, im, w, h):
         im = im.convert('RGB')
         src = PixelArray(T_SIZE, T_SIZE, 3, 8)
         for ty in xrange(0, h, T_SIZE):
             for tx in xrange(0, w, T_SIZE):
-                buf = self.GetTileBuffer(tx, ty, create=True)
+                buf, _, _ = self.GetBuffer(tx, ty, read=False)
                 buf.one()
                 sx = min(w, tx+T_SIZE)
                 sy = min(h, ty+T_SIZE)
                 src.from_string(im.crop((tx, ty, sx, sy)).tostring())
-                buf.rgb8_to_argb15x(src)
+                buf.rgb8_to_argb8(src)

@@ -92,9 +92,18 @@ class DrawControler(object):
                 dx = evt.td_NormTabletX - self.tbx
                 dy = evt.td_NormTabletY - self.tby
             else:
-                dx = float(evt.MouseX - self.mx) / self.view.SRangeX
-                dy = float(evt.MouseY - self.my) / self.view.SRangeY
-            self.model.BrushDraw(dx / self.view.scale, dy / self.view.scale)
+                dx = evt.MouseX - self.mx
+                dy = evt.MouseY - self.my
+            x, y = self.view.GetSurfacePos(evt.MouseX, evt.MouseY)
+            self.model.BrushDraw(x, y, dx / self.view.scale, dy / self.view.scale)
+            self.view._damaged = []
+            x = self.mx-self.view.MLeft
+            y = self.my-self.view.MTop
+            self.view._damaged.append((x,y,x+63,y+63))
+            x = evt.MouseX-self.view.MLeft
+            y = evt.MouseY-self.view.MTop
+            self.view._damaged.append((x,y,x+63,y+63))
+            self.view.Redraw(MADF_DRAWUPDATE)
         
         self.mx = evt.MouseX
         self.my = evt.MouseY
@@ -123,6 +132,7 @@ class DrawControler(object):
         if mode == DrawControler.MODE_DRAW:
             pos = self.view.GetSurfacePos(self.mx, self.my)
             self.model.BrushMove(*pos)
+            self.view.Redraw(MADF_DRAWOBJECT)
         elif mode == DrawControler.MODE_DRAG:
             self.view.StartMove()
 
@@ -138,7 +148,7 @@ class DrawControler(object):
 
 
 class DrawWindow(Window):
-    def __init__(self, title, fullscreen=False):
+    def __init__(self, title, fullscreen=True):
         kwds = {}
         if fullscreen:
             kwds['WidthScreen'] = 100

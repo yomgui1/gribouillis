@@ -136,6 +136,23 @@ rgb8_to_argb15x(UBYTE *src, USHORT *dst, UWORD w, UWORD h)
     }
 }
 //-
+//+ rgb8_to_argb8
+static void
+rgb8_to_argb8(UBYTE *src, UBYTE *dst, UWORD w, UWORD h)
+{
+    ULONG i, n = w * h;
+
+    for (i=0; i < n; i++) {
+        dst[0] = 255;
+        dst[1] = src[0];
+        dst[2] = src[1];
+        dst[3] = src[2];
+
+        src += 3;
+        dst += 4;
+    }
+}
+//-
 //+ blit_overalpha_argb15x_to_rgb8
 static void
 blit_overalpha_argb15x_to_rgb8(USHORT *src, UBYTE *dst, UWORD w, UWORD h)
@@ -253,15 +270,23 @@ pixarray_one(PyPixelArray *self)
 //-
 //+ pixarray_fromstring
 static PyObject *
-pixarray_fromstring(PyPixelArray *self, PyObject *string)
+pixarray_fromstring(PyPixelArray *self, PyObject *arg)
 {
     Py_ssize_t len;
 
-    if (!PyString_CheckExact(string))
-        return PyErr_Format(PyExc_TypeError, "str object needed as first argument, not %s", OBJ_TNAME(string));
-
-    len = MIN(PyString_GET_SIZE(string), self->bpr * self->height);
-    CopyMem(PyString_AS_STRING(string), self->data, len);
+    if (PyString_CheckExact(arg)) {
+        len = MIN(PyString_GET_SIZE(arg), self->bpr * self->height);
+        CopyMem(PyString_AS_STRING(arg), self->data, len);
+    
+    } else if (PyObject_CheckReadBuffer(arg)) {
+        APTR buf;
+        
+        PyObject_AsReadBuffer(arg, (const void **)&buf, &len);
+        
+        len = MIN(len, self->bpr * self->height);
+        CopyMem(buf, self->data, len);
+    } else
+        return PyErr_Format(PyExc_TypeError, "str or buffer object needed as first argument, not %s", OBJ_TNAME(arg));
     
     Py_RETURN_NONE;
 }
@@ -297,15 +322,37 @@ pixarray_rgb8toargb15x(PyPixelArray *self, PyPixelArray *rgb8)
         return PyErr_Format(PyExc_TypeError, "Instance of PixelArray type needed as first argument, not %s", OBJ_TNAME(rgb8));
 
     if ((self->nc != 4) || (self->bpc != 16))
-        return PyErr_Format(PyExc_TypeError, "Incompatible source PixelArray object");
+        return PyErr_Format(PyExc_TypeError, "Incompatible destination PixelArray object");
     
     if ((rgb8->nc != 3) || (rgb8->bpc != 8))
-        return PyErr_Format(PyExc_TypeError, "Incompatible destination PixelArray object");
+        return PyErr_Format(PyExc_TypeError, "Incompatible source PixelArray object");
 
     if ((self->width != rgb8->width) || (self->height != rgb8->height))
         return PyErr_Format(PyExc_TypeError, "Incompatible dimensions between given PixelArray objects");
 
     rgb8_to_argb15x(rgb8->data, self->data, self->width, self->height);
+    
+    Py_RETURN_NONE;
+}
+//-
+//+ pixarray_rgb8toargb8
+/* XXX: should be a module method! */
+static PyObject *
+pixarray_rgb8toargb8(PyPixelArray *self, PyPixelArray *rgb8)
+{
+    if (!PyPixelArray_Check(rgb8))
+        return PyErr_Format(PyExc_TypeError, "Instance of PixelArray type needed as first argument, not %s", OBJ_TNAME(rgb8));
+
+    if ((self->nc != 4) || (self->bpc != 8))
+        return PyErr_Format(PyExc_TypeError, "Incompatible destination PixelArray object");
+    
+    if ((rgb8->nc != 3) || (rgb8->bpc != 8))
+        return PyErr_Format(PyExc_TypeError, "Incompatible source PixelArray object");
+
+    if ((self->width != rgb8->width) || (self->height != rgb8->height))
+        return PyErr_Format(PyExc_TypeError, "Incompatible dimensions between given PixelArray objects");
+
+    rgb8_to_argb8(rgb8->data, self->data, self->width, self->height);
     
     Py_RETURN_NONE;
 }
@@ -338,6 +385,7 @@ static struct PyMethodDef pixarray_methods[] = {
     {"from_string", (PyCFunction)pixarray_fromstring, METH_O, NULL},
     {"argb8_to_argb15x", (PyCFunction)pixarray_argb8toargb15x, METH_O, NULL},
     {"rgb8_to_argb15x", (PyCFunction)pixarray_rgb8toargb15x, METH_O, NULL},
+    {"rgb8_to_argb8", (PyCFunction)pixarray_rgb8toargb8, METH_O, NULL},
     //{"set_component", (PyCFunction)pixarray_set_component, METH_VARARGS, NULL},
     {NULL} /* sentinel */
 };

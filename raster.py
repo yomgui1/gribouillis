@@ -100,6 +100,9 @@ class Raster(pymui.Area):
     def GetSurfacePos(self, x, y):
         return (x - self.MLeft - self.osx) / self.scale, (y - self.MTop - self.osy) / self.scale
 
+    def GetRasterPos(self, x, y):
+        return int(x * self.scale) + self.MLeft + self.osx, int(y * self.scale) + self.MTop + self.osy
+
     def StartMove(self):
         "Save view state"
         self._saved_osx = self.osx

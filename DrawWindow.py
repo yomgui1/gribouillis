@@ -87,6 +87,7 @@ class DrawControler(object):
         if self._mode == DrawControler.MODE_DRAG:
             # Raster moves never use tablet data, only mouse (pixel unit)
             self.view.Scroll(self.mx-evt.MouseX, self.my-evt.MouseY)
+
         elif self._mode == DrawControler.MODE_DRAW:
             if evt.ValidTD and self.tbx is not None:
                 dx = evt.td_NormTabletX - self.tbx
@@ -94,15 +95,16 @@ class DrawControler(object):
             else:
                 dx = evt.MouseX - self.mx
                 dy = evt.MouseY - self.my
+                
+            # draw inside the model
             x, y = self.view.GetSurfacePos(evt.MouseX, evt.MouseY)
-            self.model.BrushDraw(x, y, dx / self.view.scale, dy / self.view.scale)
-            self.view._damaged = []
-            x = self.mx-self.view.MLeft
-            y = self.my-self.view.MTop
-            self.view._damaged.append((x,y,x+63,y+63))
-            x = evt.MouseX-self.view.MLeft
-            y = evt.MouseY-self.view.MTop
-            self.view._damaged.append((x,y,x+63,y+63))
+            damagedrects = self.model.BrushDraw(x, y, dx / self.view.scale, dy / self.view.scale)
+
+            # converting damaged rectangles from model to view coordinates and add them to view
+            for a,b,c,d in damagedrects:
+                self.view.AddDamagedRect(*(self.view.GetRasterPos(a,b)+self.view.GetRasterPos(c,d)))
+
+            # redraw using this damaged list
             self.view.Redraw(MADF_DRAWUPDATE)
         
         self.mx = evt.MouseX

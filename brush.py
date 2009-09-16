@@ -61,12 +61,7 @@ class Brush(Dtpic):
         self.Name = brush.Name # in last because can trig some notification callbacks
 
     def Move(self, sf, x, y):
-        self.sx = x
-        self.sy = y
-        sf.GetBuffer(self.sx, self.sy, False)
+        pass
 
     def Draw(self, sf, x, y, dx, dy, p=0.5, xtilt=0.0, ytilt=0.0):
-        sf.GetBuffer(self.sx, self.sy, False)
-        sf.GetBuffer(x, y, False)
-        self.sx = x
-        self.sy = y
+        pass

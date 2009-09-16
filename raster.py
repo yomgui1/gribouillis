@@ -74,8 +74,8 @@ class Raster(pymui.Area):
             self._draw_area(self.MLeft, self.MTop, self.MRight, self.MBottom)
         elif flags & pymui.MADF_DRAWUPDATE:
             for rect in self._damaged:
-                if rect is not None:
-                    self._draw_area(*rect)
+                self._draw_area(*rect)
+            self._damaged = []
     
     def _draw_area(self, *bbox):
         a, b = self.GetSurfacePos(*bbox[:2])
@@ -101,13 +101,17 @@ class Raster(pymui.Area):
         return (x - self.MLeft - self.osx) / self.scale, (y - self.MTop - self.osy) / self.scale
 
     def StartMove(self):
-        # save data of the current view
+        "Save view state"
         self._saved_osx = self.osx
         self._saved_osy = self.osy
         self._saved_scale = self.scale
 
     def CancelMove(self):
-        pass
+        "Restore previously saved view state"
+        self.osx = self._saved_osx 
+        self.osy = self._saved_osy
+        self.scale = self._saved_scale
+        self.Redraw(MADF_DRAWOBJECT)
         
     def Scroll(self, dx, dy):
         """Scroll(dx, dy)
@@ -135,24 +139,31 @@ class Raster(pymui.Area):
         # |        #4        |
         # +==================+              
         #
-
-        self._damaged = [None]*4
+        
         if dx < 0:
             if dy <= 0:
-                self._damaged[0] = (a, b-dy, a-dx, d)
+                self.AddDamagedRect(a, b-dy, a-dx, d)
             else:
-                self._damaged[0] = (a, b, a-dx, d-dy)
+                self.AddDamagedRect(a, b, a-dx, d-dy)
         elif dx > 0:
             if dy <= 0:
-                self._damaged[1] = (c-dx, b, c, d-dy)
+                self.AddDamagedRect(c-dx, b, c, d-dy)
             else:
-                self._damaged[1] = (c-dx, b-dy, c, d)
-
+                self.AddDamagedRect(c-dx, b-dy, c, d)
+                
         if dy < 0:
-            self._damaged[2] = (a, b, c, b-dy)
+            self.AddDamagedRect(a, b, c, b-dy)
         elif dy > 0:
-            self._damaged[3] = (a, d-dy, c, d)
+            self.AddDamagedRect(a, d-dy, c, d)
 
         # We're going to redraw only damaged rectangles area
         self.Redraw(pymui.MADF_DRAWUPDATE)
 
+    def ClearDamaged(self):
+        self._damaged = []
+
+    def AddDamagedRect(self, *bbox):
+        self._damaged.append(bbox)
+
+    damaged = property(fget=lambda self: iter(self._damaged),
+                       fdet=ClearDamaged)

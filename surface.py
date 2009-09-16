@@ -27,7 +27,8 @@ import PIL.Image as image
 import sys
 
 sys.path.append('Libs/python2.5/site-packages')
-from _raster import PixelArray
+from _pixbuf import PixelArray
+import _pixbuf
 
 T_SIZE = 64
 DEBUG = True
@@ -77,11 +78,11 @@ class TiledSurface(Surface):
             
             if DEBUG and self._bpc == 8:
                 if x == y == 0:
-                    tile.pixels.from_string(buffer(self._blue))
+                    tile.pixels.from_pixarray(self._blue)
                 elif (x+y) % 2:
-                    tile.pixels.from_string(buffer(self._green))
+                    tile.pixels.from_pixarray(self._green)
                 else:
-                    tile.pixels.from_string(buffer(self._red))
+                    tile.pixels.from_pixarray(self._red)
             
             return tile.pixels, x*T_SIZE, y*T_SIZE
     
@@ -95,4 +96,4 @@ class TiledSurface(Surface):
                 sx = min(w, tx+T_SIZE)
                 sy = min(h, ty+T_SIZE)
                 src.from_string(im.crop((tx, ty, sx, sy)).tostring())
-                buf.rgb8_to_argb8(src)
+                _pixbuf.rgb8_to_argb8(src, buf)

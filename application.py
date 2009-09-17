@@ -33,6 +33,7 @@ from DrawWindow import DrawWindow, DrawControler
 from ColorChooser import ColorChooser
 from BrushSelect import BrushSelect
 from BGSelect import MiniBackgroundSelect
+from CMSPrefs import CMSPrefsWindow
 from layers import LayerModel
 
 class Gribouillis(Application):
@@ -50,6 +51,9 @@ class Gribouillis(Application):
         self.win_Color = ColorChooser("Color Selection")
         self.win_BSel = BrushSelect("Brush Selection")
         self.win_MiniBGSel = MiniBackgroundSelect()
+        self.win_CMSPrefs = CMSPrefsWindow("Color Management Profiles Preferences")
+
+        self.win_CMSPrefs.AddOkCallback(self.OnChangedCMSProfiles)
 
         # Create Menus
         menu_def = { 'Project': (('Load Image...', 'L', self.OnLoadImage),
@@ -105,6 +109,7 @@ class Gribouillis(Application):
         self.AddWindow(self.win_Color)
         self.AddWindow(self.win_BSel)
         self.AddWindow(self.win_MiniBGSel)
+        self.AddWindow(self.win_CMSPrefs)
 
         # Create draw window
         self.InitDrawWindow()
@@ -227,3 +232,8 @@ class Gribouillis(Application):
         state = self.win_Draw.fullscreen
         self.TermDrawWindow()
         self.InitDrawWindow(not state)
+
+    def OnChangedCMSProfiles(self, prefs):
+        self.controler.model.CMS_SetInputProfile(prefs.in_profile)
+        self.controler.model.CMS_SetOutputProfile(prefs.out_profile)
+        self.controler.model.CMS_InitTransform()

@@ -52,7 +52,7 @@ static PyTypeObject PyLCMS_TransformHandler_Type;
 ** PyLCMS_TransformHandler_Type
 */
 
-//+ pixarray_new
+//+ lcms_th_new
 static PyObject *
 lcms_th_new(PyTypeObject *type, PyObject *args)
 {
@@ -63,25 +63,29 @@ lcms_th_new(PyTypeObject *type, PyObject *args)
     if (!PyArg_ParseTuple(args, "sIsII|I:__new__", &ip_name, &ib_type, &op_name, &ob_type, &intent, &flags)) /* BR */
         return NULL;
 
+    //dprintf("ip: '%s', op='%s'\n", ip_name, op_name);
+
+    if ((strlen(ip_name) == 0) || (strlen(op_name) == 0))
+        return PyErr_Format(PyExc_TypeError, "Empty profile name given");
+
     self = (PyLCMS_TransformHandler *)type->tp_alloc(type, 0); /* NR */
     if (NULL != self) {
         self->th_hInProfile = cmsOpenProfileFromFile(ip_name, "r");
+        //dprintf("inprofile = %p\n", self->th_hInProfile);
         if (NULL != self->th_hInProfile) {
             self->th_hOutProfile = cmsOpenProfileFromFile(op_name, "r");
+            //dprintf("outprofile = %p\n", self->th_hOutProfile);
             if (NULL != self->th_hOutProfile) {
                 self->th_hTransform = cmsCreateTransform(self->th_hInProfile, ib_type,
                                                          self->th_hOutProfile, ob_type,
                                                          intent, flags);
+                //dprintf("transfom = %p\n", self->th_hTransform);
                 if (NULL != self->th_hTransform)
                     return (PyObject *)self;
                 else
                     PyErr_SetString(PyExc_SystemError, "Failed to obtain a CMS tranform handler");
-
-                cmsCloseProfile(self->th_hOutProfile);
             } else
                 PyErr_Format(PyExc_SystemError, "Failed to open the output profile %s", op_name);
-
-            cmsCloseProfile(self->th_hInProfile);
         } else
             PyErr_Format(PyExc_SystemError, "Failed to open the input profile %s", ip_name);
 
@@ -95,9 +99,9 @@ lcms_th_new(PyTypeObject *type, PyObject *args)
 static void
 lcms_th_dealloc(PyLCMS_TransformHandler *self)
 {
-    cmsDeleteTransform(self->th_hTransform);
-    cmsCloseProfile(self->th_hOutProfile);
-    cmsCloseProfile(self->th_hInProfile);
+    if (NULL != self->th_hTransform) cmsDeleteTransform(self->th_hTransform);
+    if (NULL != self->th_hOutProfile) cmsCloseProfile(self->th_hOutProfile);
+    if (NULL != self->th_hInProfile) cmsCloseProfile(self->th_hInProfile);
     self->ob_type->tp_free((PyObject *)self);
 }
 //-
@@ -113,6 +117,7 @@ lcms_th_apply(PyLCMS_TransformHandler *self, PyObject *args)
 
     /* XXX: I don't care about length here, should I do ? */
 
+    //dprintf("apply: src=%p, dst=%p (pixcnt=%lu)\n", in_buf, out_buf, out_len);
     cmsDoTransform(self->th_hTransform, in_buf, out_buf, pixcnt);
 
     Py_RETURN_NONE;
@@ -150,6 +155,7 @@ static PyMethodDef methods[] = {
 static int add_constants(PyObject *m)
 {
     INSL(m, "TYPE_RGB_8", TYPE_RGB_8);
+    INSL(m, "TYPE_ARGB_8", TYPE_ARGB_8);
     INSI(m, "INTENT_PERCEPTUAL", INTENT_PERCEPTUAL);
     INSI(m, "INTENT_RELATIVE_COLORIMETRIC", INTENT_RELATIVE_COLORIMETRIC);
     INSI(m, "INTENT_SATURATION", INTENT_SATURATION);

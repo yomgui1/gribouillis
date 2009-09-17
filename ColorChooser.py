@@ -44,8 +44,7 @@ class ColorChooser(Window):
                               Frame=MUIV_Frame_String)
 
         g = ColGroup(2)
-        g.AddChild(Text("Hex value:", Weight=0),
-                   self._colstr)
+        g.AddChild(Text("Hex value:", Weight=0), self._colstr)
 
         g = HGroup(Child=(g, HSpace(0)))
 

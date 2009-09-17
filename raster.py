@@ -57,10 +57,10 @@ class Raster(pymui.Area):
         wl.append((cb, args))
 
     def RedrawFull(self):
-        self.Redraw(MADF_DRAWOBJECT)
+        self.Redraw(pymui.MADF_DRAWOBJECT)
 
     def RedrawDamaged(self):
-        self.Redraw(MADF_DRAWUPDATE)
+        self.Redraw(pymui.MADF_DRAWUPDATE)
 
     def MCC_AskMinMax(self, minw, defw, maxw, minh, defh, maxh):
         return minw, defw+320, maxw+10000, minh, defh+320, maxh+10000
@@ -92,12 +92,10 @@ class Raster(pymui.Area):
     
     def _draw_area(self, *bbox):
         a, b = self.GetSurfacePos(*bbox[:2])
-        c, d = self.GetSurfacePos(*bbox[r2:])
+        c, d = self.GetSurfacePos(*bbox[2:])
         for buf in self.model.GetRenderBuffers(a, b, c, d):
             rx, ry = self.GetRasterPos(buf.x, buf.y)
-            if buf.damaged: # Need to apply pre-rendering effects ?
-                buf.damaged = False
-                buf = self.model.PreRenderProcessing(buf)                
+            buf = self.model.PreRenderProcessing(buf)
             self._rp.ScaledBlit8(buf, buf.Width, buf.Height, rx, ry, int(buf.Width * self.scale), int(buf.Height * self.scale))
             if self.debug:
                 self._rp.Rect(3, rx, ry, int(buf.Width * self.scale), int(buf.Height * self.scale))

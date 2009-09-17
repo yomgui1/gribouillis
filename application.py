@@ -48,6 +48,7 @@ class Gribouillis(Application):
         self.last_loaded_dir = None
 
         # Create Windows
+        self.win_Draw = None
         self.win_Color = ColorChooser("Color Selection")
         self.win_BSel = BrushSelect("Brush Selection")
         self.win_MiniBGSel = MiniBackgroundSelect()
@@ -68,7 +69,7 @@ class Gribouillis(Application):
                                 ),
                      'Window':  (('#Fullscreen',     'F', self.ToggleFullscreen),
                                  None, # Separator
-                                 ('Draw Surface',    'D', self.OpenDraw),
+                                 ('Draw Surface',    'D', self.OpenDrawWindow),
                                  ('Color Chooser',   'C', self.win_Color.Open),
                                  ('Brush Selection', 'B', self.win_BSel.Open),
                                  ('Mini Background Selection', 'G', self.win_MiniBGSel.Open),
@@ -80,16 +81,18 @@ class Gribouillis(Application):
             menu = Menu(k)
             strip.AddTail(menu)
 
-            if v is None:
-                menu.AddTail(Menuitem('-')) # Separator
-            else:
-                for t in v:
-                    if t[0][0] == '#': # toggled item
-                        item = Menuitem(t[0][1:], t[1], Toggle=True)
-                    else:
-                        item = Menuitem(t[0], t[1])
-                    item.action(*t[2:])
-                    menu.AddTail(item)
+            for t in v:
+                if t is None:
+                    menu.AddTail(Menuitem('-')) # Separator
+                    continue
+                elif t[0][0] == '#': # toggled item
+                    title = t[0][1:]
+                    item = Menuitem(title, t[1], Toggle=True)
+                    item.title = title
+                else:
+                    item = Menuitem(t[0], t[1])
+                item.action(*t[2:])
+                menu.AddTail(item)
  
         # Create Application object
         super(Gribouillis, self).__init__(
@@ -141,6 +144,7 @@ class Gribouillis(Application):
         if self.win_Draw: return
         
         self.win_Draw = DrawWindow("Draw Area", fullscreen)
+        self.AddWindow(self.win_Draw)
         self.win_Draw.Notify('CloseRequest', True, self.Quit)
         
         model = LayerModel()
@@ -239,3 +243,4 @@ class Gribouillis(Application):
         self.controler.model.CMS_SetInputProfile(prefs.in_profile)
         self.controler.model.CMS_SetOutputProfile(prefs.out_profile)
         self.controler.model.CMS_InitTransform()
+        self.controler.view.RedrawFull()

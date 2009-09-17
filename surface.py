@@ -31,24 +31,26 @@ T_SIZE = 64
 DEBUG = True
 
 class PixelBuffer(PixelArray):
+    def __new__(cl, x, y, *a):
+        return PixelArray.__new__(cl, *a)
+
     def __init__(self, x, y, *a):
         PixelArray.__init__(self, *a)
         self.damaged = True
         self.x = x
         self.y = y
 
-class PixelBufferProxy(weakref.proxy):
-    def __init__(self, o, x, y):
-        weakref.proxy.__init__(self, o)
-        self.damaged = True
-        self.x = x
-        self.y = y
 
 class Tile:
     def __init__(self, bpc, x, y):
         # ARGB buffer, 'bpc' bit per conmposant
         self.pixels = PixelBuffer(x, y, T_SIZE, T_SIZE, 4, bpc)
         self.pixels.one()
+
+
+class Surface(object):
+    pass
+
 
 class TiledSurface(Surface):
     def __init__(self, bpc=16):
@@ -73,9 +75,12 @@ class TiledSurface(Surface):
         if tile:
             return tile.pixels
         elif read:
-            return self.PixelBufferProxy(self._ro_tile.pixels, x*T_SIZE, y*T_SIZE)
+            self._ro_tile.pixels.x = x*T_SIZE
+            self._ro_tile.pixels.y = y*T_SIZE
+            self._ro_tile.pixels.damaged = True
+            return self._ro_tile.pixels
         else:
-            tile = Tile(self._bpc, x, y)
+            tile = Tile(self._bpc, x*T_SIZE, y*T_SIZE)
             self.tiles[(x, y)] = tile
             return tile.pixels
     
@@ -85,8 +90,11 @@ class TiledSurface(Surface):
         for ty in xrange(0, h, T_SIZE):
             for tx in xrange(0, w, T_SIZE):
                 buf = self.GetBuffer(tx, ty, read=False)
-                buf.one()
                 sx = min(w, tx+T_SIZE)
                 sy = min(h, ty+T_SIZE)
                 src.from_string(im.crop((tx, ty, sx, sy)).tostring())
                 _pixbuf.rgb8_to_argb8(src, buf)
+
+    def IterBuffers(self):
+        for tile in self.tiles.itervalues():
+            yield tile.pixels

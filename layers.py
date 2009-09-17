@@ -33,13 +33,13 @@ class LayerModel(object):
         self._layers = []
         self._active = self.AddLayer()
         self._rsurface = TiledSurface(bpc=8) # ARGB 8-bits per component surface for display
-        self.tmpbuf = _pixbuf.PixelArray(T_SIZE, T_SIZE, 3, 8) # can used externaly for rendering
+        self.tmpbuf = _pixbuf.PixelArray(T_SIZE, T_SIZE, 4, 8) # can used externaly for rendering
         self._brush = None
         self.cms_transform = None
         
         from PIL.Image import open
 
-        im = open("backgrounds/03_check1.png")
+        im = open("Images:1er_image_neal.png")
         im.load()
         _, _, w, h = im.getbbox()
         self._rsurface.ImportFromPILImage(im, w, h)
@@ -72,7 +72,7 @@ class LayerModel(object):
 
     def PreRenderProcessing(self, buf):
         if self.cms_transform:
-            self.model.CMS_ApplyTransform(buf, self.tmpbuf)
+            self.CMS_ApplyTransform(buf, self.tmpbuf)
             return self.tmpbuf
         return buf
 
@@ -86,8 +86,8 @@ class LayerModel(object):
 
     def CMS_InitTransform(self):
         del self.cms_transform
-        self.cms_transform = lcms.TransformHandler(self.cms_in, lcms.TYPE_RGB_8,
-                                                   self.cms_op, lcms.TYPE_RGB_8,
+        self.cms_transform = lcms.TransformHandler(self.cms_ip, lcms.TYPE_ARGB_8,
+                                                   self.cms_op, lcms.TYPE_ARGB_8,
                                                    lcms.INTENT_PERCEPTUAL)
 
     def CMS_ApplyTransform(self, inbuf, outbuf):

@@ -31,8 +31,11 @@ static PyTypeObject PyBrush_Type;
 */
 
 //+ obtain_pixbuf
+/* This function could be used in quite unsafe way, because the length
+ * of the returned buffer is not given. An evil code may overflow it.
+ */
 static APTR
-obtain_pixbuf(PyObject *surface, LONG x, LONG y, LONG *bsx, LONG *bsy, Py_ssize_t *len)
+obtain_pixbuf(PyObject *surface, LONG x, LONG y, LONG *bsx, LONG *bsy)
 {
     PyObject *o;
 
@@ -45,9 +48,10 @@ obtain_pixbuf(PyObject *surface, LONG x, LONG y, LONG *bsx, LONG *bsy, Py_ssize_
 
             if ((NULL != o_pixbuf) && (NULL != o_bsx) && (NULL != o_bsy)) {
                 APTR pixbuf;
+                Py_ssize_t len;
                 int res;
 
-                res = PyObject_AsWriteBuffer(o_pixbuf, &pixbuf, len);
+                res = PyObject_AsWriteBuffer(o_pixbuf, &pixbuf, &len);
                 *bsx = PyLong_AsLong(o_bsx);
                 *bsy = PyLong_AsLong(o_bsy);
 
@@ -143,9 +147,9 @@ brush_draw(PyBrush *self, PyObject *args)
              * Search in internal cache for it, then ask directly to the surface object.
              */
 
-            buf = obtain_pixbuf(self->b_Surface, x, y, &bsx, &bsy, &len);
+            buf = obtain_pixbuf(self->b_Surface, x, y, &bsx, &bsy);
             if (NULL == buf)
-                Py_RETURN_NONE;
+                return NULL;
 
             /* 'buf' pointer is supposed to be an ARGB15X pixels buffer.
              * This pointer is directly positionned on pixel (bsx, bsy).

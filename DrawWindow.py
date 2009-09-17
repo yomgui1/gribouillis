@@ -101,7 +101,7 @@ class DrawControler(object):
                 self.view.AddDamagedRect(*(self.view.GetRasterPos(a,b)+self.view.GetRasterPos(c,d)))
 
             # redraw using this damaged list
-            self.view.Redraw(MADF_DRAWOBJECT)
+            self.view.RedrawFull() # XXX: change me into RedrawDamaged when brush draw gives this damaged list
         
         self.mx = evt.MouseX
         self.my = evt.MouseY
@@ -130,7 +130,6 @@ class DrawControler(object):
         if mode == DrawControler.MODE_DRAW:
             pos = self.view.GetSurfacePos(self.mx, self.my)
             self.model.BrushMove(*pos)
-            self.view.Redraw(MADF_DRAWOBJECT)
         elif mode == DrawControler.MODE_DRAG:
             self.view.StartMove()
 
@@ -147,6 +146,7 @@ class DrawControler(object):
 
 class DrawWindow(Window):
     def __init__(self, title, fullscreen=False):
+        self.fullscreen = fullscreen
         kwds = {}
         if fullscreen:
             kwds['WidthScreen'] = 100

@@ -30,30 +30,31 @@ from _pixbuf import PixelArray
 T_SIZE = 64
 DEBUG = True
 
-class Tile:
-    def __init__(self, bpc):
-        # ARGB buffer, 16-bits per conmposants but we'll using only 15 of them
-        self.pixels = PixelArray(T_SIZE, T_SIZE, 4, bpc)
-        self.pixels.one()
+class PixelBuffer(PixelArray):
+    def __init__(self, x, y, *a):
+        PixelArray.__init__(self, *a)
+        self.x = x
+        self.y = y
 
-class Surface(object):
-    pass
+class PixelBufferProxy(weakref.proxy):
+    def __init__(self, o, x, y):
+        weakref.proxy.__init__(self, o)
+        self.x = x
+        self.y = y
+        
+class Tile:
+    def __init__(self, bpc, x, y):
+        # ARGB buffer, 'bpc' bit per conmposant
+        self.pixels = PixelBuffer(x, y, T_SIZE, T_SIZE, 4, bpc)
+        self.pixels.one()
 
 class TiledSurface(Surface):
     def __init__(self, bpc=16):
         Surface.__init__(self)
         self.tiles = {}
         self._bpc = bpc
-        self._ro_tile = Tile(self._bpc)
+        self._ro_tile = Tile(self._bpc, 0, 0) # will be proxy'ed
         self.info = (T_SIZE, T_SIZE, self._ro_tile.pixels.BytesPerRow)
-
-        if DEBUG and bpc == 8:
-            self._red = PixelArray(T_SIZE, T_SIZE, 4, 8)
-            self._green = PixelArray(T_SIZE, T_SIZE, 4, 8)
-            self._blue = PixelArray(T_SIZE, T_SIZE, 4, 8)
-            self._red.from_string("\xff\xff\x00\x00"*T_SIZE**2)
-            self._green.from_string("\xff\x00\xff\x00"*T_SIZE**2)
-            self._blue.from_string("\xff\x00\x00\xff"*T_SIZE**2)
 
     def GetBuffer(self, x, y, read=True):
         """GetBuffer(x, y, read=True) -> (pixel buffer, bx, by)
@@ -68,29 +69,20 @@ class TiledSurface(Surface):
 
         tile = self.tiles.get((x, y))
         if tile:
-            return tile.pixels, x*T_SIZE, y*T_SIZE
+            return tile.pixels
         elif read:
-            return self._ro_tile.pixels, x*T_SIZE, y*T_SIZE
+            return self.PixelBufferProxy(self._ro_tile.pixels, x*T_SIZE, y*T_SIZE)
         else:
-            tile = Tile(self._bpc)
-            self.tiles[(x, y)] = tile 
-            
-            if DEBUG and self._bpc == 8:
-                if x == y == 0:
-                    tile.pixels.from_pixarray(self._blue)
-                elif (x+y) % 2:
-                    tile.pixels.from_pixarray(self._green)
-                else:
-                    tile.pixels.from_pixarray(self._red)
-            
-            return tile.pixels, x*T_SIZE, y*T_SIZE
+            tile = Tile(self._bpc, x, y)
+            self.tiles[(x, y)] = tile
+            return tile.pixels
     
     def ImportFromPILImage(self, im, w, h):
         im = im.convert('RGB')
         src = PixelArray(T_SIZE, T_SIZE, 3, 8)
         for ty in xrange(0, h, T_SIZE):
             for tx in xrange(0, w, T_SIZE):
-                buf, _, _ = self.GetBuffer(tx, ty, read=False)
+                buf = self.GetBuffer(tx, ty, read=False)
                 buf.one()
                 sx = min(w, tx+T_SIZE)
                 sy = min(h, ty+T_SIZE)

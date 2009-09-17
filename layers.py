@@ -25,6 +25,7 @@
 
 from surface import TiledSurface, T_SIZE
 from brush import Brush
+import lcms
 
 class LayerModel(object):
     def __init__(self):
@@ -32,7 +33,8 @@ class LayerModel(object):
         self._active = self.AddLayer()
         self._rsurface = TiledSurface(bpc=8) # ARGB 8-bits per component surface for display
         self._brush = None
-
+        self.cms_transform = None
+        
         from PIL.Image import open
 
         im = open("backgrounds/03_check1.png")
@@ -57,7 +59,7 @@ class LayerModel(object):
         if self._brush:
             return self._brush.Draw(*a, **kwds)
 
-    def GetBuffers(self, xmin, ymin, xmax, ymax):
+    def GetRenderBuffers(self, xmin, ymin, xmax, ymax):
         xmin = int(xmin)
         xmax = int(xmax)
         ymin = int(ymin)
@@ -65,3 +67,20 @@ class LayerModel(object):
         for ty in xrange(ymin, ymax+T_SIZE-1, T_SIZE):
             for tx in xrange(xmin, xmax+T_SIZE-1, T_SIZE):
                 yield self._rsurface.GetBuffer(tx, ty)
+
+    ## CMS ##
+
+    def CMS_SetInputProfile(self, profile):
+        self.cms_ip = profile
+
+    def CMS_SetOutputProfile(self, profile):
+        self.cms_op = profile
+
+    def CMS_InitTransform(self):
+        del self.cms_transform
+        self.cms_transform = lcms.TransformHandler(self.cms_in, lcms.TYPE_RGB_8,
+                                                   self.cms_op, lcms.TYPE_RGB_8,
+                                                   lcms.INTENT_PERCEPTUAL)
+
+    def CMS_ApplyTransform(self, inbuf, outbuf):
+        self.cms_transform.apply(inbuf, outbuf, outbuf.Width * outbuf.Height)

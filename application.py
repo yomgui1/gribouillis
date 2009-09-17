@@ -47,20 +47,22 @@ class Gribouillis(Application):
         self.last_loaded_dir = None
 
         # Create Windows
-        self.win_Draw = DrawWindow("Draw Area")
         self.win_Color = ColorChooser("Color Selection")
         self.win_BSel = BrushSelect("Brush Selection")
         self.win_MiniBGSel = MiniBackgroundSelect()
 
         # Create Menus
         menu_def = { 'Project': (('Load Image...', 'L', self.OnLoadImage),
+                                 None, # Separator
                                  ('Quit',          'Q', self.OnQuitRequest, None),
                                 ),
                      'Edit':    (('Increase Zoom', '+', None),
                                  ('Decrease Zoom', '-', None),
                                  ('Reset Zoom',    '=', None),
                                 ),
-                     'Window':  (('Draw Surface',    'D', self.win_Draw.Open),
+                     'Window':  (('#Fullscreen',     'F', self.ToggleFullscreen),
+                                 None, # Separator
+                                 ('Draw Surface',    'D', self.OpenDraw),
                                  ('Color Chooser',   'C', self.win_Color.Open),
                                  ('Brush Selection', 'B', self.win_BSel.Open),
                                  ('Mini Background Selection', 'G', self.win_MiniBGSel.Open),
@@ -72,10 +74,16 @@ class Gribouillis(Application):
             menu = Menu(k)
             strip.AddTail(menu)
 
-            for t in v:
-                item = Menuitem(t[0], t[1])
-                item.action(*t[2:])
-                menu.AddTail(item)
+            if v is None:
+                menu.AddTail(Menuitem('-')) # Separator
+            else:
+                for t in v:
+                    if t[0][0] == '#': # toggled item
+                        item = Menuitem(t[0][1:], t[1], Toggle=True)
+                    else:
+                        item = Menuitem(t[0], t[1])
+                    item.action(*t[2:])
+                    menu.AddTail(item)
  
         # Create Application object
         super(Gribouillis, self).__init__(
@@ -89,21 +97,17 @@ class Gribouillis(Application):
         )
 
         # Be sure that all windows can be closed
-        self.win_Draw.Notify('CloseRequest', True, self.Quit)
         self.win_Color.Notify('CloseRequest', True, self.win_Color.Close)
         self.win_BSel.Notify('CloseRequest', True, self.win_BSel.Close)
         self.win_MiniBGSel.Notify('CloseRequest', True, self.win_MiniBGSel.Close)
 
         # We can't open a window if it has not been attached to the application
-        self.AddWindow(self.win_Draw)
         self.AddWindow(self.win_Color)
         self.AddWindow(self.win_BSel)
         self.AddWindow(self.win_MiniBGSel)
 
-        # Init draw controler
-        model = LayerModel()
-        view = self.win_Draw.raster
-        self.controler = DrawControler(view, model)
+        # Create draw window
+        self.InitDrawWindow()
 
         # Init brushes
         self.init_brushes()
@@ -113,15 +117,37 @@ class Gribouillis(Application):
         self.set_active_brush(self.brushes[0])
         self.set_color(0, 0, 0)
 
-        # Init backgrounds
+        # Init backgrounds selection window
         self.win_MiniBGSel.add_watcher(self.UseBackground)
         for name in sorted(os.listdir("backgrounds")):
             self.win_MiniBGSel.AddImage(os.path.join("backgrounds", name))
 
         # Open windows now
         self.win_BSel.Open()
-        self.win_Color.Open() 
-        self.win_Draw.Open() 
+        self.win_Color.Open()
+        self.win_Draw.Open()
+
+    def OpenDrawWindow(self):
+        self.win_Draw.Open()
+
+    def InitDrawWindow(self, fullscreen=False):
+        if self.win_Draw: return
+        
+        self.win_Draw = DrawWindow("Draw Area", fullscreen)
+        self.win_Draw.Notify('CloseRequest', True, self.Quit)
+        
+        model = LayerModel()
+        view = self.win_Draw.raster
+        self.controler = DrawControler(view, model)
+
+    def TermDrawWindow(self):
+        if not self.win_Draw: return
+        
+        self.win_Draw.Close()
+        del self.controler
+        self.RemWindow(self.win_Draw)
+        del self.win_Draw
+        self.win_Draw = None
 
     def init_brushes(self):
         self._main_brush = self.win_BSel.brush
@@ -196,3 +222,8 @@ class Gribouillis(Application):
 
     def OnQuitRequest(self):
         self.Quit()
+
+    def ToggleFullscreen(self):
+        state = self.win_Draw.fullscreen
+        self.TermDrawWindow()
+        self.InitDrawWindow(not state)

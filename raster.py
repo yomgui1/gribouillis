@@ -25,8 +25,6 @@
 
 import pymui
 
-DEBUG = False
-
 class Raster(pymui.Area):
     EVENTMAP = {
         pymui.IDCMP_MOUSEBUTTONS : 'mouse-button',
@@ -48,6 +46,7 @@ class Raster(pymui.Area):
         self.osy = 0 # Y position of the surface origin, in raster origin
         self.scale = 1.0 # zoom factor
         self.model = None
+        self.debug = False
 
     def add_watcher(self, name, cb, *args):
         wl = self._watchers.get(name)
@@ -55,8 +54,14 @@ class Raster(pymui.Area):
             self._watchers[name] = wl = []
         wl.append((cb, args))
 
-    def MCC_AskMinMax(self):
-        return 0, 320, 10000, 0, 320, 10000
+    def RedrawFull(self):
+        self.Redraw(MADF_DRAWOBJECT)
+
+    def RedrawDamaged(self):
+        self.Redraw(MADF_DRAWUPDATE)
+
+    def MCC_AskMinMax(self, minw, defw, maxw, minh, defh, maxh):
+        return minw, defw+320, maxw+10000, minh, defh+320, maxh+10000
 
     def MCC_Setup(self):
         self._ev.install(self, pymui.IDCMP_RAWKEY | pymui.IDCMP_MOUSEBUTTONS)
@@ -71,24 +76,35 @@ class Raster(pymui.Area):
             cb(evt, *args)
 
     def MCC_Draw(self, flags):
+        # Draw full raster
         if flags & pymui.MADF_DRAWOBJECT:
             self._draw_area(self.MLeft, self.MTop, self.MRight, self.MBottom)
+
+        # Draw only damaged area
         elif flags & pymui.MADF_DRAWUPDATE:
             for rect in self._damaged:
                 self._draw_area(*rect)
+                if self.debug:
+                    self._rp.Rect(4, *rect)
             self._damaged = []
     
     def _draw_area(self, *bbox):
         a, b = self.GetSurfacePos(*bbox[:2])
-        c, d = self.GetSurfacePos(*bbox[2:])
-        for buf, rx, ry in self.model.GetBuffers(a, b, c, d):
-            rx = int(rx * self.scale) + self.osx + self.MLeft
-            ry = int(ry * self.scale) + self.osy + self.MTop
-            if buf:
-                self._rp.ScaledBlit8(buf, buf.Width, buf.Height, rx, ry, int(buf.Width * self.scale), int(buf.Height * self.scale))
-            if DEBUG:
+        c, d = self.GetSurfacePos(*bbox[r2:])
+        for buf in self.model.GetBuffers(a, b, c, d):
+            rx, ry = self.GetRasterPos(buf.x, buf.y)
+            self._rp.ScaledBlit8(buf, buf.Width, buf.Height, rx, ry, int(buf.Width * self.scale), int(buf.Height * self.scale))
+            if self.debug:
                 self._rp.Rect(3, rx, ry, int(buf.Width * self.scale), int(buf.Height * self.scale))
- 
+
+    def ClearDamaged(self):
+        self._damaged = []
+
+    def AddDamagedRect(self, *bbox):
+        self._damaged.append(bbox)
+
+    damaged = property(fget=lambda self: iter(self._damaged),
+                       fdel=ClearDamaged)
 
     def EnableMouseMoveEvents(self, state=True):
         self._ev.uninstall()
@@ -115,7 +131,7 @@ class Raster(pymui.Area):
         self.osx = self._saved_osx 
         self.osy = self._saved_osy
         self.scale = self._saved_scale
-        self.Redraw(MADF_DRAWOBJECT)
+        self.RedrawFull()
         
     def Scroll(self, dx, dy):
         """Scroll(dx, dy)
@@ -161,13 +177,4 @@ class Raster(pymui.Area):
             self.AddDamagedRect(a, d-dy, c, d)
 
         # We're going to redraw only damaged rectangles area
-        self.Redraw(pymui.MADF_DRAWUPDATE)
-
-    def ClearDamaged(self):
-        self._damaged = []
-
-    def AddDamagedRect(self, *bbox):
-        self._damaged.append(bbox)
-
-    damaged = property(fget=lambda self: iter(self._damaged),
-                       fdel=ClearDamaged)
+        self.RedrawDamaged()

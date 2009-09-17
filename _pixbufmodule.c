@@ -463,8 +463,8 @@ static int add_constants(PyObject *m)
 //-
 //+ PyMorphOS_CloseModule
 void
-PyMorphOS_CloseModule(void) {
-
+PyMorphOS_CloseModule(void)
+{
     if (NULL != CyberGfxBase) {
         CloseLibrary(CyberGfxBase);
         CyberGfxBase = NULL;

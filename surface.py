@@ -40,9 +40,10 @@ class PixelBuffer(PixelArray):
 class PixelBufferProxy(weakref.proxy):
     def __init__(self, o, x, y):
         weakref.proxy.__init__(self, o)
+        self.damaged = True
         self.x = x
         self.y = y
-        
+
 class Tile:
     def __init__(self, bpc, x, y):
         # ARGB buffer, 'bpc' bit per conmposant

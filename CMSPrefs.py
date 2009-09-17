@@ -59,9 +59,9 @@ class CMSPrefsWindow(pymui.Window):
         super(CMSWindow, self).Open()
 
     def OnConfirm(self):
+        self.Close()
         self._in_profile = self._str_in.Contents
         self._out_profile = self._str_out.Contents
-        self.Close()
         for cb, a in self._ok_cb:
             cb(self, *a)
 

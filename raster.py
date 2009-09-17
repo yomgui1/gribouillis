@@ -93,7 +93,7 @@ class Raster(pymui.Area):
     def _draw_area(self, *bbox):
         a, b = self.GetSurfacePos(*bbox[:2])
         c, d = self.GetSurfacePos(*bbox[r2:])
-        for buf in self.model.GetBuffers(a, b, c, d):
+        for buf in self.model.GetRenderBuffers(a, b, c, d):
             rx, ry = self.GetRasterPos(buf.x, buf.y)
             if buf.damaged: # Need to apply pre-rendering effects ?
                 buf.damaged = False

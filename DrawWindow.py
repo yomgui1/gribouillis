@@ -97,8 +97,8 @@ class DrawControler(object):
             damagedrects = self.model.BrushDraw(x, y, dx / self.view.scale, dy / self.view.scale)
 
             # converting damaged rectangles from model to view coordinates and add them to view
-            for a,b,c,d in damagedrects:
-                self.view.AddDamagedRect(*(self.view.GetRasterPos(a,b)+self.view.GetRasterPos(c,d)))
+            #for a,b,c,d in damagedrects:
+            #    self.view.AddDamagedRect(*(self.view.GetRasterPos(a,b)+self.view.GetRasterPos(c,d)))
 
             # redraw using this damaged list
             self.view.RedrawFull() # XXX: change me into RedrawDamaged when brush draw gives this damaged list
@@ -153,16 +153,17 @@ class DrawWindow(Window):
             kwds['HeightScreen'] = 100
             kwds['Borderless'] = True
             kwds['Backdrop'] = True
+            kwds['ID'] = 'DRWF'
         else:
             kwds['Width'] = 800
             kwds['Height'] = 600
             kwds['LeftEdge'] = 64
             kwds['TopEdge'] = 64
+            kwds['ID'] = 'DRW0'
 
-        super(DrawWindow, self).__init__(title, ID="DRAW",
+        super(DrawWindow, self).__init__(title,
                                          TabletMessages=True, # enable tablet events support
-                                         **kwds
-                                         )
+                                         **kwds)
 
         self.raster = Raster()
         self.RootObject = self.raster

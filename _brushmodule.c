@@ -37,34 +37,33 @@ static PyTypeObject PyBrush_Type;
 static APTR
 obtain_pixbuf(PyObject *surface, LONG x, LONG y, LONG *bsx, LONG *bsy)
 {
-    PyObject *o;
+    PyObject *o_pixbuf;
 
-    o = PyObject_CallMethod(surface, "GetBuffer", "iii", x, y, FALSE); /* NR */
-    if (NULL != o) {
-        if (PyTuple_CheckExact(o) && (PyTuple_GET_SIZE(o) == 3)) {
-            PyObject *o_pixbuf = PyTuple_GET_ITEM(o, 0); /* BR */
-            PyObject *o_bsx = PyTuple_GET_ITEM(o, 1); /* BR */
-            PyObject *o_bsy = PyTuple_GET_ITEM(o, 2); /* BR */
+    o_pixbuf = PyObject_CallMethod(surface, "GetBuffer", "iii", x, y, FALSE); /* NR */
+    if (NULL != o_pixbuf) {
+        PyObject *o_bsx = PyObject_GetAttrString(o_pixbuf, "x"); /* NR */
+        PyObject *o_bsy = PyObject_GetAttrString(o_pixbuf, "y"); /* NR */
 
-            if ((NULL != o_pixbuf) && (NULL != o_bsx) && (NULL != o_bsy)) {
-                APTR pixbuf;
-                Py_ssize_t len;
-                int res;
+        if ((NULL != o_bsx) && (NULL != o_bsy)) {
+            APTR pixbuf;
+            Py_ssize_t len;
+            int res;
 
-                res = PyObject_AsWriteBuffer(o_pixbuf, &pixbuf, &len);
-                *bsx = PyLong_AsLong(o_bsx);
-                *bsy = PyLong_AsLong(o_bsy);
+            res = PyObject_AsWriteBuffer(o_pixbuf, &pixbuf, &len);
+            *bsx = PyLong_AsLong(o_bsx); Py_CLEAR(o_bsx);
+            *bsy = PyLong_AsLong(o_bsy); Py_CLEAR(o_bsy);
 
-                /* We suppose that the associated python object remains valid during the draw call */
-                if (!res && !PyErr_Occurred()) {
-                    DPRINT("obtain_pixbuf: pb=%p, len=%lu, bsx=%ld, bsy=%ld, x=%ld, y=%ld\n",
-                        (ULONG)pixbuf, *len, *bsx, *bsy, x, y);
-                    return pixbuf;
-                }
+            /* We suppose that the associated python object remains valid during the draw call */
+            if (!res && !PyErr_Occurred()) {
+                DPRINT("obtain_pixbuf: pb=%p, len=%lu, bsx=%ld, bsy=%ld, x=%ld, y=%ld\n",
+                    (ULONG)pixbuf, *len, *bsx, *bsy, x, y);
+                return pixbuf;
             }
         }
 
-        Py_DECREF(o);
+        Py_XDECREF(o_bsx);
+        Py_XDECREF(o_bsy);
+        Py_DECREF(o_pixbuf);
     }
 
     return NULL;
@@ -141,7 +140,6 @@ brush_draw(PyBrush *self, PyObject *args)
             UBYTE *buf;
             LONG bsx, bsy; /* Position of the top/left corner of the buffer on surface */
             LONG bx, by;
-            Py_ssize_t len;
 
             /* Try to obtain the surface pixels buffer for the point (x, y).
              * Search in internal cache for it, then ask directly to the surface object.
@@ -173,14 +171,12 @@ brush_draw(PyBrush *self, PyObject *args)
 
             for (by=y-bsy; by <= MIN(maxy-bsy, self->b_PixBufHeight-1); by++) {
                 for (bx=x-bsx; bx <= MIN(maxx-bsx, self->b_PixBufWidth-1); bx++) {
-                    FLOAT drx, dry;
-                    FLOAT r2;
+                    FLOAT drx, dry, r;
                     
                     drx = bx+bsx - sx;
                     dry = (by+bsy - sy) / y_ratio;
-                    r2 = ((FLOAT)drx*drx + (FLOAT)dry*dry) / rr;
-
-                    if (r2 <= 1.0) {
+                    r = (drx * drx + dry*dry);
+                    if (r <= radius*radius) {
                         int i = bx*4/sizeof(*buf);
 
                         /* XXX: Replace me by the real function */
@@ -189,14 +185,15 @@ brush_draw(PyBrush *self, PyObject *args)
                         buf[i+2] = 255; /* G */
                         buf[i+3] =   0; /* B */
                     }
-                    
-                    if (SetSignal(0, SIGBREAKF_CTRL_C) & SIGBREAKF_CTRL_C)
-                        Py_RETURN_NONE;
                 }
 
                 /* Go to the next row to fill */
                 buf += self->b_PixBufBPR / sizeof(*buf);
             }
+
+            if (SetSignal(0, SIGBREAKF_CTRL_C) & SIGBREAKF_CTRL_C)
+                Py_RETURN_NONE;
+ 
 
             /* Update x */
             x = bx + bsx;

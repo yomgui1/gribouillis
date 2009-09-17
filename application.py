@@ -155,8 +155,8 @@ class Gribouillis(Application):
         if not self.win_Draw: return
         
         self.win_Draw.Close()
-        del self.controler
         self.RemWindow(self.win_Draw)
+        del self.controler 
         del self.win_Draw
         self.win_Draw = None
 
@@ -238,6 +238,7 @@ class Gribouillis(Application):
         state = self.win_Draw.fullscreen
         self.TermDrawWindow()
         self.InitDrawWindow(not state)
+        self.win_Draw.Open()
 
     def OnChangedCMSProfiles(self, prefs):
         self.controler.model.CMS_SetInputProfile(prefs.in_profile)

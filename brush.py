@@ -68,5 +68,5 @@ class Brush(Dtpic):
         self._brush.surface = sf
 
     def Draw(self, x, y, dx, dy, p=0.5, xtilt=0.0, ytilt=0.0):
-        self._brush.draw(x, y, dx, dy, p, 8.0, 1.8)
+        self._brush.draw(x, y, dx, dy, p, 16.0, 0.2)
         return ()

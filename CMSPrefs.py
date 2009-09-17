@@ -27,7 +27,7 @@ import pymui
 
 class CMSPrefsWindow(pymui.Window):    
     def __init__(self, title):
-        super(CMSWindow, self).__init__(title, ID="CMS0")
+        super(CMSWindow, self).__init__(title, ID=0, LeftEdge='centered', TopEdge='centered')
 
         self._in_profile = ""
         self._out_profile = ""

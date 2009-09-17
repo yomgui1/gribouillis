@@ -63,6 +63,8 @@ class Gribouillis(Application):
                      'Edit':    (('Increase Zoom', '+', None),
                                  ('Decrease Zoom', '-', None),
                                  ('Reset Zoom',    '=', None),
+                                 None,
+                                 ('Set CMS Profiles...', 'P', self.win_CMSPrefs.Open),
                                 ),
                      'Window':  (('#Fullscreen',     'F', self.ToggleFullscreen),
                                  None, # Separator

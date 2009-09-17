@@ -173,7 +173,7 @@ brush_draw(PyBrush *self, PyObject *args)
                     FLOAT r2;
                     
                     drx = bx+bsx - sx;
-                    dry = (by+bsy - sy) * y_ratio;
+                    dry = (by+bsy - sy) / y_ratio;
                     r2 = ((FLOAT)drx*drx + (FLOAT)dry*dry) / rr;
 
                     if (r2 <= 1.0) {

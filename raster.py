@@ -24,6 +24,8 @@
 ###############################################################################
 
 import pymui
+import _pixbuf
+import surface
 
 class Raster(pymui.Area):
     EVENTMAP = {
@@ -93,6 +95,9 @@ class Raster(pymui.Area):
         c, d = self.GetSurfacePos(*bbox[r2:])
         for buf in self.model.GetBuffers(a, b, c, d):
             rx, ry = self.GetRasterPos(buf.x, buf.y)
+            if buf.damaged: # Need to apply pre-rendering effects ?
+                buf.damaged = False
+                buf = self.model.PreRenderProcessing(buf)                
             self._rp.ScaledBlit8(buf, buf.Width, buf.Height, rx, ry, int(buf.Width * self.scale), int(buf.Height * self.scale))
             if self.debug:
                 self._rp.Rect(3, rx, ry, int(buf.Width * self.scale), int(buf.Height * self.scale))

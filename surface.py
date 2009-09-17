@@ -33,6 +33,7 @@ DEBUG = True
 class PixelBuffer(PixelArray):
     def __init__(self, x, y, *a):
         PixelArray.__init__(self, *a)
+        self.damaged = True
         self.x = x
         self.y = y
 

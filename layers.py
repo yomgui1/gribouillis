@@ -23,6 +23,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
+import _pixbuf
 from surface import TiledSurface, T_SIZE
 from brush import Brush
 import lcms
@@ -32,6 +33,7 @@ class LayerModel(object):
         self._layers = []
         self._active = self.AddLayer()
         self._rsurface = TiledSurface(bpc=8) # ARGB 8-bits per component surface for display
+        self.tmpbuf = _pixbuf.PixelArray(T_SIZE, T_SIZE, 3, 8) # can used externaly for rendering
         self._brush = None
         self.cms_transform = None
         
@@ -67,6 +69,12 @@ class LayerModel(object):
         for ty in xrange(ymin, ymax+T_SIZE-1, T_SIZE):
             for tx in xrange(xmin, xmax+T_SIZE-1, T_SIZE):
                 yield self._rsurface.GetBuffer(tx, ty)
+
+    def PreRenderProcessing(self, buf):
+        if self.cms_transform:
+            self.model.CMS_ApplyTransform(buf, self.tmpbuf)
+            return self.tmpbuf
+        return buf
 
     ## CMS ##
 

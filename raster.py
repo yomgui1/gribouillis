@@ -25,7 +25,7 @@
 
 import pymui
 
-DEBUG = True
+DEBUG = False
 
 class Raster(pymui.Area):
     EVENTMAP = {
@@ -41,6 +41,7 @@ class Raster(pymui.Area):
                             DoubleBuffer=True,
                             MCC=True)
         self._clip = True
+        self._damaged = []
         self._watchers = {}
         self._ev = pymui.EventHandler()
         self.osx = 0 # X position of the surface origin, in raster origin
@@ -98,7 +99,7 @@ class Raster(pymui.Area):
         self._ev.install(self, idcmp)
 
     def GetSurfacePos(self, x, y):
-        return (x - self.MLeft - self.osx) / self.scale, (y - self.MTop - self.osy) / self.scale
+        return int((x - self.MLeft - self.osx) / self.scale), int((y - self.MTop - self.osy) / self.scale)
 
     def GetRasterPos(self, x, y):
         return int(x * self.scale) + self.MLeft + self.osx, int(y * self.scale) + self.MTop + self.osy
@@ -169,4 +170,4 @@ class Raster(pymui.Area):
         self._damaged.append(bbox)
 
     damaged = property(fget=lambda self: iter(self._damaged),
-                       fdet=ClearDamaged)
+                       fdel=ClearDamaged)

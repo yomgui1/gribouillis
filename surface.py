@@ -24,11 +24,8 @@
 ###############################################################################
 
 import PIL.Image as image
-import sys
-
-sys.path.append('Libs/python2.5/site-packages')
-from _pixbuf import PixelArray
 import _pixbuf
+from _pixbuf import PixelArray
 
 T_SIZE = 64
 DEBUG = True
@@ -48,6 +45,8 @@ class TiledSurface(Surface):
         self.tiles = {}
         self._bpc = bpc
         self._ro_tile = Tile(self._bpc)
+        self.info = (T_SIZE, T_SIZE, self._ro_tile.pixels.BytesPerRow)
+
         if DEBUG and bpc == 8:
             self._red = PixelArray(T_SIZE, T_SIZE, 4, 8)
             self._green = PixelArray(T_SIZE, T_SIZE, 4, 8)
@@ -73,7 +72,7 @@ class TiledSurface(Surface):
         elif read:
             return self._ro_tile.pixels, x*T_SIZE, y*T_SIZE
         else:
-            tile = Tile(self._bpc) 
+            tile = Tile(self._bpc)
             self.tiles[(x, y)] = tile 
             
             if DEBUG and self._bpc == 8:

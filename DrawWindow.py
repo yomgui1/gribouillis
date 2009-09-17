@@ -70,11 +70,7 @@ class DrawControler(object):
                     self.ConfirmAction(DrawControler.MODE_IDLE, evt)
                     return MUI_EventHandlerRC_Eat
         elif self._mode == DrawControler.MODE_DRAG:
-            if evt.Code == IECODE_LBUTTON:
-                if not evt.Up and evt.InObject:
-                    self.ConfirmAction(DrawControler.MODE_DRAW, evt)
-                    return MUI_EventHandlerRC_Eat
-            elif evt.Code == IECODE_MBUTTON:
+            if evt.Code == IECODE_MBUTTON:
                 if evt.Up:
                     self.ConfirmAction(DrawControler.MODE_IDLE, evt)
                     return MUI_EventHandlerRC_Eat
@@ -105,7 +101,7 @@ class DrawControler(object):
                 self.view.AddDamagedRect(*(self.view.GetRasterPos(a,b)+self.view.GetRasterPos(c,d)))
 
             # redraw using this damaged list
-            self.view.Redraw(MADF_DRAWUPDATE)
+            self.view.Redraw(MADF_DRAWOBJECT)
         
         self.mx = evt.MouseX
         self.my = evt.MouseY
@@ -150,7 +146,7 @@ class DrawControler(object):
 
 
 class DrawWindow(Window):
-    def __init__(self, title, fullscreen=True):
+    def __init__(self, title, fullscreen=False):
         kwds = {}
         if fullscreen:
             kwds['WidthScreen'] = 100

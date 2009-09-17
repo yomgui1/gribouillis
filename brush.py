@@ -38,6 +38,9 @@ class Brush(Dtpic):
         self._color = (0, 0, 0)
         self.shortname = ''
 
+        # Brush model (features + drawing routines)
+        self._brush = _brush.Brush()
+
     def load(self, search_paths, name):
         fullname = name + '_prev.png'
         
@@ -61,8 +64,9 @@ class Brush(Dtpic):
         self.color = brush.color
         self.Name = brush.Name # in last because can trig some notification callbacks
 
-    def Move(self, sf, x, y):
-        pass
+    def InitDraw(self, sf, x, y):
+        self._brush.surface = sf
 
-    def Draw(self, sf, x, y, dx, dy, p=0.5, xtilt=0.0, ytilt=0.0):
-        pass
+    def Draw(self, x, y, dx, dy, p=0.5, xtilt=0.0, ytilt=0.0):
+        self._brush.draw(x, y, dx, dy, p, 8.0, 1.8)
+        return ()

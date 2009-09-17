@@ -30,10 +30,12 @@ OTHER DEALINGS IN THE SOFTWARE.
 #include <proto/graphics.h>
 #include <proto/cybergraphics.h>
 
+#ifndef INITFUNC
+#define INITFUNC init_pixbuf
+#endif
+
 #define PyPixelArray_Check(op) PyObject_TypeCheck(op, &PyPixelArray_Type)
 #define PyPixelArray_CheckExact(op) ((op)->ob_type == &PyPixelArray_Type)
-
-#define CACHE_SIZE 16
 
 typedef struct PyPixelArray_STRUCT {
     PyObject_HEAD
@@ -358,7 +360,7 @@ mod_rgb8_to_argb8(PyObject *self, PyObject *args)
 {
     PyPixelArray *src, *dst;
 
-    if (!PyArg_ParseTuple(args, "O!O!", &src, &PyPixelArray_Type, &dst, &PyPixelArray_Type))
+    if (!PyArg_ParseTuple(args, "O!O!", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst))
         return NULL;
 
     if ((src->nc != 3) || (src->bpc != 8))
@@ -381,7 +383,7 @@ mod_rgb8_to_argb15x(PyObject *self, PyObject *args)
 {
     PyPixelArray *src, *dst;
 
-    if (!PyArg_ParseTuple(args, "O!O!", &src, &PyPixelArray_Type, &dst, &PyPixelArray_Type))
+    if (!PyArg_ParseTuple(args, "O!O!", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst))
         return NULL;
 
     if ((src->nc != 3) || (src->bpc != 8))
@@ -404,7 +406,7 @@ mod_argb8_to_argb15x(PyObject *self, PyObject *args)
 {
     PyPixelArray *src, *dst;
 
-    if (!PyArg_ParseTuple(args, "O!O!", &src, &PyPixelArray_Type, &dst, &PyPixelArray_Type))
+    if (!PyArg_ParseTuple(args, "O!O!", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst))
         return NULL;
 
     if ((src->nc != 4) || (src->bpc != 8))
@@ -427,7 +429,7 @@ mod_bltalpha_argb15x_to_rgb8(PyObject *self, PyObject *args)
 {
     PyPixelArray *src, *dst;
 
-    if (!PyArg_ParseTuple(args, "O!O!", &src, &PyPixelArray_Type, &dst, &PyPixelArray_Type))
+    if (!PyArg_ParseTuple(args, "O!O!", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst))
         return NULL;
 
     if ((src->nc != 4) || (src->bpc != 16))
@@ -445,15 +447,13 @@ mod_bltalpha_argb15x_to_rgb8(PyObject *self, PyObject *args)
 }
 //-
 
-//+ methods
 static PyMethodDef methods[] = {
-    {"rgb8_to_argb8", (PyCFunction)mod_rgb8_to_argb8, METH_VARARGS, NULL},
-    {"rgb8_to_argb15x", (PyCFunction)mod_rgb8_to_argb15x, METH_VARARGS, NULL},
-    {"argb8_to_argb15x", (PyCFunction)mod_argb8_to_argb15x, METH_VARARGS, NULL},
+    {"rgb8_to_argb8",            (PyCFunction)mod_rgb8_to_argb8,            METH_VARARGS, NULL},
+    {"rgb8_to_argb15x",          (PyCFunction)mod_rgb8_to_argb15x,          METH_VARARGS, NULL},
+    {"argb8_to_argb15x",         (PyCFunction)mod_argb8_to_argb15x,         METH_VARARGS, NULL},
     {"bltalpha_argb15x_to_rgb8", (PyCFunction)mod_bltalpha_argb15x_to_rgb8, METH_VARARGS, NULL},
     {0}
 };
-//-
 
 //+ add_constants
 static int add_constants(PyObject *m)
@@ -471,8 +471,9 @@ PyMorphOS_CloseModule(void) {
     }
 }
 //- PyMorphOS_CloseModule
-//+ init_pixbuf
-void init_pixbuf(void)
+//+ INITFUNC()
+PyMODINIT_FUNC
+INITFUNC(void)
 {
     PyObject *m;
 

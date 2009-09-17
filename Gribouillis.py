@@ -25,8 +25,11 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import os
-from application import Gribouillis
+import os, sys
+
+sys.path.append('Libs/python2.5/site-packages')
+
+from application import Gribouillis  
 
 app = Gribouillis(os.getcwd())
 app.Run()

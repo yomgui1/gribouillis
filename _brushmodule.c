@@ -2,6 +2,12 @@
 
 #include <math.h>
 
+#ifndef INITFUNC
+#define INITFUNC init_brush
+#endif
+
+#define DPRINT(x, ...)
+
 #define PyBrush_Check(op) PyObject_TypeCheck(op, &PyBrush_Type)
 #define PyBrush_CheckExact(op) ((op)->ob_type == &PyBrush_Type)
 
@@ -26,9 +32,37 @@ static PyTypeObject PyBrush_Type;
 
 //+ obtain_pixbuf
 static APTR
-obtain_pixbuf(PyObject *surface, LONG x, LONG y, LONG *bsx, LONG *bsy)
+obtain_pixbuf(PyObject *surface, LONG x, LONG y, LONG *bsx, LONG *bsy, Py_ssize_t *len)
 {
-    /* TODO */
+    PyObject *o;
+
+    o = PyObject_CallMethod(surface, "GetBuffer", "iii", x, y, FALSE); /* NR */
+    if (NULL != o) {
+        if (PyTuple_CheckExact(o) && (PyTuple_GET_SIZE(o) == 3)) {
+            PyObject *o_pixbuf = PyTuple_GET_ITEM(o, 0); /* BR */
+            PyObject *o_bsx = PyTuple_GET_ITEM(o, 1); /* BR */
+            PyObject *o_bsy = PyTuple_GET_ITEM(o, 2); /* BR */
+
+            if ((NULL != o_pixbuf) && (NULL != o_bsx) && (NULL != o_bsy)) {
+                APTR pixbuf;
+                int res;
+
+                res = PyObject_AsWriteBuffer(o_pixbuf, &pixbuf, len);
+                *bsx = PyLong_AsLong(o_bsx);
+                *bsy = PyLong_AsLong(o_bsy);
+
+                /* We suppose that the associated python object remains valid during the draw call */
+                if (!res && !PyErr_Occurred()) {
+                    DPRINT("obtain_pixbuf: pb=%p, len=%lu, bsx=%ld, bsy=%ld, x=%ld, y=%ld\n",
+                        (ULONG)pixbuf, *len, *bsx, *bsy, x, y);
+                    return pixbuf;
+                }
+            }
+        }
+
+        Py_DECREF(o);
+    }
+
     return NULL;
 }
 //-
@@ -72,9 +106,9 @@ brush_dealloc(PyBrush *self)
     self->ob_type->tp_free((PyObject *)self);
 }
 //-
-//+ brush_draw_ellipse
+//+ brush_draw
 static PyObject *
-brush_ellipse(PyBrush *self, PyObject *args)
+brush_draw(PyBrush *self, PyObject *args)
 {
     LONG sx, sy; /* Center position (surface units) */
     FLOAT dx, dy; /* Speed vector, range = [0.0, 0.1]*/
@@ -82,6 +116,10 @@ brush_ellipse(PyBrush *self, PyObject *args)
     FLOAT y_ratio; /* Ellipse Y/X radius ratio */
     FLOAT radius; /* Ellipse X radius */
     LONG minx, miny, maxx, maxy, x, y;
+    FLOAT rr = radius*radius;
+
+    if (NULL == self->b_Surface)
+        return PyErr_Format(PyExc_RuntimeError, "No surface set.");
 
     if (!PyArg_ParseTuple(args, "kkfffff", &sx, &sy,  &dx, &dy, &p, &radius, &y_ratio))
         return NULL;
@@ -91,21 +129,24 @@ brush_ellipse(PyBrush *self, PyObject *args)
     miny = floorf(sy - radius * y_ratio);
     maxy = ceilf(sy + radius * y_ratio);
 
-    Printf("BDraw: %ld, %ld, %ld, %ld\n", minx, miny, maxx, maxy);
+    DPRINT("BDraw: bbox = (%ld, %ld, %ld, %ld)\n", minx, miny, maxx, maxy);
 
     /* Loop on all pixels inside the bbox supposed to be changed */
     for (y=miny; y <= maxy;) {
         for (x=minx; x <= maxx;) {
-            USHORT *buf;
+            UBYTE *buf;
             LONG bsx, bsy; /* Position of the top/left corner of the buffer on surface */
             LONG bx, by;
+            Py_ssize_t len;
 
             /* Try to obtain the surface pixels buffer for the point (x, y).
              * Search in internal cache for it, then ask directly to the surface object.
              */
 
-            buf = obtain_pixbuf(self->b_Surface, x, y, &bsx, &bsy);
-            
+            buf = obtain_pixbuf(self->b_Surface, x, y, &bsx, &bsy, &len);
+            if (NULL == buf)
+                Py_RETURN_NONE;
+
             /* 'buf' pointer is supposed to be an ARGB15X pixels buffer.
              * This pointer is directly positionned on pixel (bsx, bsy).
              * Buffer is self->b_PixBufWidth pixels of width
@@ -122,23 +163,35 @@ brush_ellipse(PyBrush *self, PyObject *args)
              */
 
             bx = x-bsx; /* To remove a compiler warning */
+            buf += (y-bsy) * self->b_PixBufBPR / sizeof(*buf);
+
+            DPRINT("BDraw: area = (%ld, %ld, %ld, %ld)\n", x-bsx, y-bsy, MIN(maxx-bsx, self->b_PixBufWidth-1), MIN(maxy-bsy, self->b_PixBufHeight-1));
 
             for (by=y-bsy; by <= MIN(maxy-bsy, self->b_PixBufHeight-1); by++) {
                 for (bx=x-bsx; bx <= MIN(maxx-bsx, self->b_PixBufWidth-1); bx++) {
-                    /* XXX: Replace me by the real function */
-                    buf[bx+0] = 1 << 15; /* A */
-                    buf[bx+1] = 1 << 15; /* R */
-                    buf[bx+2] = 1 << 15; /* G */
-                    buf[bx+3] = 0;       /* B */
+                    FLOAT drx, dry;
+                    FLOAT r2;
+                    
+                    drx = bx+bsx - sx;
+                    dry = (by+bsy - sy) * y_ratio;
+                    r2 = ((FLOAT)drx*drx + (FLOAT)dry*dry) / rr;
 
-                    if (SetSignal(SIGBREAKF_CTRL_C, SIGBREAKF_CTRL_C) & SIGBREAKF_CTRL_C)
+                    if (r2 <= 1.0) {
+                        int i = bx*4/sizeof(*buf);
+
+                        /* XXX: Replace me by the real function */
+                        buf[i+0] = 255; /* A */
+                        buf[i+1] = 255; /* R */
+                        buf[i+2] = 255; /* G */
+                        buf[i+3] =   0; /* B */
+                    }
+                    
+                    if (SetSignal(0, SIGBREAKF_CTRL_C) & SIGBREAKF_CTRL_C)
                         Py_RETURN_NONE;
-
-                    Delay(5);
                 }
 
                 /* Go to the next row to fill */
-                buf += self->b_PixBufBPR / sizeof(USHORT);
+                buf += self->b_PixBufBPR / sizeof(*buf);
             }
 
             /* Update x */
@@ -173,12 +226,23 @@ brush_get_surface(PyBrush *self, void *closure)
 static int
 brush_set_surface(PyBrush *self, PyObject *value, void *closure)
 {
+    PyObject *o;
+
     if (NULL == value) {
         Py_CLEAR(self->b_Surface);
         return 0;
     }
+    
+    o = PyObject_GetAttrString(value, "info"); /* NR */
+    if (NULL != o) {
+        int res = PyArg_ParseTuple(o, "III", &self->b_PixBufWidth, &self->b_PixBufHeight, &self->b_PixBufBPR);
 
-    self->b_Surface = value;
+        Py_DECREF(o);
+        if (!res)
+            return -1;
+    }
+
+    self->b_Surface = value; 
     Py_INCREF(value);
 
     return 0;
@@ -191,6 +255,7 @@ static PyGetSetDef brush_getseters[] = {
 };
 
 static struct PyMethodDef brush_methods[] = {
+    {"draw", (PyCFunction)brush_draw, METH_VARARGS, NULL},
     {NULL} /* sentinel */
 };
 
@@ -221,8 +286,9 @@ static PyMethodDef _BrushMethods[] = {
 };
 //-
 
-//+ init_brushmodule
-void init_brushmodule(void)
+//+ INITFUNC()
+PyMODINIT_FUNC
+INITFUNC(void)
 {
      PyObject *m;
 

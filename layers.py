@@ -51,11 +51,11 @@ class LayerModel(object):
 
     def BrushMove(self, *a):
         if self._brush:
-            self._brush.Move(self._rsurface, *a)
+            self._brush.InitDraw(self._rsurface, *a)
 
     def BrushDraw(self, *a, **kwds):
         if self._brush:
-            self._brush.Draw(self._rsurface, *a, **kwds)
+            return self._brush.Draw(*a, **kwds)
 
     def GetBuffers(self, xmin, ymin, xmax, ymax):
         xmin = int(xmin)

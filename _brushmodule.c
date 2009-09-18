@@ -190,7 +190,7 @@ brush_draw(PyBrush *self, PyObject *args)
                         ULONG one_minus_alpha = (1.0f - p) * 255;
 
                         /* XXX: Replace me by the real function */
-                        buf[i+0] = (alpha * alpha + (ULONG)buf[i+0] * one_minus_alpha) / 255; /* A */
+                        //buf[i+0] = 255; /* A */
                         buf[i+1] = (255ul * alpha + (ULONG)buf[i+1] * one_minus_alpha) / 255; /* R */
                         buf[i+2] = (255ul * alpha + (ULONG)buf[i+2] * one_minus_alpha) / 255; /* G */
                         buf[i+3] = (  0ul * alpha + (ULONG)buf[i+3] * one_minus_alpha) / 255; /* B */

@@ -109,23 +109,30 @@ lcms_th_dealloc(PyLCMS_TransformHandler *self)
 static PyObject *
 lcms_th_apply(PyLCMS_TransformHandler *self, PyObject *args)
 {
+    PyObject *o_inbuf, *o_outbuf;
     Py_ssize_t in_len, out_len, pixcnt;
-    APTR in_buf, out_buf;
+    const void *in_buf;
+    void *out_buf;
 
-    if (!PyArg_ParseTuple(args, "s#s#n", &in_buf, &in_len, &out_buf, &out_len, &pixcnt))
+    if (!PyArg_ParseTuple(args, "OOn", &o_inbuf, &o_outbuf, &pixcnt)) /* BR */
         return NULL;
+
+    if (PyObject_AsReadBuffer(o_inbuf, &in_buf, &in_len))
+        return PyErr_Format(PyExc_TypeError, "Bad input buffer type: %s", OBJ_TNAME(o_inbuf));
+
+    if (PyObject_AsWriteBuffer(o_outbuf, &out_buf, &out_len))
+        return PyErr_Format(PyExc_TypeError, "Bad output buffer type: %s", OBJ_TNAME(o_outbuf));
 
     /* XXX: I don't care about length here, should I do ? */
 
     //dprintf("apply: src=%p, dst=%p (pixcnt=%lu)\n", in_buf, out_buf, out_len);
-    cmsDoTransform(self->th_hTransform, in_buf, out_buf, pixcnt);
+    cmsDoTransform(self->th_hTransform, (APTR)in_buf, out_buf, pixcnt);
 
     Py_RETURN_NONE;
 }
 //-
 
 static struct PyMethodDef lcms_th_methods[] = {
-    {"apply", (PyCFunction)lcms_th_apply, METH_VARARGS, NULL},
     {NULL} /* sentinel */
 };
 
@@ -140,6 +147,8 @@ static PyTypeObject PyLCMS_TransformHandler_Type = {
     tp_new          : (newfunc)lcms_th_new,
     tp_dealloc      : (destructor)lcms_th_dealloc,
     tp_methods      : lcms_th_methods,
+
+    tp_call         : (ternaryfunc)lcms_th_apply,
 };
 
 

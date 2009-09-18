@@ -32,5 +32,7 @@ sys.path.append('Libs/python2.5/site-packages')
 from application import Gribouillis  
 
 app = Gribouillis(os.getcwd())
-app.Run()
-del app # better!
+try:
+    app.Run()
+finally:
+    del app # better!

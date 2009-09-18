@@ -36,15 +36,14 @@ class PixelBuffer(PixelArray):
 
     def __init__(self, x, y, *a):
         PixelArray.__init__(self, *a)
-        self.damaged = True
         self.x = x
         self.y = y
 
 
 class Tile:
-    def __init__(self, bpc, x, y):
+    def __init__(self, nc, bpc, x, y):
         # ARGB buffer, 'bpc' bit per conmposant
-        self.pixels = PixelBuffer(x, y, T_SIZE, T_SIZE, 4, bpc)
+        self.pixels = PixelBuffer(x, y, T_SIZE, T_SIZE, nc, bpc)
         self.pixels.zero()
 
 
@@ -53,12 +52,12 @@ class Surface(object):
 
 
 class TiledSurface(Surface):
-    def __init__(self, bpc=16):
+    def __init__(self, nc=4, bpc=16):
         Surface.__init__(self)
         self.tiles = {}
+        self._nc = nc
         self._bpc = bpc
-        self._ro_tile = Tile(self._bpc, 0, 0) # will be proxy'ed
-        self.info = (T_SIZE, T_SIZE, self._ro_tile.pixels.BytesPerRow)
+        self._ro_tile = Tile(nc, bpc, 0, 0) # will be proxy'ed
 
     def GetBuffer(self, x, y, read=True):
         """GetBuffer(x, y, read=True) -> (pixel buffer, bx, by)
@@ -77,10 +76,9 @@ class TiledSurface(Surface):
         elif read:
             self._ro_tile.pixels.x = x*T_SIZE
             self._ro_tile.pixels.y = y*T_SIZE
-            self._ro_tile.pixels.damaged = True
             return self._ro_tile.pixels
         else:
-            tile = Tile(self._bpc, x*T_SIZE, y*T_SIZE)
+            tile = Tile(self._nc, self._bpc, x*T_SIZE, y*T_SIZE)
             self.tiles[(x, y)] = tile
             return tile.pixels
     

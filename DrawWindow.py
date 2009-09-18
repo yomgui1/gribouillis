@@ -43,15 +43,14 @@ class DrawControler(object):
     def __init__(self, view, model):
         self.view = view
         self.model = model
-
-        self.view.model = model
-
-        self._mode = DrawControler.MODE_IDLE
+        self.view.ConnectToModel(model)
 
         # Inputs comes from the view
         self.view.add_watcher('mouse-button', self.OnMouseButton)
         self.view.add_watcher('mouse-motion', self.OnMouseMotion)
         self.view.add_watcher('rawkey', self.OnKey)
+
+        self.mode = DrawControler.MODE_IDLE
 
     def OnMouseButton(self, evt):
         if self._mode == DrawControler.MODE_IDLE:
@@ -80,36 +79,23 @@ class DrawControler(object):
                     return MUI_EventHandlerRC_Eat
 
     def OnMouseMotion(self, evt):
-        if self._mode == DrawControler.MODE_DRAG:
-            # Raster moves never use tablet data, only mouse (pixel unit)
-            self.view.Scroll(self.mx-evt.MouseX, self.my-evt.MouseY)
-
-        elif self._mode == DrawControler.MODE_DRAW:
-            if evt.ValidTD and self.tbx is not None:
-                dx = evt.td_NormTabletX - self.tbx
-                dy = evt.td_NormTabletY - self.tby
-            else:
-                dx = evt.MouseX - self.mx
-                dy = evt.MouseY - self.my
-                
-            # draw inside the model
-            x, y = self.view.GetSurfacePos(evt.MouseX, evt.MouseY)
-            l = self.model.BrushDraw(x, y, dx / self.view.scale, dy / self.view.scale)
-            if l:
-                self.view.AddDamagedBuffer(*l)
-                self.view.RedrawDamaged()
-        
+        self._on_motion(evt)
         self.mx = evt.MouseX
         self.my = evt.MouseY
-        if evt.ValidTD: 
-            self.tbx = evt.td_NormTabletX
-            self.tby = evt.td_NormTabletY
-    
+        
     def OnKey(self, evt):
-        pass
+        if evt.Up:
+            return self.KEYMAPS(evt.Key)(self, evt)
 
     def SetMode(self, mode):
         if mode != self._mode:
+            if self._mode == DrawControler.MODE_DRAG:
+                self._on_motion = self.DragOnMotion
+            elif self._mode == DrawControler.MODE_DRAW:
+                self._on_motion = self.DrawOnMotion
+            else:
+                self._on_motion = None # Guard
+
             self.view.EnableMouseMoveEvents(mode != DrawControler.MODE_IDLE)
             self._mode = mode
         
@@ -125,7 +111,7 @@ class DrawControler(object):
         
         if mode == DrawControler.MODE_DRAW:
             pos = self.view.GetSurfacePos(self.mx, self.my)
-            self.model.BrushMove(*pos)
+            self.model.MoveBrush(*pos)
         elif mode == DrawControler.MODE_DRAG:
             self.view.StartMove()
 
@@ -137,8 +123,41 @@ class DrawControler(object):
         self.mode = mode
 
     def ConfirmAction(self, mode, evt):
-        self.mode = mode     
+        self.mode = mode
 
+    def DragOnMotion(self, evt):
+        # Raster moves never use tablet data, only mouse (pixel unit)
+        self.view.Scroll(self.mx - evt.MouseX, self.my - evt.MouseY)
+        self.view.RedrawDamaged()
+
+    def DrawOnMotion(self, evt):
+        if evt.ValidTD:
+            if self.tbx is not None:
+                speed = (evt.td_NormTabletX - self.tbx,
+                         evt.td_NormTabletY - self.tby)
+                self.tbx = evt.td_NormTabletX
+                self.tby = evt.td_NormTabletY
+            p = 0.5 # FIXME: evt.td_Pressure
+        else:
+            speed = (dx/self.view.SRangeX, dy/self.view.SRangeY)
+            p = 0.5
+                
+        # draw inside the model
+        pos = self.view.GetSurfacePos(evt.MouseX, evt.MouseY)
+        _ = self.model.Draw(pos, speed=speed, pressure=p)
+        self.view.AddDamagedBuffer(*tuple(_))
+        self.view.RedrawDamaged()
+
+    def OnMouseWheelUp(self, evt):
+        pass
+
+    def OnMouseWheelDown(self, evt):
+        pass
+
+    KEYMAPS = { NM_WHEEL_UP:     OnMouseWheelUp,
+                NM_WHEEL_DOWN:   OnMouseWheelDown,
+                }
+        
 
 class DrawWindow(Window):
     def __init__(self, title, fullscreen=False):
@@ -150,6 +169,8 @@ class DrawWindow(Window):
             kwds['Borderless'] = True
             kwds['Backdrop'] = True
             kwds['ID'] = 'DRWF'
+            # Note: if I use the same ID for each FS mode, the FS window will take data
+            # of the non FS window... that's render very bad ;-)
         else:
             kwds['Width'] = 800
             kwds['Height'] = 600

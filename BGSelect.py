@@ -41,7 +41,7 @@ class MiniBackgroundSelect(Window):
     
     def __init__(self):
         ro = laygroup.LayGroup(SameSize=True, Spacing=2)
-        super(MiniBackgroundSelect, self).__init__(ID=0, # ID=0 => don't when position storage!
+        super(MiniBackgroundSelect, self).__init__(ID=0, # ID=0 => don't store position/size!
                                                    LeftEdge='moused', TopEdge='moused',
                                                    Width=5*self.IMAGE_SIZE, Height=3*self.IMAGE_SIZE,
                                                    Borderless=True,

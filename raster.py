@@ -23,9 +23,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import pymui
-import _pixbuf
-import surface
+import pymui, _pixbuf, surface, lcms
 
 class Raster(pymui.Area):
     EVENTMAP = {
@@ -50,6 +48,11 @@ class Raster(pymui.Area):
         self.scale = 1.0 # zoom factor
         self.model = None
         self.debug = False
+
+        self.EnableCMS(False)
+
+    def ConnectToModel(self, model):
+        self.model = model
 
     def add_watcher(self, name, cb, *args):
         wl = self._watchers.get(name)
@@ -85,25 +88,27 @@ class Raster(pymui.Area):
 
         # Draw only damaged area
         elif flags & pymui.MADF_DRAWUPDATE:
+            # Redraw damaged rectangles
             for rect in self._damaged:
                 self._draw_area(*rect)
-            if self.debug:
-                self._rp.Rect(3, *(rect+(True,)))
             self._damaged = []
+
+            # Redraw damaged buffers
             self._draw_buffers(self._damagedbuflist)
             self._damagedbuflist = []
 
     def _draw_area(self, *bbox):
-        self.DoMethod(pymui.MUIM_DrawBackground, bbox[0], bbox[1], bbox[2]-bbox[0]+1, bbox[3]-bbox[1]+1, 0, 0, 0)
         a, b = self.GetSurfacePos(*bbox[:2])
         c, d = self.GetSurfacePos(*bbox[2:])
         self._draw_buffers(self.model.GetRenderBuffers(a, b, c, d))
 
     def _draw_buffers(self, buflist):
         for buf in buflist:
+            self.CMS_ApplyTransform(buf) # do color management (for Christoph ;-))
             rx, ry = self.GetRasterPos(buf.x, buf.y)
-            buf = self.model.PreRenderProcessing(buf) 
             self._rp.ScaledBlit8(buf, buf.Width, buf.Height, rx, ry, int(buf.Width * self.scale), int(buf.Height * self.scale))
+            if self.debug:
+                self._rp.Rect(3, rx, ry, rx+int(buf.Width * self.scale)-1, ry+int(buf.Height * self.scale)-1)
 
     def AddDamagedBuffer(self, *buffers):
         self._damagedbuflist += buffers
@@ -115,8 +120,7 @@ class Raster(pymui.Area):
     def AddDamagedRect(self, *bbox):
         self._damaged.append(bbox)
 
-    damaged = property(fget=lambda self: iter(self._damaged),
-                       fdel=ClearDamaged)
+    damaged = property(fget=lambda self: iter(self._damaged), fdel=ClearDamaged)
 
     def EnableMouseMoveEvents(self, state=True):
         self._ev.uninstall()
@@ -149,6 +153,7 @@ class Raster(pymui.Area):
         """Scroll(dx, dy)
 
         Scroll current displayed surface using pixel vector (dx, dy).
+        ATTENTION: does't do any display refresh.
         """
 
         self.osx -= dx
@@ -158,8 +163,7 @@ class Raster(pymui.Area):
         self._rp.Scroll(dx, dy, a, b, c, d)
 
         ## Compute the damaged rectangles list...
-        #
-        # It exists 4 damaged rectangles at maximum:
+        # 4 damaged rectangles, but only two for one (dx, dy):
         #
         # +==================+
         # |        #3        |      #1 exists if dx < 0
@@ -174,19 +178,40 @@ class Raster(pymui.Area):
 
         if dx < 0:
             if dy <= 0:
-                self.AddDamagedRect(a, b-dy, a-dx, d)
+                self.AddDamagedRect(a, b-dy, a-dx, d) # 1
             else:
-                self.AddDamagedRect(a, b, a-dx, d-dy)
+                self.AddDamagedRect(a, b, a-dx, d-dy) # 1
         elif dx > 0:
             if dy <= 0:
-                self.AddDamagedRect(c-dx, b, c, d-dy)
+                self.AddDamagedRect(c-dx, b, c, d-dy) #2
             else:
-                self.AddDamagedRect(c-dx, b-dy, c, d)
+                self.AddDamagedRect(c-dx, b-dy, c, d) #2
                 
         if dy < 0:
             self.AddDamagedRect(a, b, c, b-dy) #3
         elif dy > 0:
             self.AddDamagedRect(a, d-dy, c, d) #4
+            
 
-        # We're going to redraw only damaged rectangles area
-        self.RedrawDamaged()
+    ##############################
+    ## Color Management Methods ##
+
+    def EnableCMS(self, enabled=True):
+        self.cms_transform = self._cms_th if enabled or _DummyCMSTransform
+
+    def _DummyCMSTransform(self, buf, *a):
+        return buf
+
+    def CMS_SetInputProfile(self, profile):
+        self.cms_ip = profile
+
+    def CMS_SetOutputProfile(self, profile):
+        self.cms_op = profile
+
+    def CMS_InitTransform(self):
+        self._cms_th = lcms.TransformHandler(self.cms_ip, lcms.TYPE_ARGB_8,
+                                             self.cms_op, lcms.TYPE_ARGB_8,
+                                             lcms.INTENT_PERCEPTUAL)
+
+    def CMS_ApplyTransform(self, buf):
+        return self.cms_transform(buf, self._tmpbuf, buf.Width * buf.Height)

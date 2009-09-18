@@ -37,6 +37,8 @@ class Brush(Dtpic):
         self._set(MUIA_Dtpic_Scale, self.BRUSH_SCALE)
         self._color = (0, 0, 0)
         self.shortname = ''
+        self.base_radius = 6.0
+        self.base_yratio = 0.5
 
         # Brush model (features + drawing routines)
         self._brush = _brush.Brush()
@@ -64,10 +66,14 @@ class Brush(Dtpic):
         self.color = brush.color
         self.Name = brush.Name # in last because can trig some notification callbacks
 
-    def InitDraw(self, sf, x, y):
+    def InitBrush(self, sf, x, y):
         self._brush.surface = sf
+        self._brush.x = x
+        self._brush.y = y
+        self._brush.base_radius = self.base_radius
+        self._brush.base_yratio = self.base_yratio
+        self._brush.red, self._brush.green, self._brush.blue = self._color
 
-    def Draw(self, x, y, dx, dy, p=0.1, xtilt=0.0, ytilt=0.0):
-        buflist = []
-        self._brush.draw(buflist, x, y, dx, dy, p, 6.0, 0.5)
-        return buflist
+    def Draw(self, pos, speed=(0.0, 0.0), tilt=(0.0, 0.0), pressure=0.5):
+        # FIXME: change me for a stroke draw method
+        return self._brush.draw(pos, pressure)

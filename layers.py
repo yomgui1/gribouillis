@@ -26,23 +26,22 @@
 import _pixbuf
 from surface import TiledSurface, T_SIZE
 from brush import Brush
-import lcms
+
+class DummyBrush:
+    "Class used when no brush is set for a LayerModel"
+    def InitDraw(self, *a):
+        pass
+
+    def Draw(self, *a, *k):
+        return tuple()
+
 
 class LayerModel(object):
     def __init__(self):
         self._layers = []
         self._active = self.AddLayer()
-        self._rsurface = TiledSurface(bpc=8) # ARGB 8-bits per component surface for display
-        self.tmpbuf = _pixbuf.PixelArray(T_SIZE, T_SIZE, 4, 8) # can used externaly for rendering
-        self._brush = None
-        self.cms_transform = None
-        
-        from PIL.Image import open
-
-        im = open("Images:1er_image_neal.png")
-        im.load()
-        _, _, w, h = im.getbbox()
-        self._rsurface.ImportFromPILImage(im, w, h)
+        self._rsurface = TiledSurface(nc=3, bpc=8) # RGB 8-bits per component surface for display
+        self._brush = DummyBrush() # that gives a way to remove some 'if' sentences...
 
     def SetBrush(self, b):
         assert isinstance(b, Brush)
@@ -53,42 +52,23 @@ class LayerModel(object):
         self._layers.append(s)
         return s
 
-    def BrushMove(self, *a):
-        if self._brush:
-            self._brush.InitDraw(self._rsurface, *a)
+    def MoveBrush(self, *args):
+        """Move current brush on the active layer.
+        This action is not supposed to draw anything, jsut prepare the brush to.
+        """
+        self._brush.InitBrush(self._active, *args)
 
-    def BrushDraw(self, *a, **kwds):
-        if self._brush:
-            return self._brush.Draw(*a, **kwds)
+    def Draw(self, *args, **kwds):
+        for buf in self._brush.Draw(*args, **kwds):
+            # blit on the rendering surface modified buffers from the active surface
+            rbuf = self._rsurface.GetBuffer(buf.x, buf.y)
+            rbuf.zero()
+            _pixbuf.bltalpha_argb15x_to_rgb8(buf, rbuf);
+            yield rbuf
+            
 
-    def GetRenderBuffers(self, xmin, ymin, xmax, ymax):
-        xmin = int(xmin)
-        xmax = int(xmax)
-        ymin = int(ymin)
-        ymax = int(ymax)
+    def GetRenderBuffers(self, *args):
+        xmin, ymin, xmax, ymax = [ int(x) fox x in args ]
         for ty in xrange(ymin, ymax+T_SIZE-1, T_SIZE):
             for tx in xrange(xmin, xmax+T_SIZE-1, T_SIZE):
                 yield self._rsurface.GetBuffer(tx, ty)
-
-    def PreRenderProcessing(self, buf):
-        if self.cms_transform:
-            self.CMS_ApplyTransform(buf, self.tmpbuf)
-            return self.tmpbuf
-        return buf
-
-    ## CMS ##
-
-    def CMS_SetInputProfile(self, profile):
-        self.cms_ip = profile
-
-    def CMS_SetOutputProfile(self, profile):
-        self.cms_op = profile
-
-    def CMS_InitTransform(self):
-        del self.cms_transform
-        self.cms_transform = lcms.TransformHandler(self.cms_ip, lcms.TYPE_ARGB_8,
-                                                   self.cms_op, lcms.TYPE_ARGB_8,
-                                                   lcms.INTENT_PERCEPTUAL)
-
-    def CMS_ApplyTransform(self, inbuf, outbuf):
-        self.cms_transform.apply(inbuf, outbuf, outbuf.Width * outbuf.Height)

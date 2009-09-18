@@ -45,7 +45,7 @@ class Tile:
     def __init__(self, bpc, x, y):
         # ARGB buffer, 'bpc' bit per conmposant
         self.pixels = PixelBuffer(x, y, T_SIZE, T_SIZE, 4, bpc)
-        self.pixels.one()
+        self.pixels.zero()
 
 
 class Surface(object):

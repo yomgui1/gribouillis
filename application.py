@@ -225,7 +225,7 @@ class Gribouillis(Application):
     brush = property(fget=lambda self: self._main_brush, fset=set_active_brush)
 
     def UseBackground(self, bg):
-        self.win_Draw.SetBackground(bg.Name)
+        self.controler.view.Background = "5:"+bg.Name
 
     def OnLoadImage(self):
         filename = pymui.getfilename(self.win_Draw, "Select image to load", self.last_loaded_dir, "#?.(png|jpeg|jpg|targa|tga|gif)", False)

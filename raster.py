@@ -87,13 +87,14 @@ class Raster(pymui.Area):
         elif flags & pymui.MADF_DRAWUPDATE:
             for rect in self._damaged:
                 self._draw_area(*rect)
-                if self.debug:
-                    self._rp.Rect(4, *rect)
+            if self.debug:
+                self._rp.Rect(3, *(rect+(True,)))
             self._damaged = []
             self._draw_buffers(self._damagedbuflist)
             self._damagedbuflist = []
-    
+
     def _draw_area(self, *bbox):
+        self.DoMethod(pymui.MUIM_DrawBackground, bbox[0], bbox[1], bbox[2]-bbox[0]+1, bbox[3]-bbox[1]+1, 0, 0, 0)
         a, b = self.GetSurfacePos(*bbox[:2])
         c, d = self.GetSurfacePos(*bbox[2:])
         self._draw_buffers(self.model.GetRenderBuffers(a, b, c, d))
@@ -103,8 +104,6 @@ class Raster(pymui.Area):
             rx, ry = self.GetRasterPos(buf.x, buf.y)
             buf = self.model.PreRenderProcessing(buf) 
             self._rp.ScaledBlit8(buf, buf.Width, buf.Height, rx, ry, int(buf.Width * self.scale), int(buf.Height * self.scale))
-            if self.debug:
-                self._rp.Rect(3, rx, ry, int(buf.Width * self.scale), int(buf.Height * self.scale))
 
     def AddDamagedBuffer(self, *buffers):
         self._damagedbuflist += buffers
@@ -172,7 +171,7 @@ class Raster(pymui.Area):
         # |        #4        |
         # +==================+              
         #
-        
+
         if dx < 0:
             if dy <= 0:
                 self.AddDamagedRect(a, b-dy, a-dx, d)
@@ -185,9 +184,9 @@ class Raster(pymui.Area):
                 self.AddDamagedRect(c-dx, b-dy, c, d)
                 
         if dy < 0:
-            self.AddDamagedRect(a, b, c, b-dy)
+            self.AddDamagedRect(a, b, c, b-dy) #3
         elif dy > 0:
-            self.AddDamagedRect(a, d-dy, c, d)
+            self.AddDamagedRect(a, d-dy, c, d) #4
 
         # We're going to redraw only damaged rectangles area
         self.RedrawDamaged()

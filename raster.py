@@ -42,6 +42,7 @@ class Raster(pymui.Area):
                             MCC=True)
         self._clip = True
         self._damaged = []
+        self._damagedbuflist = []
         self._watchers = {}
         self._ev = pymui.EventHandler()
         self.osx = 0 # X position of the surface origin, in raster origin
@@ -89,19 +90,28 @@ class Raster(pymui.Area):
                 if self.debug:
                     self._rp.Rect(4, *rect)
             self._damaged = []
+            self._draw_buffers(self._damagedbuflist)
+            self._damagedbuflist = []
     
     def _draw_area(self, *bbox):
         a, b = self.GetSurfacePos(*bbox[:2])
         c, d = self.GetSurfacePos(*bbox[2:])
-        for buf in self.model.GetRenderBuffers(a, b, c, d):
+        self._draw_buffers(self.model.GetRenderBuffers(a, b, c, d))
+
+    def _draw_buffers(self, buflist):
+        for buf in buflist:
             rx, ry = self.GetRasterPos(buf.x, buf.y)
-            buf = self.model.PreRenderProcessing(buf)
+            buf = self.model.PreRenderProcessing(buf) 
             self._rp.ScaledBlit8(buf, buf.Width, buf.Height, rx, ry, int(buf.Width * self.scale), int(buf.Height * self.scale))
             if self.debug:
                 self._rp.Rect(3, rx, ry, int(buf.Width * self.scale), int(buf.Height * self.scale))
 
+    def AddDamagedBuffer(self, *buffers):
+        self._damagedbuflist += buffers
+
     def ClearDamaged(self):
         self._damaged = []
+        self._damagedbuflist = []
 
     def AddDamagedRect(self, *bbox):
         self._damaged.append(bbox)

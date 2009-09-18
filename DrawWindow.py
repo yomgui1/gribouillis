@@ -94,14 +94,10 @@ class DrawControler(object):
                 
             # draw inside the model
             x, y = self.view.GetSurfacePos(evt.MouseX, evt.MouseY)
-            damagedrects = self.model.BrushDraw(x, y, dx / self.view.scale, dy / self.view.scale)
-
-            # converting damaged rectangles from model to view coordinates and add them to view
-            #for a,b,c,d in damagedrects:
-            #    self.view.AddDamagedRect(*(self.view.GetRasterPos(a,b)+self.view.GetRasterPos(c,d)))
-
-            # redraw using this damaged list
-            self.view.RedrawFull() # XXX: change me into RedrawDamaged when brush draw gives this damaged list
+            l = self.model.BrushDraw(x, y, dx / self.view.scale, dy / self.view.scale)
+            if l:
+                self.view.AddDamagedBuffer(*l)
+                self.view.RedrawDamaged()
         
         self.mx = evt.MouseX
         self.my = evt.MouseY

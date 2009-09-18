@@ -67,6 +67,7 @@ class Brush(Dtpic):
     def InitDraw(self, sf, x, y):
         self._brush.surface = sf
 
-    def Draw(self, x, y, dx, dy, p=0.5, xtilt=0.0, ytilt=0.0):
-        self._brush.draw(x, y, dx, dy, p, 16.0, 0.2)
-        return ()
+    def Draw(self, x, y, dx, dy, p=0.1, xtilt=0.0, ytilt=0.0):
+        buflist = []
+        self._brush.draw(buflist, x, y, dx, dy, p, 6.0, 0.5)
+        return buflist

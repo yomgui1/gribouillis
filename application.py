@@ -74,6 +74,8 @@ class Gribouillis(Application):
                                  ('Brush Selection', 'B', self.win_BSel.Open),
                                  ('Mini Background Selection', 'G', self.win_MiniBGSel.Open),
                                 ),
+                     'Debug':   (('#Raster', None, self.SetDebug, 'raster'),
+                                )
                    }
 
         strip = Menustrip()   
@@ -87,7 +89,7 @@ class Gribouillis(Application):
                     continue
                 elif t[0][0] == '#': # toggled item
                     title = t[0][1:]
-                    item = Menuitem(title, t[1], Toggle=True)
+                    item = Menuitem(title, t[1], Checkit=True)
                     item.title = title
                 else:
                     item = Menuitem(t[0], t[1])
@@ -238,6 +240,7 @@ class Gribouillis(Application):
         state = self.win_Draw.fullscreen
         self.TermDrawWindow()
         self.InitDrawWindow(not state)
+        self.controler.model.SetBrush(self.brush)
         self.win_Draw.Open()
 
     def OnChangedCMSProfiles(self, prefs):
@@ -245,3 +248,8 @@ class Gribouillis(Application):
         self.controler.model.CMS_SetOutputProfile(prefs.out_profile)
         self.controler.model.CMS_InitTransform()
         self.controler.view.RedrawFull()
+
+    def SetDebug(self, what):
+        if what == 'raster':
+            self.controler.view.debug = not self.controler.view.debug
+            self.controler.view.RedrawFull()

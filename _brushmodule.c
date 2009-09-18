@@ -35,7 +35,7 @@ static PyTypeObject PyBrush_Type;
  * of the returned buffer is not given. An evil code may overflow it.
  */
 static APTR
-obtain_pixbuf(PyObject *surface, LONG x, LONG y, LONG *bsx, LONG *bsy)
+obtain_pixbuf(PyObject *surface, PyObject *buflist, LONG x, LONG y, LONG *bsx, LONG *bsy)
 {
     PyObject *o_pixbuf;
 
@@ -57,7 +57,8 @@ obtain_pixbuf(PyObject *surface, LONG x, LONG y, LONG *bsx, LONG *bsy)
             if (!res && !PyErr_Occurred()) {
                 DPRINT("obtain_pixbuf: pb=%p, len=%lu, bsx=%ld, bsy=%ld, x=%ld, y=%ld\n",
                     (ULONG)pixbuf, *len, *bsx, *bsy, x, y);
-                return pixbuf;
+                if (!PyList_Append(buflist, o_pixbuf))
+                    return pixbuf;
             }
         }
 
@@ -119,13 +120,16 @@ brush_draw(PyBrush *self, PyObject *args)
     FLOAT y_ratio; /* Ellipse Y/X radius ratio */
     FLOAT radius; /* Ellipse X radius */
     LONG minx, miny, maxx, maxy, x, y;
-    FLOAT rr = radius*radius;
+    FLOAT rr;
+    PyObject *buflist;
 
     if (NULL == self->b_Surface)
         return PyErr_Format(PyExc_RuntimeError, "No surface set.");
 
-    if (!PyArg_ParseTuple(args, "kkfffff", &sx, &sy,  &dx, &dy, &p, &radius, &y_ratio))
+    if (!PyArg_ParseTuple(args, "O!kkfffff", &PyList_Type, &buflist, &sx, &sy,  &dx, &dy, &p, &radius, &y_ratio)) /* BR */
         return NULL;
+
+    Py_INCREF(buflist);
 
     minx = floorf(sx - radius);
     maxx = ceilf(sx + radius);
@@ -133,6 +137,7 @@ brush_draw(PyBrush *self, PyObject *args)
     maxy = ceilf(sy + radius * y_ratio);
 
     DPRINT("BDraw: bbox = (%ld, %ld, %ld, %ld)\n", minx, miny, maxx, maxy);
+    rr = radius*radius; 
 
     /* Loop on all pixels inside the bbox supposed to be changed */
     for (y=miny; y <= maxy;) {
@@ -145,9 +150,12 @@ brush_draw(PyBrush *self, PyObject *args)
              * Search in internal cache for it, then ask directly to the surface object.
              */
 
-            buf = obtain_pixbuf(self->b_Surface, x, y, &bsx, &bsy);
-            if (NULL == buf)
+            buf = obtain_pixbuf(self->b_Surface, buflist, x, y, &bsx, &bsy);
+            if (NULL == buf) {
+                Py_DECREF(buflist);
                 return NULL;
+            }
+
 
             /* 'buf' pointer is supposed to be an ARGB15X pixels buffer.
              * This pointer is directly positionned on pixel (bsx, bsy).
@@ -176,14 +184,16 @@ brush_draw(PyBrush *self, PyObject *args)
                     drx = bx+bsx - sx;
                     dry = (by+bsy - sy) / y_ratio;
                     r = (drx * drx + dry*dry);
-                    if (r <= radius*radius) {
+                    if (r <= rr) {
                         int i = bx*4/sizeof(*buf);
+                        ULONG alpha = p*255;
+                        ULONG one_minus_alpha = (1.0f - p) * 255;
 
                         /* XXX: Replace me by the real function */
-                        buf[i+0] = 255; /* A */
-                        buf[i+1] = 255; /* R */
-                        buf[i+2] = 255; /* G */
-                        buf[i+3] =   0; /* B */
+                        //buf[i+0] = 255; /* A */
+                        buf[i+1] = (255ul * alpha + (ULONG)buf[i+1] * one_minus_alpha) / 255; /* R */
+                        buf[i+2] = (255ul * alpha + (ULONG)buf[i+2] * one_minus_alpha) / 255; /* G */
+                        buf[i+3] = (  0ul * alpha + (ULONG)buf[i+3] * one_minus_alpha) / 255; /* B */
                     }
                 }
 
@@ -192,8 +202,7 @@ brush_draw(PyBrush *self, PyObject *args)
             }
 
             if (SetSignal(0, SIGBREAKF_CTRL_C) & SIGBREAKF_CTRL_C)
-                Py_RETURN_NONE;
- 
+                goto end;
 
             /* Update x */
             x = bx + bsx;
@@ -204,6 +213,8 @@ brush_draw(PyBrush *self, PyObject *args)
         }
     }
 
+end:
+    Py_DECREF(buflist);
     Py_RETURN_NONE;
 }
 //-

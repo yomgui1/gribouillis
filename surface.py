@@ -30,20 +30,10 @@ from _pixbuf import PixelArray
 T_SIZE = 64
 DEBUG = True
 
-class PixelBuffer(PixelArray):
-    def __new__(cl, x, y, *a):
-        return PixelArray.__new__(cl, *a)
-
-    def __init__(self, x, y, *a):
-        PixelArray.__init__(self, *a)
-        self.x = x
-        self.y = y
-
-
 class Tile:
-    def __init__(self, nc, bpc, x, y):
-        # ARGB buffer, 'bpc' bit per conmposant
-        self.pixels = PixelBuffer(x, y, T_SIZE, T_SIZE, nc, bpc)
+    def __init__(self, nc, bpc):
+        # pixel buffer, 'bpc' bit per composent, nc composent
+        self.pixels = PixelArray(T_SIZE, T_SIZE, nc, bpc)
         self.pixels.zero()
 
 
@@ -57,10 +47,10 @@ class TiledSurface(Surface):
         self.tiles = {}
         self._nc = nc
         self._bpc = bpc
-        self._ro_tile = Tile(nc, bpc, 0, 0) # will be proxy'ed
+        self._ro_tile = Tile(nc, bpc)
 
     def GetBuffer(self, x, y, read=True):
-        """GetBuffer(x, y, read=True) -> (pixel buffer, bx, by)
+        """GetBuffer(x, y, read=True) -> pixel array
 
         Returns the pixel buffer and its left-top corner, containing the point p=(x, y).
         If no tile exist yet, return a read only buffer if read is True,
@@ -78,7 +68,9 @@ class TiledSurface(Surface):
             self._ro_tile.pixels.y = y*T_SIZE
             return self._ro_tile.pixels
         else:
-            tile = Tile(self._nc, self._bpc, x*T_SIZE, y*T_SIZE)
+            tile = Tile(self._nc, self._bpc)
+            tile.pixels.x = x*T_SIZE
+            tile.pixels.y = y*T_SIZE
             self.tiles[(x, y)] = tile
             return tile.pixels
     

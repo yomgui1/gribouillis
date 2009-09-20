@@ -80,9 +80,9 @@ argb15x_to_rgb8(USHORT *src, UBYTE *dst, UWORD w, UWORD h)
     for (i=0; i < n; i++) {
         ULONG alpha = src[0];
 
-        dst[1] = (ULONG)src[0] * 255 / alpha;
-        dst[2] = (ULONG)src[1] * 255 / alpha;
-        dst[3] = (ULONG)src[2] * 255 / alpha;
+        dst[0] = (ULONG)src[1]*255/alpha;
+        dst[1] = (ULONG)src[2]*255/alpha;
+        dst[2] = (ULONG)src[3]*255/alpha;
         
         dst += 3;
         src += 4;
@@ -154,12 +154,11 @@ blit_overalpha_argb15x_to_rgb8(USHORT *src, UBYTE *dst, UWORD w, UWORD h)
     for (i=0; i < n; i++) {
         // DestAlpha = 1.0 (full opaque surface)
         // Dest[x] = Src[x] + (1.0 - SrcAlpha) * Dst[x]
-        ULONG alpha = src[0];
-        ULONG one_minus_alpha = (1 << 15) - alpha;
+        ULONG one_minus_alpha = (1<<15) - src[0];
 
-        dst[1] = (ULONG)src[1] * 255 / alpha + (one_minus_alpha * dst[1] >> 15);
-        dst[2] = (ULONG)src[2] * 255 / alpha + (one_minus_alpha * dst[2] >> 15);
-        dst[3] = (ULONG)src[3] * 255 / alpha + (one_minus_alpha * dst[3] >> 15);
+        dst[0] = ((ULONG)src[1] * 255 + one_minus_alpha * dst[0]) >> 15;
+        dst[1] = ((ULONG)src[2] * 255 + one_minus_alpha * dst[1]) >> 15;
+        dst[2] = ((ULONG)src[3] * 255 + one_minus_alpha * dst[2]) >> 15;
 
         src += 4;
         dst += 3;
@@ -307,6 +306,8 @@ static struct PyMethodDef pixarray_methods[] = {
 };
 
 static PyMemberDef pixarray_members[] = {
+    {"x", T_LONG, offsetof(PyPixelArray, x), 0, NULL},
+    {"y", T_LONG, offsetof(PyPixelArray, y), 0, NULL},
     {"Width", T_USHORT, offsetof(PyPixelArray, width), RO, NULL},
     {"Height", T_USHORT, offsetof(PyPixelArray, height), RO, NULL},
     {"BytesPerRow", T_ULONG, offsetof(PyPixelArray, bpr), RO, NULL},
@@ -411,6 +412,29 @@ mod_argb8_to_argb15x(PyObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 //-
+//+ mod_argb15x_to_rgb8
+static PyObject *
+mod_argb15x_to_rgb8(PyObject *self, PyObject *args)
+{
+    PyPixelArray *src, *dst;
+
+    if (!PyArg_ParseTuple(args, "O!O!", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst))
+        return NULL;
+
+    if ((src->nc != 4) || (src->bpc != 16))
+        return PyErr_Format(PyExc_TypeError, "Incompatible source PixelArray object");
+
+    if ((dst->nc != 3) || (dst->bpc != 8))
+        return PyErr_Format(PyExc_TypeError, "Incompatible destination PixelArray object");
+
+    if ((src->width != dst->width) || (src->height != dst->height))
+        return PyErr_Format(PyExc_TypeError, "Incompatible dimensions between given PixelArray objects");
+
+    argb15x_to_rgb8(src->data, dst->data, dst->width, dst->height);
+
+    Py_RETURN_NONE;
+}
+//-
 //+ mod_bltalpha_argb15x_to_rgb8
 static PyObject *
 mod_bltalpha_argb15x_to_rgb8(PyObject *self, PyObject *args)
@@ -439,6 +463,7 @@ static PyMethodDef methods[] = {
     {"rgb8_to_argb8",            (PyCFunction)mod_rgb8_to_argb8,            METH_VARARGS, NULL},
     {"rgb8_to_argb15x",          (PyCFunction)mod_rgb8_to_argb15x,          METH_VARARGS, NULL},
     {"argb8_to_argb15x",         (PyCFunction)mod_argb8_to_argb15x,         METH_VARARGS, NULL},
+    {"argb15x_to_rgb8",          (PyCFunction)mod_argb15x_to_rgb8,          METH_VARARGS, NULL},
     {"bltalpha_argb15x_to_rgb8", (PyCFunction)mod_bltalpha_argb15x_to_rgb8, METH_VARARGS, NULL},
     {0}
 };

@@ -43,12 +43,12 @@ class Raster(pymui.Area):
         self._damagedbuflist = []
         self._watchers = {}
         self._ev = pymui.EventHandler()
+        self._tmpbuf = None
         self.osx = 0 # X position of the surface origin, in raster origin
         self.osy = 0 # Y position of the surface origin, in raster origin
         self.scale = 1.0 # zoom factor
         self.model = None
         self.debug = False
-
         self.EnableCMS(False)
 
     def ConnectToModel(self, model):
@@ -104,7 +104,7 @@ class Raster(pymui.Area):
 
     def _draw_buffers(self, buflist):
         for buf in buflist:
-            self.CMS_ApplyTransform(buf) # do color management (for Christoph ;-))
+            buf = self.CMS_ApplyTransform(buf) # do color management (for Christoph ;-))
             rx, ry = self.GetRasterPos(buf.x, buf.y)
             self._rp.ScaledBlit8(buf, buf.Width, buf.Height, rx, ry, int(buf.Width * self.scale), int(buf.Height * self.scale))
             if self.debug:
@@ -178,9 +178,9 @@ class Raster(pymui.Area):
 
         if dx < 0:
             if dy <= 0:
-                self.AddDamagedRect(a, b-dy, a-dx, d) # 1
+                self.AddDamagedRect(a, b-dy, a-dx, d) #1
             else:
-                self.AddDamagedRect(a, b, a-dx, d-dy) # 1
+                self.AddDamagedRect(a, b, a-dx, d-dy) #1
         elif dx > 0:
             if dy <= 0:
                 self.AddDamagedRect(c-dx, b, c, d-dy) #2
@@ -197,7 +197,7 @@ class Raster(pymui.Area):
     ## Color Management Methods ##
 
     def EnableCMS(self, enabled=True):
-        self.cms_transform = self._cms_th if enabled or _DummyCMSTransform
+        self.cms_transform = self._cms_th if enabled else self._DummyCMSTransform
 
     def _DummyCMSTransform(self, buf, *a):
         return buf
@@ -209,9 +209,13 @@ class Raster(pymui.Area):
         self.cms_op = profile
 
     def CMS_InitTransform(self):
-        self._cms_th = lcms.TransformHandler(self.cms_ip, lcms.TYPE_ARGB_8,
-                                             self.cms_op, lcms.TYPE_ARGB_8,
+        self._cms_th = lcms.TransformHandler(self.cms_ip, lcms.TYPE_RGB_8,
+                                             self.cms_op, lcms.TYPE_RGB_8,
                                              lcms.INTENT_PERCEPTUAL)
 
     def CMS_ApplyTransform(self, buf):
+        if self._tmpbuf is None:
+            self._tmpbuf = _pixbuf.PixelArray(buf.Width, buf.Height, buf.ComponentNumber, buf.BitsPerComponent)
+        self._tmpbuf.x = buf.x
+        self._tmpbuf.y = buf.y
         return self.cms_transform(buf, self._tmpbuf, buf.Width * buf.Height)

@@ -128,7 +128,8 @@ lcms_th_apply(PyLCMS_TransformHandler *self, PyObject *args)
     //dprintf("apply: src=%p, dst=%p (pixcnt=%lu)\n", in_buf, out_buf, out_len);
     cmsDoTransform(self->th_hTransform, (APTR)in_buf, out_buf, pixcnt);
 
-    Py_RETURN_NONE;
+    Py_INCREF(o_outbuf);
+    return o_outbuf;
 }
 //-
 

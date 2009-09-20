@@ -37,8 +37,8 @@ class Brush(Dtpic):
         self._set(MUIA_Dtpic_Scale, self.BRUSH_SCALE)
         self._color = (0, 0, 0)
         self.shortname = ''
-        self.base_radius = 6.0
-        self.base_yratio = 0.5
+        self.base_radius = 12.0
+        self.base_yratio = 0.8
 
         # Brush model (features + drawing routines)
         self._brush = _brush.Brush()
@@ -57,7 +57,7 @@ class Brush(Dtpic):
         raise RuntimeError('brush "' + name + '" not found')
 
     def set_color(self, color):
-        self._color = color
+        self._color = tuple(int(x >> 24) for x in color)
 
     color = property(fget=lambda self: self._color, fset=set_color)
 
@@ -76,4 +76,4 @@ class Brush(Dtpic):
 
     def Draw(self, pos, speed=(0.0, 0.0), tilt=(0.0, 0.0), pressure=0.5):
         # FIXME: change me for a stroke draw method
-        return self._brush.draw(pos, pressure)
+        return self._brush.draw(pos, pressure, 0.6)

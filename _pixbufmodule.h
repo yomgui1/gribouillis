@@ -6,6 +6,7 @@
 typedef struct PyPixelArray_STRUCT {
     PyObject_HEAD
 
+    LONG  x, y;          /* Buffers positions */
     UWORD width, height; /* Pixels array size */
     UBYTE nc;            /* Number of components per pixels */
     UBYTE bpc;           /* Number of bits for each components */

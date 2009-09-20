@@ -51,29 +51,14 @@ obtain_pixbuf(PyObject *surface, LONG x, LONG y, LONG *bsx, LONG *bsy, PyObject 
 {
     *o_pixbuf = PyObject_CallMethod(surface, "GetBuffer", "iii", x, y, FALSE); /* NR */
     if (NULL != *o_pixbuf) {
-        PyObject *o_bsx = PyObject_GetAttrString(*o_pixbuf, "x"); /* NR */
-        PyObject *o_bsy = PyObject_GetAttrString(*o_pixbuf, "y"); /* NR */
+        PyPixelArray *pa = (APTR)*o_pixbuf;
 
-        if ((NULL != o_bsx) && (NULL != o_bsy)) {
-            APTR pixbuf;
-            Py_ssize_t len;
-            int res;
+        *bsx = pa->x;
+        *bsy = pa->y;
 
-            res = PyObject_AsWriteBuffer(*o_pixbuf, &pixbuf, &len);
-            *bsx = PyLong_AsLong(o_bsx); Py_CLEAR(o_bsx);
-            *bsy = PyLong_AsLong(o_bsy); Py_CLEAR(o_bsy);
-
-            /* We suppose that the associated python object remains valid during the draw call */
-            if (!res && !PyErr_Occurred()) {
-                DPRINT("obtain_pixbuf: pb=%p, len=%lu, bsx=%ld, bsy=%ld, x=%ld, y=%ld\n",
-                       pixbuf, *len, *bsx, *bsy, x, y);
-                return pixbuf;
-            }
-        }
-
-        Py_XDECREF(o_bsx);
-        Py_XDECREF(o_bsy);
-        Py_DECREF(*o_pixbuf);
+        /* We suppose that the associated python object remains valid during the draw call */
+        DPRINT("obtain_pixbuf: pb=%p, bsx=%ld, bsy=%ld, x=%ld, y=%ld\n", pa->data, *bsx, *bsy, x, y);
+        return pa->data;
     }
 
     return NULL;
@@ -126,8 +111,9 @@ brush_draw(PyBrush *self, PyObject *args)
     LONG sx, sy; /* Center position (surface units) */
     FLOAT p; /* Pressure, range =  [0.0, 0.1] */
     LONG minx, miny, maxx, maxy, x, y;
-    FLOAT radius_radius, hardness=1.0;
+    FLOAT radius_radius, hardness;
     PyObject *buflist;
+    ULONG cr,cg,cb;
 
     if (NULL == self->b_Surface)
         return PyErr_Format(PyExc_RuntimeError, "No surface set.");
@@ -136,8 +122,14 @@ brush_draw(PyBrush *self, PyObject *args)
     if (NULL == buflist)
         return NULL;
 
-    if (!PyArg_ParseTuple(args, "(kk)p", &sx, &sy,  &p))
+    if (!PyArg_ParseTuple(args, "(kk)ff", &sx, &sy,  &p, &hardness))
         goto error;
+
+    p = logf(1.0+p)/logf(2.0);
+
+    cr = self->b_Red   * (1<<15) / 255;
+    cg = self->b_Green * (1<<15) / 255;
+    cb = self->b_Blue  * (1<<15) / 255;
 
     minx = floorf(sx - self->b_BaseRadius);
     maxx = ceilf(sx + self->b_BaseRadius);
@@ -191,7 +183,7 @@ brush_draw(PyBrush *self, PyObject *args)
             for (by=y-bsy; by <= MIN(maxy-bsy, o_buf->width-1); by++) {
                 for (bx=x-bsx; bx <= MIN(maxx-bsx, o_buf->height-1); bx++) {
                     FLOAT drx, dry;
-                    FLOAT rr, rr_dx;
+                    FLOAT rr;
 
                     /* Compute the square of ellipse radius
                      * Note: Why +0.5 for each coordinate? because we put the center of
@@ -223,7 +215,7 @@ brush_draw(PyBrush *self, PyObject *args)
                                 density *= hardness/(hardness-1)*(rr-1);
                         }
 
-                        i = bx * (4 / sizeof(*buf)); /* Pixel index from the left of buffer */
+                        i = bx * 4; /* Pixel index from the left of buffer */
                         alpha = density * (1<<15); /* density as 15bits fixed point value */
                         one_minus_alpha = (1<<15) - alpha;
 
@@ -232,9 +224,9 @@ brush_draw(PyBrush *self, PyObject *args)
                          */
 
                         /* A */ buf[i+0] = alpha + one_minus_alpha * buf[i+0] / (1<<15);
-                        /* R */ buf[i+1] = (alpha*self->b_Red*(1<<15)   + one_minus_alpha*buf[i+1]) / (1<<15);
-                        /* G */ buf[i+2] = (alpha*self->b_Green*(1<<15) + one_minus_alpha*buf[i+2]) / (1<<15);
-                        /* B */ buf[i+3] = (alpha*self->b_Blue*(1<<15)  + one_minus_alpha*buf[i+3]) / (1<<15);
+                        /* R */ buf[i+1] = (alpha*cr + one_minus_alpha * buf[i+1]) / (1<<15);
+                        /* G */ buf[i+2] = (alpha*cg + one_minus_alpha * buf[i+2]) / (1<<15);
+                        /* B */ buf[i+3] = (alpha*cb + one_minus_alpha * buf[i+3]) / (1<<15);
                     }
                 }
 
@@ -319,6 +311,7 @@ static PyMemberDef brush_members[] = {
     {"y",           T_LONG,  offsetof(PyBrush, b_Y), 0, NULL},
     {"base_radius", T_FLOAT, offsetof(PyBrush, b_BaseRadius), 0, NULL},
     {"base_yratio", T_FLOAT, offsetof(PyBrush, b_BaseYRatio), 0, NULL},
+    {"alpha",       T_UBYTE, offsetof(PyBrush, b_Alpha), 0, NULL},
     {"red",         T_UBYTE, offsetof(PyBrush, b_Red), 0, NULL},
     {"green",       T_UBYTE, offsetof(PyBrush, b_Green), 0, NULL},
     {"blue",        T_UBYTE, offsetof(PyBrush, b_Blue), 0, NULL},

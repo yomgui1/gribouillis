@@ -35,6 +35,7 @@ from BrushSelect import BrushSelect
 from BGSelect import MiniBackgroundSelect
 from CMSPrefs import CMSPrefsWindow
 from layers import LayerModel
+from raster import Raster
 
 class Gribouillis(Application):
     VERSION = 0.1
@@ -46,6 +47,11 @@ class Gribouillis(Application):
 
         self.paths = dict(data=datapath, user=userpath) 
         self.last_loaded_dir = None
+
+        # Create the MVC object
+        model = LayerModel()
+        view = Raster()
+        self.controler = DrawControler(view, model)
 
         # Create Windows
         self.win_Draw = None
@@ -145,20 +151,16 @@ class Gribouillis(Application):
     def InitDrawWindow(self, fullscreen=False):
         if self.win_Draw: return
         
-        self.win_Draw = DrawWindow("Draw Area", fullscreen)
+        self.win_Draw = DrawWindow("Draw Area", self.controler.view, fullscreen)
         self.AddWindow(self.win_Draw)
         self.win_Draw.Notify('CloseRequest', True, self.Quit)
         
-        model = LayerModel()
-        view = self.win_Draw.raster
-        self.controler = DrawControler(view, model)
-
     def TermDrawWindow(self):
         if not self.win_Draw: return
         
         self.win_Draw.Close()
         self.RemWindow(self.win_Draw)
-        del self.controler 
+        self.win_Draw.RootObject = None
         del self.win_Draw
         self.win_Draw = None
 
@@ -244,9 +246,10 @@ class Gribouillis(Application):
         self.win_Draw.Open()
 
     def OnChangedCMSProfiles(self, prefs):
-        self.controler.model.CMS_SetInputProfile(prefs.in_profile)
-        self.controler.model.CMS_SetOutputProfile(prefs.out_profile)
-        self.controler.model.CMS_InitTransform()
+        self.controler.view.CMS_SetInputProfile(prefs.in_profile)
+        self.controler.view.CMS_SetOutputProfile(prefs.out_profile)
+        self.controler.view.CMS_InitTransform()
+        self.controler.view.EnableCMS()
         self.controler.view.RedrawFull()
 
     def SetDebug(self, what):

@@ -32,7 +32,7 @@ class DummyBrush:
     def InitDraw(self, *a):
         pass
 
-    def Draw(self, *a, *k):
+    def Draw(self, *a, **k):
         return tuple()
 
 
@@ -61,14 +61,14 @@ class LayerModel(object):
     def Draw(self, *args, **kwds):
         for buf in self._brush.Draw(*args, **kwds):
             # blit on the rendering surface modified buffers from the active surface
-            rbuf = self._rsurface.GetBuffer(buf.x, buf.y)
+            rbuf = self._rsurface.GetBuffer(buf.x, buf.y, read=False)
             rbuf.zero()
             _pixbuf.bltalpha_argb15x_to_rgb8(buf, rbuf);
             yield rbuf
             
 
     def GetRenderBuffers(self, *args):
-        xmin, ymin, xmax, ymax = [ int(x) fox x in args ]
+        xmin, ymin, xmax, ymax = [ int(x) for x in args ]
         for ty in xrange(ymin, ymax+T_SIZE-1, T_SIZE):
             for tx in xrange(xmin, xmax+T_SIZE-1, T_SIZE):
                 yield self._rsurface.GetBuffer(tx, ty)

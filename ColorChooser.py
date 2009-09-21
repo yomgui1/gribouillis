@@ -28,7 +28,7 @@ from pymui import *
 clamp = lambda m, x, M: max(min(x, M), m)
 
 class ColorChooser(Window):
-    default_color = (0, 0, 0) 
+    __default_color = (0.0,) * 3
     
     def __init__(self, title):
         self.watchers = []
@@ -56,7 +56,15 @@ class ColorChooser(Window):
         self.coladj.Notify('RGB', MUIV_EveryTime, self.OnColorChanged)
         self._colstr.Notify('Acknowledge', MUIV_EveryTime, self.OnColStrChanged)
 
-        self.color = (0, 0, 0)
+        self.color = ColorChooser.__default_color
+
+    @staticmethod
+    def SysColToFloat(v):
+        return float(CLAMP(0, v / 0x010101, 255))
+
+    @staticmethod
+    def SysColToFloat(v):
+        return CLAMP(0, int(v * 0xff) * 0x010101, 255)
 
     def OnColStrChanged(self):
         s = self._colstr.Contents
@@ -67,11 +75,12 @@ class ColorChooser(Window):
                 c = long(s[1:], 16)
             else:
                 c = long(s)
-            self.color = c
+            self.color = (self.SysColToFloat((c>>16)&0xff), self.SysColToFloat((c>>8)&0xff), self.SysColToFloat(c&0xff))
 
     def OnColorChanged(self):
-        self._color = self.coladj.RGB
-        self._colstr_save = "#%s%s%s" % tuple(hex(x)[2:4] for x in self._color)
+        rgb = self.coladj.RGB
+        self._color = tuple(self.SysColToFloat(x) for x in rgb)
+        self._colstr_save = "#%02x%02x%02x" % (x >> 24 for x in rgb)
         self._colstr.Contents = self._colstr_save
 
         for cb in self.watchers:
@@ -79,22 +88,14 @@ class ColorChooser(Window):
 
     def SetColor(self, *rgb):
         if len(rgb) == 3:
-            r, g, b = rgb
-        elif isinstance(rgb[0], (int, long)):
-            c = rgb[0]
-            r = (c >> 16) & 255
-            g = (c >> 8) & 255
-            b = c & 255
-            del c
+            rgb = tuple(self.clamp(0.0, float(x), 1.0) for x in rgb)
+        elif isinstance(rgb[0], float):
+            rgb = tuple(clamp(0.0, float(rgb[0]), 1.0)) * 3
         else:
-            r, g, b = rgb[0]
+            rgb = tuple(clamp(0.0, float(x), 1.0) for x in rgb[0])
 
-        r = clamp(0, r, 255)
-        g = clamp(0, g, 255)
-        b = clamp(0, b, 255)
-
-        # Notify only after the blue
-        self.coladj.RGB = (r << 24, g << 24, b << 24)
+        # will call OnColorChanged()
+        self.coladj.RGB = tuple(self.FloatToSysCol(r) for x in rgb)
 
     def DelColor(self):
         self.color = self.default_color

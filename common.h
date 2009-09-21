@@ -59,6 +59,12 @@ static ULONG Name##_Dispatcher(void) { struct IClass *cl=(struct IClass*)REG_A0;
 #define SIMPLE0FUNC_bx(fname, func, x) static PyObject * fname(PyObject *self){ return Py_BuildValue(x, func()); }
 #define SIMPLE0FUNC_fx(fname, func, x) static PyObject * fname(PyObject *self){ return x(func()); }
 
+#define CLAMP(v, min, max) ({                                   \
+            typeof(v) _v = (v);                                 \
+            typeof(min) _min = (min);                           \
+            typeof(max) _max = (max);                           \
+            (_v < _min) ? _min : ((_v > _max) ? _max : _v); })
+
 extern struct Library *PythonBase;
 extern void dprintf(char*fmt, ...);
 

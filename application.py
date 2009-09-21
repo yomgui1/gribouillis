@@ -140,7 +140,7 @@ class Gribouillis(Application):
         # Init color
         self.win_Color.add_watcher(self.OnColorChanged)
         self.set_active_brush(self.brushes[0])
-        self.set_color(0, 0, 0)
+        self.set_color(0.0, 0.0, 0.0)
 
         # Init backgrounds selection window
         self.win_MiniBGSel.add_watcher(self.UseBackground)
@@ -212,7 +212,7 @@ class Gribouillis(Application):
         self.win_BSel.SetBrushes(self.brushes)
 
     def set_color(self, *rgb):
-        self.win_Color.color = rgb # Coloradjust object will call OnColor method
+        self.win_Color.color = rgb # Coloradjust object will call OnColorChanged method
 
     def OnColorChanged(self, color): # Called by the ColorChooser window
         self.brush.color = color

@@ -35,10 +35,10 @@ class Brush(Dtpic):
     def __init__(self):
         super(Brush, self).__init__(InputMode=MUIV_InputMode_Toggle, Frame=MUIV_Frame_ImageButton)
         self._set(MUIA_Dtpic_Scale, self.BRUSH_SCALE, 'I')
-        self._color = (0, 0, 0)
         self.shortname = ''
         self.base_radius = 64.0
         self.base_yratio = 0.8
+        self.hardness = 0.5
 
         # Brush model (features + drawing routines)
         self._brush = _brush.Brush()
@@ -57,22 +57,24 @@ class Brush(Dtpic):
         raise RuntimeError('brush "' + name + '" not found')
 
     def set_color(self, color):
-        self._color = tuple(int(x >> 24) for x in color)
+        self._brush.red, self._brush.green, self._brush.blue = color
 
-    color = property(fget=lambda self: self._color, fset=set_color)
+    color = property(fget=lambda self: (self._brush.red, self._brush.green, self._brush.blue),
+                     fset=set_color)
 
     def copy(self, brush):
         self.shortname = brush.shortname
         self.color = brush.color
+        self._brush.base_radius = brush.base_radius
+        self._brush.base_yratio = brush.base_yratio
+        self._brush.hardness = brush.hardness
+
         self.Name = brush.Name # in last because can trig some notification callbacks
 
     def InitBrush(self, sf, x, y):
         self._brush.surface = sf
         self._brush.x = x
         self._brush.y = y
-        self._brush.base_radius = self.base_radius
-        self._brush.base_yratio = self.base_yratio
-        self._brush.red, self._brush.green, self._brush.blue = self._color
 
     def Draw(self, pos, speed=(0.0, 0.0), tilt=(0.0, 0.0), pressure=0.5):
         # FIXME: change me for a stroke draw method

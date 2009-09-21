@@ -28,10 +28,11 @@ typedef struct PyBrush_STRUCT {
     LONG        b_Y;
     FLOAT       b_BaseRadius;
     FLOAT       b_BaseYRatio;
-    UBYTE       b_Alpha;
-    UBYTE       b_Red;
-    UBYTE       b_Green;
-    UBYTE       b_Blue;
+    FLOAT       b_Hardness;
+    ULONG       b_Alpha;
+    USHORT      b_Red;
+    USHORT      b_Green;
+    USHORT      b_Blue;
     APTR        b_PACache[PA_CACHE_SIZE];
 } PyBrush;
 
@@ -77,6 +78,13 @@ brush_new(PyTypeObject *type, PyObject *args)
     PyBrush *self;
 
     self = (PyBrush *)type->tp_alloc(type, 0); /* NR */
+    if (NULL != self) {
+        self->b_Hardness = 0.5;
+        self->b_Alpha = 255;
+        self->b_BaseRadius = 8.0;
+        self->b_BaseYRatio = 1.0;
+    }
+
     return (PyObject *)self;
 }
 //-
@@ -111,25 +119,22 @@ brush_draw(PyBrush *self, PyObject *args)
     LONG sx, sy; /* Center position (surface units) */
     FLOAT p; /* Pressure, range =  [0.0, 0.1] */
     LONG minx, miny, maxx, maxy, x, y;
-    FLOAT radius_radius, hardness;
+    FLOAT radius_radius;
     PyObject *buflist;
-    ULONG cr,cg,cb;
 
     if (NULL == self->b_Surface)
         return PyErr_Format(PyExc_RuntimeError, "No surface set.");
+
+    /* Hardness = 0 => nothing to draw */
+    if (self->b_Hardness == 0.0)
+        Py_RETURN_NONE;
 
     buflist = PyList_New(0); /* NR */
     if (NULL == buflist)
         return NULL;
 
-    if (!PyArg_ParseTuple(args, "(kk)ff", &sx, &sy,  &p, &hardness))
+    if (!PyArg_ParseTuple(args, "(kk)f", &sx, &sy,  &p))
         goto error;
-
-    p = logf(1.0+p)/logf(2.0);
-
-    cr = self->b_Red   * (1<<15) / 255;
-    cg = self->b_Green * (1<<15) / 255;
-    cb = self->b_Blue  * (1<<15) / 255;
 
     minx = floorf(sx - self->b_BaseRadius);
     maxx = ceilf(sx + self->b_BaseRadius);
@@ -178,7 +183,7 @@ brush_draw(PyBrush *self, PyObject *args)
                    MIN(maxx-bsx, o_buf->width-1), MIN(maxy-bsy, o_buf->height-1));
 
             /* Filling one PixelBuffer (inner loop)
-            ** Note: optimization? using a bresenham algo and remove all float computations ?
+            ** OPTIMIZATION: using a kind of bresenham algo and remove all float computations ?
             */
             for (by=y-bsy; by <= MIN(maxy-bsy, o_buf->width-1); by++) {
                 for (bx=x-bsx; bx <= MIN(maxx-bsx, o_buf->height-1); bx++) {
@@ -208,15 +213,15 @@ brush_draw(PyBrush *self, PyObject *args)
                          * hardness is the first zero of f (f(hardness)=0.0).
                          * hardness can't be zero (or density = -infinity, clamped to zero)
                          */
-                        if (hardness < 1.0) {
-                            if (rr < hardness)
-                                density *= rr + 1-(rr/hardness);
+                        if (self->b_Hardness < 1.0) {
+                            if (rr < self->b_Hardness)
+                                density *= rr + 1-(rr/self->b_Hardness);
                             else
-                                density *= hardness/(hardness-1)*(rr-1);
+                                density *= self->b_Hardness/(self->b_Hardness-1)*(rr-1);
                         }
 
                         i = bx * 4; /* Pixel index from the left of buffer */
-                        alpha = density * (1<<15); /* density as 15bits fixed point value */
+                        alpha = (ULONG)(density * self->b_alpha);
                         one_minus_alpha = (1<<15) - alpha;
 
                         /* 'Simple' over-alpha compositing (in 15bits fixed point arithmetics)
@@ -224,9 +229,9 @@ brush_draw(PyBrush *self, PyObject *args)
                          */
 
                         /* A */ buf[i+0] = alpha + one_minus_alpha * buf[i+0] / (1<<15);
-                        /* R */ buf[i+1] = (alpha*cr + one_minus_alpha * buf[i+1]) / (1<<15);
-                        /* G */ buf[i+2] = (alpha*cg + one_minus_alpha * buf[i+2]) / (1<<15);
-                        /* B */ buf[i+3] = (alpha*cb + one_minus_alpha * buf[i+3]) / (1<<15);
+                        /* R */ buf[i+1] = (alpha*self->b_Red   + one_minus_alpha * buf[i+1]) / (1<<15);
+                        /* G */ buf[i+2] = (alpha*self->b_Green + one_minus_alpha * buf[i+2]) / (1<<15);
+                        /* B */ buf[i+3] = (alpha*self->b_Blue  + one_minus_alpha * buf[i+3]) / (1<<15);
                     }
                 }
 
@@ -295,9 +300,37 @@ brush_set_surface(PyBrush *self, PyObject *value, void *closure)
     return 0;
 }
 //-
+//+ brush_get_color
+static PyObject *
+brush_get_color(PyBrush *self, void *closure)
+{
+    USHORT *ptr = (APTR)self + (ULONG)closure;
+    
+    return PyFloat_FromDouble((double)*ptr / (1<<15));
+}
+//-
+//+ brush_set_color
+static int
+brush_set_color(PyBrush *self, PyObject *value, void *closure)
+{
+    USHORT *ptr = (APTR)self + (ULONG)closure;
+
+    if (NULL == value) {
+        *ptr = 0;
+        return 0;
+    }
+    
+    *ptr = CLAMP((ULONG)(PyFloat_AsDouble(value) * (1<<15)), 0, 1<<15);
+    return PyErr_Occurred() != NULL;
+}
+//-
 
 static PyGetSetDef brush_getseters[] = {
     {"surface", (getter)brush_get_surface, (setter)brush_set_surface, "Surface to use", NULL},
+    {"alpha",   (getter)brush_get_color,   (setter)brush_set_color,   "Color (Alpha channel)", offsetof(PyBrush, b_Alpha)},
+    {"red",     (getter)brush_get_color,   (setter)brush_set_color,   "Color (Red channel)", offsetof(PyBrush, b_Red)},
+    {"green",   (getter)brush_get_color,   (setter)brush_set_color,   "Color (Green channel)", offsetof(PyBrush, b_Green)},
+    {"blue",    (getter)brush_get_color,   (setter)brush_set_color,   "Color (Blue channel)", offsetof(PyBrush, b_Blue)},
     {NULL} /* sentinel */
 };
 
@@ -307,14 +340,11 @@ static struct PyMethodDef brush_methods[] = {
 };
 
 static PyMemberDef brush_members[] = {
-    {"x",           T_LONG,  offsetof(PyBrush, b_X), 0, NULL},
-    {"y",           T_LONG,  offsetof(PyBrush, b_Y), 0, NULL},
-    {"base_radius", T_FLOAT, offsetof(PyBrush, b_BaseRadius), 0, NULL},
-    {"base_yratio", T_FLOAT, offsetof(PyBrush, b_BaseYRatio), 0, NULL},
-    {"alpha",       T_UBYTE, offsetof(PyBrush, b_Alpha), 0, NULL},
-    {"red",         T_UBYTE, offsetof(PyBrush, b_Red), 0, NULL},
-    {"green",       T_UBYTE, offsetof(PyBrush, b_Green), 0, NULL},
-    {"blue",        T_UBYTE, offsetof(PyBrush, b_Blue), 0, NULL},
+    {"x",           T_LONG,   offsetof(PyBrush, b_X), 0, NULL},
+    {"y",           T_LONG,   offsetof(PyBrush, b_Y), 0, NULL},
+    {"base_radius", T_FLOAT,  offsetof(PyBrush, b_BaseRadius), 0, NULL},
+    {"base_yratio", T_FLOAT,  offsetof(PyBrush, b_BaseYRatio), 0, NULL},
+    {"hardness",    T_FLOAT,  offsetof(PyBrush, b_Hardness), 0, NULL},
     {NULL}
 };
 

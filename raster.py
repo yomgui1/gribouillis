@@ -104,8 +104,9 @@ class Raster(pymui.Area):
 
     def _draw_buffers(self, buflist):
         for buf in buflist:
+            pos = (buf.x, buf.y) # saved because CMS return a new buffer object
             buf = self.CMS_ApplyTransform(buf) # do color management (for Christoph ;-))
-            rx, ry = self.GetRasterPos(buf.x, buf.y)
+            rx, ry = self.GetRasterPos(*pos)
             self._rp.ScaledBlit8(buf, buf.Width, buf.Height, rx, ry, int(buf.Width * self.scale), int(buf.Height * self.scale))
             if self.debug:
                 self._rp.Rect(3, rx, ry, rx+int(buf.Width * self.scale)-1, ry+int(buf.Height * self.scale)-1)
@@ -216,6 +217,4 @@ class Raster(pymui.Area):
     def CMS_ApplyTransform(self, buf):
         if self._tmpbuf is None:
             self._tmpbuf = _pixbuf.PixelArray(buf.Width, buf.Height, buf.ComponentNumber, buf.BitsPerComponent)
-        self._tmpbuf.x = buf.x
-        self._tmpbuf.y = buf.y
         return self.cms_transform(buf, self._tmpbuf, buf.Width * buf.Height)

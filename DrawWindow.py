@@ -45,14 +45,13 @@ class Recorder:
             self.evtlist = []
 
     def Stop(self):
-        print len(self.evtlist)
+        pass
 
     def AddEvent(self, secs, micros, pos, pressure, **extra):
         if extra:
             self.evtlist.append((secs, micros, pos, pressure, extra))
         else:
             self.evtlist.append((secs, micros, pos, pressure))
-
 
 
 class DrawControler(object):
@@ -174,7 +173,6 @@ class DrawControler(object):
 
         if not speed:
             speed = ((evt.MouseX - self.mx)/self.view.SRangeX, (evt.MouseY - self.my)/self.view.SRangeY)
-                
         
         # draw inside the model
         pos = self.view.GetSurfacePos(evt.MouseX, evt.MouseY)
@@ -188,6 +186,10 @@ class DrawControler(object):
 
     def OnMouseWheelDown(self, evt):
         pass
+
+    def Clear(self):
+        self.model.Clear()
+        self.view.RedrawFull()
 
     KEYMAPS = { NM_WHEEL_UP:     OnMouseWheelUp,
                 NM_WHEEL_DOWN:   OnMouseWheelDown,

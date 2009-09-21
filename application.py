@@ -34,6 +34,7 @@ from ColorChooser import ColorChooser
 from BrushSelect import BrushSelect
 from BGSelect import MiniBackgroundSelect
 from CMSPrefs import CMSPrefsWindow
+from model_ui import DataWindow
 from layers import LayerModel
 from raster import Raster
 
@@ -59,15 +60,19 @@ class Gribouillis(Application):
         self.win_BSel = BrushSelect("Brush Selection")
         self.win_MiniBGSel = MiniBackgroundSelect()
         self.win_CMSPrefs = CMSPrefsWindow("Color Management Profiles Preferences")
+        self.win_Data = DataWindow("Project Preferences", model)
 
         self.win_CMSPrefs.AddOkCallback(self.OnChangedCMSProfiles)
 
         # Create Menus
         menu_def = { 'Project': (('Load Image...', 'L', self.OnLoadImage),
                                  None, # Separator
+                                 ('Setup data...', 'ctrl d', self.win_Data.Open),
+                                 None,
                                  ('Quit',          'Q', self.OnQuitRequest, None),
                                 ),
-                     'Edit':    (('Increase Zoom', '+', None),
+                     'Edit':    (('Clear All Layers', 'K', self.ClearAll),
+                                 ('Increase Zoom', '+', None),
                                  ('Decrease Zoom', '-', None),
                                  ('Reset Zoom',    '=', None),
                                  None,
@@ -117,12 +122,14 @@ class Gribouillis(Application):
         self.win_Color.Notify('CloseRequest', True, self.win_Color.Close)
         self.win_BSel.Notify('CloseRequest', True, self.win_BSel.Close)
         self.win_MiniBGSel.Notify('CloseRequest', True, self.win_MiniBGSel.Close)
+        self.win_Data.Notify('CloseRequest', True, self.win_Data.Close)
 
         # We can't open a window if it has not been attached to the application
         self.AddWindow(self.win_Color)
         self.AddWindow(self.win_BSel)
         self.AddWindow(self.win_MiniBGSel)
         self.AddWindow(self.win_CMSPrefs)
+        self.AddWindow(self.win_Data)
 
         # Create draw window
         self.InitDrawWindow()
@@ -256,3 +263,6 @@ class Gribouillis(Application):
         if what == 'raster':
             self.controler.view.debug = not self.controler.view.debug
             self.controler.view.RedrawFull()
+
+    def ClearAll(self):
+        self.controler.Clear()

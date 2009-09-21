@@ -34,7 +34,7 @@ class Background(Dtpic):
                                          Frame=MUIV_Frame_None,
                                          Name=path)
         if size:
-            self._set(MUIA_Dtpic_Scale, size)
+            self._set(MUIA_Dtpic_Scale, size, 'I')
     
 class MiniBackgroundSelect(Window):
     IMAGE_SIZE = 48

@@ -43,6 +43,17 @@ class LayerModel(object):
         self._rsurface = TiledSurface(nc=3, bpc=8) # RGB 8-bits per component surface for display
         self._brush = DummyBrush() # that gives a way to remove some 'if' sentences...
 
+        # Some model data (Christoph... again you!)
+
+        self.info = dict()
+        self.info['ResolutionX'] = 75 # Number of pixels for 1 inch on the X-axis
+        self.info['ResolutionY'] = 75 # Number of pixels for 1 inch on the Y-axis
+
+    def Clear(self):
+        for layer in self._layers:
+            layer.Clear()
+        self._rsurface.Clear()
+
     def SetBrush(self, b):
         assert isinstance(b, Brush)
         self._brush = b
@@ -72,3 +83,4 @@ class LayerModel(object):
         for ty in xrange(ymin, ymax+T_SIZE-1, T_SIZE):
             for tx in xrange(xmin, xmax+T_SIZE-1, T_SIZE):
                 yield self._rsurface.GetBuffer(tx, ty)
+

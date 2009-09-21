@@ -34,6 +34,9 @@ class Tile:
     def __init__(self, nc, bpc):
         # pixel buffer, 'bpc' bit per composent, nc composent
         self.pixels = PixelArray(T_SIZE, T_SIZE, nc, bpc)
+        self.Clear()
+
+    def Clear(self):
         self.pixels.zero()
 
 
@@ -88,3 +91,7 @@ class TiledSurface(Surface):
     def IterBuffers(self):
         for tile in self.tiles.itervalues():
             yield tile.pixels
+
+    def Clear(self):
+        for tile in self.tiles.itervalues():
+            tile.Clear()

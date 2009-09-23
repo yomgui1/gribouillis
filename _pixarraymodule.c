@@ -90,7 +90,7 @@ argb15x_to_argb8(USHORT *src, UBYTE *dst, ULONG w, ULONG h, Py_ssize_t stride)
 //-
 //+ argb15x_to_rgba8
 static void
-argb15x_to_rgba8(USHORT *src, UBYTE *dst, ULONG w, ULONG h, ULONG dst_w, Py_ssize_t stride)
+argb15x_to_rgba8(USHORT *src, UBYTE *dst, ULONG w, ULONG h, Py_ssize_t stride)
 {
     ULONG x, y;
 
@@ -588,8 +588,8 @@ static PyMethodDef methods[] = {
     {"rgb8_to_argb15x",          (PyCFunction)mod_rgb8_to_argb15x,          METH_VARARGS, NULL},
     {"argb8_to_argb15x",         (PyCFunction)mod_argb8_to_argb15x,         METH_VARARGS, NULL},
     {"argb15x_to_rgb8",          (PyCFunction)mod_argb15x_to_rgb8,          METH_VARARGS, NULL},
-    {"argb15x_to_argb8",         (PyCFunction)mod_argb15x_to_rgb8,         METH_VARARGS, NULL},
-    {"argb15x_to_rgba8",         (PyCFunction)mod_argb15x_to_rgb8,         METH_VARARGS, NULL},
+    {"argb15x_to_argb8",         (PyCFunction)mod_argb15x_to_argb8,         METH_VARARGS, NULL},
+    {"argb15x_to_rgba8",         (PyCFunction)mod_argb15x_to_rgba8,         METH_VARARGS, NULL},
     {"bltalpha_argb15x_to_rgb8", (PyCFunction)mod_bltalpha_argb15x_to_rgb8, METH_VARARGS, NULL},
     {0}
 };

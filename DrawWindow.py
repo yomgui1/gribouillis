@@ -101,6 +101,8 @@ class DrawControler(object):
         self._on_motion(evt)
         self.mx = evt.MouseX
         self.my = evt.MouseY
+        self.secs = evt.Seconds
+        self.mics = evt.Micros
         
     def OnKey(self, evt):
         if evt.Up:
@@ -126,6 +128,8 @@ class DrawControler(object):
         # /!\ event MouseX/Y origin is the left/top origin of the window
         self.mx = evt.MouseX
         self.my = evt.MouseY
+        self.secs = evt.Seconds
+        self.mics = evt.Micros
 
         # Tablet position available only during move
         self.tbx = None
@@ -172,7 +176,8 @@ class DrawControler(object):
         # record and render the stroke
         # TODO: for now, a stroke is just a dict object.
         # we need to use a custom object later for optimizations.
-        stroke = dict(pos=pos, pressure=p, time=evt.Seconds+evt.Micros*1e-6)
+        time = (evt.Seconds+evt.Micros*1e-6) - (self.secs+self.mics*1e-6)
+        stroke = dict(pos=pos, pressure=p, time=time)
         self.model.RecordStroke(stroke)
         self.view.AddDamagedBuffer(self.model.RenderStroke(stroke))
         self.view.RedrawDamaged()

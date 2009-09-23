@@ -452,8 +452,8 @@ brush_drawstroke(PyBrush *self, PyObject *args)
     PyObject *stroke, *o, *buflist;
     LONG sx, sy;
     LONG dx, dy;
-    FLOAT pressure;
-    ULONG i, d;
+    FLOAT pressure, time, d;
+    ULONG i;
 
     if (NULL == self->b_Surface)
         return PyErr_Format(PyExc_RuntimeError, "Uninitialized brush");
@@ -470,22 +470,33 @@ brush_drawstroke(PyBrush *self, PyObject *args)
     if ((NULL == o) || ((pressure = PyFloat_AsDouble(o)), NULL != PyErr_Occurred()))
         return NULL;
 
+    o = PyDict_GetItemString(stroke, "time");
+    if ((NULL == o) || ((time = PyFloat_AsDouble(o)), NULL != PyErr_Occurred()))
+        return NULL;
+
     buflist = PyList_New(0); /* NR */
     if (NULL == buflist)
         return NULL;
 
     /* TODO: CHANGE ME (Test routine) */
-#define DABS_PER_RADIUS 3.6
+#define DABS_PER_RADIUS 2.9
+#define DABS_PER_SECONDS 0
 
     dx = sx - self->b_X;
     dy = sy - self->b_Y;
+
+    if ((0 == dx) && (0 == dy))
+        return buflist;
+
     if (self->b_BaseYRatio >= 1.0)
-        d = sqrtf(dx*dx+dy*dy) * DABS_PER_RADIUS / self->b_BaseRadius + 0.5;
+        d = sqrtf(dx*dx+dy*dy) * DABS_PER_RADIUS / self->b_BaseRadius;
     else
-        d = sqrtf(dx*dx+dy*dy) * DABS_PER_RADIUS / (self->b_BaseRadius*self->b_BaseYRatio) + 0.5;
-    
-    d = MAX(d, 1);
-    for (i=0; i < d; i++) {
+        d = sqrtf(dx*dx+dy*dy) * DABS_PER_RADIUS / (self->b_BaseRadius*self->b_BaseYRatio);
+
+    d += time * DABS_PER_SECONDS;
+
+    //d = MAX(d, 1);
+    for (i=0; i < (ULONG)d; i++) {
         PyObject *ret;
         LONG x, y;
 #ifdef STAT_TIMING
@@ -501,7 +512,7 @@ brush_drawstroke(PyBrush *self, PyObject *args)
 #ifdef STAT_TIMING
         ReadCPUClock(&t1);
 #endif
-        ret = drawdab_solid(self, buflist, self->b_Surface, x, y, self->b_BaseRadius, self->b_BaseYRatio,
+        ret = drawdab_solid(self, buflist, self->b_Surface, x, y, self->b_BaseRadius*pressure, self->b_BaseYRatio,
                             pressure, self->b_Hardness,
                             self->b_Alpha, self->b_Red, self->b_Green, self->b_Blue);
 #ifdef STAT_TIMING

@@ -36,9 +36,9 @@ class Brush(Dtpic):
         super(Brush, self).__init__(InputMode=MUIV_InputMode_Toggle, Frame=MUIV_Frame_ImageButton)
         self._set(MUIA_Dtpic_Scale, self.BRUSH_SCALE, 'I')
         self.shortname = ''
-        self.base_radius = 64.0
-        self.base_yratio = 0.8
-        self.hardness = 0.5
+        self.base_radius = 64
+        self.base_yratio = 1.0
+        self.hardness = 0.9
 
         # Brush model (features + drawing routines)
         self._brush = _brush.Brush()
@@ -71,11 +71,25 @@ class Brush(Dtpic):
 
         self.Name = brush.Name # in last because can trig some notification callbacks
 
-    def InitBrush(self, sf, x, y):
+    def Init(self, sf, pos):
+        self._brush.invalid_cache()
         self._brush.surface = sf
-        self._brush.x = x
-        self._brush.y = y
+        self._brush.x, self._brush.y = pos
 
-    def Draw(self, pos, speed=(0.0, 0.0), tilt=(0.0, 0.0), pressure=0.5):
-        # FIXME: change me for a stroke draw method
-        return self._brush.draw(pos, pressure, 0.6)
+    def DrawStroke(self, stroke):
+        return self._brush.draw_stroke(stroke)
+
+    def DrawSolidDab(self, pos, pressure=0.5):
+        return self._brush.drawdab_solid(pos, pressure, 0.6)
+
+
+class DummyBrush:
+    "Class used when no brush is set for a model."
+    def Init(self, *a, **k):
+        pass
+
+    def DrawStroke(self, *a, **k):
+        return tuple()
+
+    def DrawSolidDab(self, *a, **k):
+        return tuple()

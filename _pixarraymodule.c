@@ -23,8 +23,10 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 ******************************************************************************/
 
+#define _PIXARRAY_CORE
+
 #include "common.h"
-#include "_pixbufmodule.h"
+#include "_pixarraymodule.h"
 
 #include <cybergraphx/cybergraphics.h>
 
@@ -32,11 +34,14 @@ OTHER DEALINGS IN THE SOFTWARE.
 #include <proto/cybergraphics.h>
 
 #ifndef INITFUNC
-#define INITFUNC init_pixbuf
+#define INITFUNC init_pixarray
+#endif
+
+#ifndef MODNAME
+#define MODNAME "_pixarray"
 #endif
 
 static struct Library *CyberGfxBase;
-static PyTypeObject PyPixelArray_Type;
 
 
 /*******************************************************************************************
@@ -166,10 +171,27 @@ blit_overalpha_argb15x_to_rgb8(USHORT *src, UBYTE *dst, UWORD w, UWORD h)
 }
 //-
 
-
 /*******************************************************************************************
 ** PyPixelArray_Type
 */
+
+//+ new_pixarray
+static BOOL
+initialize_pixarray(PyPixelArray *self, UWORD width, UWORD height, UBYTE nc, UBYTE bpc)
+{
+    self->bpr = width * ((bpc * nc) >> 3); 
+    self->data = PyMem_Malloc(self->bpr * height);
+    if (NULL != self->data) {
+        self->width = width;
+        self->height = height;
+        self->nc  = nc;
+        self->bpc = bpc;
+        return TRUE;
+    }
+
+    return FALSE;
+}
+//-
 
 //+ pixarray_new
 static PyObject *
@@ -191,30 +213,20 @@ pixarray_new(PyTypeObject *type, PyObject *args)
     if ((nc * bpc) % 8)
         return PyErr_Format(PyExc_ValueError, "PixelArray needs the number of components by the number of bit per component aligned on byte size");
  
-
     self = (PyPixelArray *)type->tp_alloc(type, 0); /* NR */
     if (NULL != self) {
-        self->bpr = w * ((bpc * nc) >> 3); 
-        self->data = PyMem_Malloc(self->bpr * h);
-        if (NULL != self->data) {
-            self->width = w;
-            self->height = h;
-            self->nc  = nc;
-            self->bpc = bpc;
-            return (PyObject *)self;
-        }
-
-        Py_DECREF((PyObject *)self);
+        if (!initialize_pixarray(self, w, h, nc, bpc))
+            Py_CLEAR((PyObject *)self);
     }
 
-    return NULL;
+    return (PyObject *)self;
 }
 //-
 //+ pixarray_dealloc
 static void
 pixarray_dealloc(PyPixelArray *self)
 {
-    PyMem_Free(self->data);
+    if (NULL != self->data) PyMem_Free(self->data);
     self->ob_type->tp_free((PyObject *)self);
 }
 //-
@@ -296,12 +308,32 @@ pixarray_from_pixarray(PyPixelArray *self, PyObject *arg)
     Py_RETURN_NONE;
 }
 //-
+//+ pixarray_copy
+static PyObject *
+pixarray_copy(PyPixelArray *self)
+{
+    PyPixelArray *copy;
+
+    copy = PyObject_New(PyPixelArray, &PyPixelArray_Type);
+    if (NULL != copy) {
+        if (initialize_pixarray(copy, self->width, self->height, self->nc, self->bpc)) {
+            copy->x = self->x;
+            copy->y = self->y;
+            CopyMem(self->data, copy->data, copy->bpr*copy->height);
+        } else
+            Py_CLEAR(copy);
+    }
+
+    return (PyObject *)copy;
+}
+//-
 
 static struct PyMethodDef pixarray_methods[] = {
     {"zero", (PyCFunction)pixarray_zero, METH_VARARGS, NULL},
     {"one", (PyCFunction)pixarray_one, METH_VARARGS, NULL},
     {"from_string", (PyCFunction)pixarray_from_string, METH_O, NULL},
     {"from_pixarray", (PyCFunction)pixarray_from_pixarray, METH_O, NULL},
+    {"copy", (PyCFunction)pixarray_copy, METH_NOARGS, NULL},
     {NULL} /* sentinel */
 };
 
@@ -314,6 +346,7 @@ static PyMemberDef pixarray_members[] = {
     {"ComponentNumber", T_UBYTE, offsetof(PyPixelArray, nc), RO, NULL},
     {"BitsPerComponent", T_UBYTE, offsetof(PyPixelArray, bpc), RO, NULL},
     {"DataAddress", T_ULONG, offsetof(PyPixelArray, data), RO, NULL},
+    {"Damaged", T_UBYTE, offsetof(PyPixelArray, damaged), 0, NULL},
     {NULL}
 };
 
@@ -496,7 +529,7 @@ INITFUNC(void)
 
     if (PyType_Ready(&PyPixelArray_Type) < 0) return;
 
-    m = Py_InitModule("_pixbuf", methods);
+    m = Py_InitModule(MODNAME, methods);
     if (NULL == m)
         return;
 

@@ -35,8 +35,8 @@ from BrushSelect import BrushSelect
 from BGSelect import MiniBackgroundSelect
 from CMSPrefs import CMSPrefsWindow
 from model_ui import DataWindow
-from layers import LayerModel
 from raster import Raster
+from model import SimpleModel
 
 class Gribouillis(Application):
     VERSION = 0.1
@@ -50,7 +50,7 @@ class Gribouillis(Application):
         self.last_loaded_dir = None
 
         # Create the MVC object
-        model = LayerModel()
+        model = SimpleModel()
         view = Raster()
         self.controler = DrawControler(view, model)
 
@@ -69,9 +69,9 @@ class Gribouillis(Application):
                                  None, # Separator
                                  ('Setup data...', 'ctrl d', self.win_Data.Open),
                                  None,
-                                 ('Quit',          'Q', self.OnQuitRequest, None),
+                                 ('Quit',          'Q', self.OnQuitRequest),
                                 ),
-                     'Edit':    (('Clear All Layers', 'K', self.ClearAll),
+                     'Edit':    (('Clear all',     'K', self.ClearAll),
                                  ('Increase Zoom', '+', None),
                                  ('Decrease Zoom', '-', None),
                                  ('Reset Zoom',    '=', None),

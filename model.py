@@ -23,60 +23,35 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import _pixbuf
+__all__ = ('Model', 'SimpleModel')
+
+import _pixarray
 from surface import TiledSurface, T_SIZE
-from brush import Brush
+from brush import Brush, DummyBrush
+from stroke import StrokeRecord
 
-class DummyBrush:
-    "Class used when no brush is set for a LayerModel"
-    def InitDraw(self, *a):
-        pass
+class Model(object):
+    """ Model() -> instance
 
-    def Draw(self, *a, **k):
-        return tuple()
+    This class shall not be used as it, but shall be used to create drawing models.
+    Subclass it and define methods marked to be defined by subclasses.
+    """
 
-
-class LayerModel(object):
+    
     def __init__(self):
-        self._layers = []
-        self._active = self.AddLayer()
         self._rsurface = TiledSurface(nc=3, bpc=8) # RGB 8-bits per component surface for display
         self._brush = DummyBrush() # that gives a way to remove some 'if' sentences...
 
         # Some model data (Christoph... again you!)
-
         self.info = dict()
         self.info['ResolutionX'] = 75 # Number of pixels for 1 inch on the X-axis
         self.info['ResolutionY'] = 75 # Number of pixels for 1 inch on the Y-axis
 
+        self.Clear()
+        
     def Clear(self):
-        for layer in self._layers:
-            layer.Clear()
         self._rsurface.Clear()
-
-    def SetBrush(self, b):
-        assert isinstance(b, Brush)
-        self._brush = b
-
-    def AddLayer(self):
-        s = TiledSurface()
-        self._layers.append(s)
-        return s
-
-    def MoveBrush(self, *args):
-        """Move current brush on the active layer.
-        This action is not supposed to draw anything, jsut prepare the brush to.
-        """
-        self._brush.InitBrush(self._active, *args)
-
-    def Draw(self, *args, **kwds):
-        for buf in self._brush.Draw(*args, **kwds):
-            # blit on the rendering surface modified buffers from the active surface
-            rbuf = self._rsurface.GetBuffer(buf.x, buf.y, read=False)
-            rbuf.zero()
-            _pixbuf.bltalpha_argb15x_to_rgb8(buf, rbuf);
-            yield rbuf
-            
+        self._strokes = []
 
     def GetRenderBuffers(self, *args):
         xmin, ymin, xmax, ymax = [ int(x) for x in args ]
@@ -84,3 +59,46 @@ class LayerModel(object):
             for tx in xrange(xmin, xmax+T_SIZE-1, T_SIZE):
                 yield self._rsurface.GetBuffer(tx, ty)
 
+    def SetBrush(self, b):
+        assert isinstance(b, Brush)
+        self._brush = b
+
+    def InitializeDrawAction(self, pos):
+        self._stroke_rec = StrokeRecord(pos)
+        self.InitBrush(pos)
+        
+    def FinalizeDrawAction(self, ok=True):
+        self._strokes.append(self._stroke_rec)
+        self._stroke_rec = None
+
+    def RecordStroke(self, stroke):
+        self._stroke_rec.Add(stroke)
+
+    def InitBrush(self, pos):
+        pass # Must be implemented by subclasses
+
+    def RenderStroke(self, stroke):
+        pass # Must be implemented by subclasses
+
+
+class SimpleModel(Model):
+    def __init__(self):
+        self._surface = TiledSurface(nc=4, bpc=16) # ARGB surface
+
+        # Called in last because super call Clear() at end of its __init__()
+        super(SimpleModel, self).__init__()
+
+    def Clear(self):
+        super(SimpleModel, self).Clear() # clear the render surface
+        self._surface.Clear() # clear the draw surface
+
+    def InitBrush(self, pos):
+        self._brush.Init(self._surface, pos)
+
+    def RenderStroke(self, stroke):
+        for buf in self._brush.DrawStroke(stroke):
+            # blit on the rendering surface modified buffers from the active surface
+            rbuf = self._rsurface.GetBuffer(buf.x, buf.y, read=False, clear=True)
+            _pixarray.bltalpha_argb15x_to_rgb8(buf, rbuf);
+            buf.Damaged = False    
+            yield rbuf

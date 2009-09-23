@@ -24,8 +24,7 @@
 ###############################################################################
 
 import PIL.Image as image
-import _pixbuf
-from _pixbuf import PixelArray
+import _pixarray
 
 T_SIZE = 64
 DEBUG = True
@@ -33,7 +32,7 @@ DEBUG = True
 class Tile:
     def __init__(self, nc, bpc):
         # pixel buffer, 'bpc' bit per composent, nc composent
-        self.pixels = PixelArray(T_SIZE, T_SIZE, nc, bpc)
+        self.pixels = _pixarray.PixelArray(T_SIZE, T_SIZE, nc, bpc)
         self.Clear()
 
     def Clear(self):
@@ -52,12 +51,13 @@ class TiledSurface(Surface):
         self._bpc = bpc
         self._ro_tile = Tile(nc, bpc)
 
-    def GetBuffer(self, x, y, read=True):
-        """GetBuffer(x, y, read=True) -> pixel array
+    def GetBuffer(self, x, y, read=True, clear=False):
+        """GetBuffer(x, y, read=True, clear=False) -> pixel array
 
         Returns the pixel buffer and its left-top corner, containing the point p=(x, y).
         If no tile exist yet, return a read only buffer if read is True,
         otherwhise create a new tile and returns it.
+        If clear is true and read is false, the buffer is cleared.
         """
 
         x = int(x // T_SIZE)
@@ -65,6 +65,7 @@ class TiledSurface(Surface):
 
         tile = self.tiles.get((x, y))
         if tile:
+            if clear and not read: tile.Clear()
             return tile.pixels
         elif read:
             self._ro_tile.pixels.x = x*T_SIZE
@@ -79,14 +80,14 @@ class TiledSurface(Surface):
     
     def ImportFromPILImage(self, im, w, h):
         im = im.convert('RGB')
-        src = PixelArray(T_SIZE, T_SIZE, 3, 8)
+        src = _pixarray.PixelArray(T_SIZE, T_SIZE, 3, 8)
         for ty in xrange(0, h, T_SIZE):
             for tx in xrange(0, w, T_SIZE):
                 buf = self.GetBuffer(tx, ty, read=False)
                 sx = min(w, tx+T_SIZE)
                 sy = min(h, ty+T_SIZE)
                 src.from_string(im.crop((tx, ty, sx, sy)).tostring())
-                _pixbuf.rgb8_to_argb8(src, buf)
+                _pixarray.rgb8_to_argb8(src, buf)
 
     def IterBuffers(self):
         for tile in self.tiles.itervalues():

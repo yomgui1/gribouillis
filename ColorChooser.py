@@ -60,11 +60,11 @@ class ColorChooser(Window):
 
     @staticmethod
     def SysColToFloat(v):
-        return float(CLAMP(0, v / 0x010101, 255))
+        return float(clamp(0, v / 0x01010101, 255)) / 255.
 
     @staticmethod
-    def SysColToFloat(v):
-        return CLAMP(0, int(v * 0xff) * 0x010101, 255)
+    def FloatToSysCol(v):
+        return clamp(0, int(v * 0xff) * 0x01010101, 255)
 
     def OnColStrChanged(self):
         s = self._colstr.Contents
@@ -80,7 +80,7 @@ class ColorChooser(Window):
     def OnColorChanged(self):
         rgb = self.coladj.RGB
         self._color = tuple(self.SysColToFloat(x) for x in rgb)
-        self._colstr_save = "#%02x%02x%02x" % (x >> 24 for x in rgb)
+        self._colstr_save = "#%02x%02x%02x" % tuple((x >> 24) for x in rgb)
         self._colstr.Contents = self._colstr_save
 
         for cb in self.watchers:
@@ -95,7 +95,7 @@ class ColorChooser(Window):
             rgb = tuple(clamp(0.0, float(x), 1.0) for x in rgb[0])
 
         # will call OnColorChanged()
-        self.coladj.RGB = tuple(self.FloatToSysCol(r) for x in rgb)
+        self.coladj.RGB = tuple(self.FloatToSysCol(x) for x in rgb)
 
     def DelColor(self):
         self.color = self.default_color

@@ -1,5 +1,36 @@
+/******************************************************************************
+Copyright (c) 2009 Guillaume Roguez
+
+Permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation
+files (the "Software"), to deal in the Software without
+restriction, including without limitation the rights to use,
+copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+******************************************************************************/
+
+/* TODO:
+ *
+ * - More dab filling engines: 1d-pattern, 2d-pattern, conical, linear, ...
+ * - Optimize inner draw loop, especially for float usage.
+ */
+
 #include "common.h"
-#include "_pixbufmodule.h"
+#include "_pixarraymodule.h"
 
 #include <math.h>
 
@@ -18,22 +49,38 @@
 #define PyBrush_Check(op) PyObject_TypeCheck(op, &PyBrush_Type)
 #define PyBrush_CheckExact(op) ((op)->ob_type == &PyBrush_Type)
 
-#define PA_CACHE_SIZE 10
+#define PA_CACHE_SIZE 15 /* good value for the case of big brushes */
+
+//#define STAT_TIMING
+
+typedef struct PANode_STRUCT {
+    struct MinNode pan_Node;
+    PyObject *     pan_PixelArray;
+    BOOL           pan_Valid;
+} PANode;
 
 typedef struct PyBrush_STRUCT {
     PyObject_HEAD
 
-    PyObject *  b_Surface;
-    LONG        b_X;
-    LONG        b_Y;
-    FLOAT       b_BaseRadius;
-    FLOAT       b_BaseYRatio;
-    FLOAT       b_Hardness;
-    ULONG       b_Alpha;
-    USHORT      b_Red;
-    USHORT      b_Green;
-    USHORT      b_Blue;
-    APTR        b_PACache[PA_CACHE_SIZE];
+    PyObject *      b_Surface;
+    LONG            b_X;
+    LONG            b_Y;
+    FLOAT           b_BaseRadius;
+    FLOAT           b_BaseYRatio;
+    FLOAT           b_Hardness;
+    USHORT          b_Alpha;
+    USHORT          b_Red;
+    USHORT          b_Green;
+    USHORT          b_Blue;
+    PANode          b_PACache[PA_CACHE_SIZE];
+    struct MinList  b_PACacheList;
+    PANode *        b_FirstInvalid;
+#ifdef STAT_TIMING
+    ULONG           b_CacheAccesses;
+    ULONG           b_CacheMiss;
+    UQUAD           b_Times[3];
+    ULONG           b_TimesCount[3];
+#endif
 } PyBrush;
 
 static PyTypeObject PyBrush_Type;
@@ -43,25 +90,257 @@ static PyTypeObject PyBrush_Type;
 ** Private routines
 */
 
-//+ obtain_pixbuf
-/* This function could be used in quite unsafe way, because the length
- * of the returned buffer is not given. An evil code may overflow it.
- */
-static APTR
-obtain_pixbuf(PyObject *surface, LONG x, LONG y, LONG *bsx, LONG *bsy, PyObject **o_pixbuf)
+#ifdef STAT_TIMING
+//+ ReadCPUClock
+static void
+ReadCPUClock(UQUAD *v)
 {
-    *o_pixbuf = PyObject_CallMethod(surface, "GetBuffer", "iii", x, y, FALSE); /* NR */
-    if (NULL != *o_pixbuf) {
-        PyPixelArray *pa = (APTR)*o_pixbuf;
+    register unsigned long tbu, tb, tbu2;
 
-        *bsx = pa->x;
-        *bsy = pa->y;
+loop:
+    asm volatile ("mftbu %0" : "=r" (tbu) );
+    asm volatile ("mftb  %0" : "=r" (tb)  );
+    asm volatile ("mftbu %0" : "=r" (tbu2));
+    if (tbu != tbu2) goto loop;
 
-        /* We suppose that the associated python object remains valid during the draw call */
-        DPRINT("obtain_pixbuf: pb=%p, bsx=%ld, bsy=%ld, x=%ld, y=%ld\n", pa->data, *bsx, *bsy, x, y);
-        return pa->data;
+    /* The slightly peculiar way of writing the next lines is
+       compiled better by GCC than any other way I tried. */
+    ((long*)(v))[0] = tbu;
+    ((long*)(v))[1] = tb;
+}
+//-
+#endif
+
+//+ obtain_pixarray
+static PyPixelArray *
+obtain_pixarray(PyBrush *self, PyObject *surface, LONG x, LONG y)
+{
+    PyObject *cached = NULL, *o = NULL;
+    PANode *node, *first_invalid = NULL;
+
+    /* try in cache first */
+#ifdef STAT_TIMING
+    self->b_CacheAccesses++;
+#endif
+    ForeachNode(&self->b_PACacheList, node) {
+        PyPixelArray *pa;
+
+        if (!node->pan_Valid) {
+            first_invalid = node;
+            break;
+        }
+
+        pa = (APTR)node->pan_PixelArray;
+        
+        /* (x,y) inside pixel array ? */
+        if ((x >= pa->x) && (x < (pa->x + pa->width))
+            && (y >= pa->y) && (y < (pa->y + pa->height))) {
+            o = cached = (APTR)pa;
+
+            /* This node becomes the first one (next call could be faster) */
+            ADDHEAD(&self->b_PACacheList, REMOVE(node));
+            break;
+        }
     }
 
+    if (NULL != first_invalid)
+        self->b_FirstInvalid = first_invalid;
+    else
+        self->b_FirstInvalid = (APTR)GetTail(&self->b_PACacheList);
+
+    /* Not in cache, get it from the python side so */
+    if (NULL == cached) {
+#ifdef STAT_TIMING
+        self->b_CacheMiss++;
+#endif
+        o = PyObject_CallMethod(surface, "GetBuffer", "iii", x, y, FALSE); /* NR */
+        if (NULL == o)
+            return NULL;
+
+        Py_DECREF(o);
+
+        if (!PyPixelArray_CheckExact(o))
+            return (APTR)PyErr_Format(PyExc_TypeError, "Surface GetBuffer() method shall returns PixelArray instance, not %s", OBJ_TNAME(o));
+
+        /* Add it to the cache as first entry */
+        self->b_FirstInvalid->pan_PixelArray = o; /* don't incref, because object is supposed to be valid
+                                                   * until the end of stroke.
+                                                   */
+        self->b_FirstInvalid->pan_Valid = TRUE;
+        ADDHEAD(&self->b_PACacheList, REMOVE(self->b_FirstInvalid));
+    }
+
+    return (APTR)o;
+}
+//-
+//+ drawdab_solid
+/* Solid spherical filling engine */
+static PyObject *
+drawdab_solid(PyBrush *self,
+              PyObject *buflist, PyObject *surface,
+              LONG sx, LONG sy,
+              FLOAT radius, FLOAT yratio,
+              FLOAT pressure, FLOAT hardness,
+              FLOAT ca, FLOAT cr, FLOAT cg, FLOAT cb)
+{
+    LONG minx, miny, maxx, maxy, x, y;
+    FLOAT radius_radius;
+#ifdef STAT_TIMING
+    UQUAD t1, t2;
+#endif
+
+    minx = floorf(sx - radius);
+    maxx = ceilf(sx + radius);
+    miny = floorf(sy - radius * yratio);
+    maxy = ceilf(sy + radius * yratio);
+
+    DPRINT("BDraw: bbox = (%ld, %ld, %ld, %ld)\n", minx, miny, maxx, maxy);
+    radius_radius = radius * radius;
+
+    /* Loop on all pixels inside a bbox centered on (sx, sy) */
+    for (y=miny; y <= maxy;) {
+        for (x=minx; x <= maxx;) {
+            PyPixelArray *pa;
+            USHORT *buf;
+            LONG box, boy; /* Position of the top/left corner of the buffer on surface */
+            LONG bx, by;
+            int i = -1; /* >=0 when some pixels have been written */
+
+            /* Try to obtain the surface pixels buffer for the point (x, y).
+             * Search in internal cache for it, then ask directly to the surface object.
+             */
+
+#ifdef STAT_TIMING
+            ReadCPUClock(&t1);
+#endif
+            pa = obtain_pixarray(self, surface, x, y); /* NR */
+#ifdef STAT_TIMING
+            ReadCPUClock(&t2);
+            self->b_Times[2] += t2 - t1;
+            self->b_TimesCount[2]++;
+#endif
+            if (NULL == pa)
+                goto error;
+
+            box = pa->x;
+            boy = pa->y;
+            buf = pa->data;
+
+            /* 'buf' pointer is supposed to be an ARGB15X pixels buffer.
+             * This pointer is directly positionned on pixel (box, boy).
+             * Buffer is buf_width pixels of width and buf_height pixels of height.
+             * buf_bpr gives the number of bytes to add to pass directly
+             * to the pixel just below the current position.
+             */
+            
+            /* BBox inside the given buffer (surface units):
+             * XMin = x;  XMax = min(maxx, box + buf_width)
+             * YMin = y;  YMax = min(maxy, boy + buf_height)
+             * When this area is filled, we keep the x (=XMax+1),
+             * but set y to the value before this inner loop.
+             */
+
+            bx = x-box; /* To remove a compiler warning */
+            buf += (y-boy) * pa->bpr / sizeof(*buf);
+
+            DPRINT("BDraw: area = (%ld, %ld, %ld, %ld)\n",
+                   x - box, y - boy,
+                   MIN(maxx-box, pa->width-1), MIN(maxy-boy, pa->height-1));
+
+            /* Filling one pixel buffer (inner loop)
+            ** OPTIMIZATION: using a kind of bresenham algo and remove all float computations ?
+            */
+#ifdef STAT_TIMING
+            ReadCPUClock(&t1);
+#endif
+            for (by=y-boy; by <= MIN(maxy-boy, pa->width-1); by++) {
+                for (bx=x-box; bx <= MIN(maxx-box, pa->height-1); bx++) {
+                    FLOAT drx, dry;
+                    FLOAT rr;
+
+                    /* Compute the square of ellipse radius
+                     * Note: Why +0.5 for each coordinate? because we put the center of
+                     * ellipse in the center of the pixel (pixel positions are integers).
+                     */
+                    drx = bx+box - sx + 0.5;
+                    dry = (by+boy - sy + 0.5) / yratio;
+                    rr = (drx*drx + dry*dry) / radius_radius;
+
+                    /* P=(x, y) in the Ellipse ? */
+                    if (rr <= 1.0) {
+                        FLOAT density = pressure;
+                        ULONG alpha, one_minus_alpha;
+
+                        /* density = p * f(r), where:
+                         *   - f is a falloff function
+                         *   - r the radius (we using the square radius (rr) in fact)
+                         *   - p the pressure
+                         *
+                         * hardness is the first zero of f (f(hardness)=0.0).
+                         * hardness can't be zero (or density = -infinity, clamped to zero)
+                         */
+                        if (hardness < 1.0) {
+                            if (rr < hardness)
+                                density *= rr + 1-(rr/hardness);
+                            else
+                                density *= hardness/(hardness-1)*(rr-1);
+                        }
+
+                        i = bx * 4; /* Pixel index from the left of buffer */
+                        alpha = (ULONG)(density * ca);
+                        one_minus_alpha = (1<<15) - alpha;
+
+                        /* 'Simple' over-alpha compositing (in 15bits fixed point arithmetics)
+                         * Supposing that color values are alpha pre-multiplied.
+                         */
+
+                        /* A */ buf[i+0] = alpha + one_minus_alpha * buf[i+0] / (1<<15);
+                        /* R */ buf[i+1] = (alpha*cr + one_minus_alpha * buf[i+1]) / (1<<15);
+                        /* G */ buf[i+2] = (alpha*cg + one_minus_alpha * buf[i+2]) / (1<<15);
+                        /* B */ buf[i+3] = (alpha*cb + one_minus_alpha * buf[i+3]) / (1<<15);
+                    }
+                }
+
+                /* Go to the next row to fill */
+                buf += pa->bpr / sizeof(*buf);
+            }
+#ifdef STAT_TIMING
+            ReadCPUClock(&t2);
+            self->b_Times[1] += t2 - t1;
+            self->b_TimesCount[1]++;
+#endif
+
+            /* Written buffer ? */
+            if (i >= 0) {
+                /* put in the damaged list if not damaged yet */
+                if (!pa->damaged) {
+                    int failed;
+                    
+                    failed = PyList_Append(buflist, (PyObject *)pa); /* incref 'pa' */
+ 
+                    if (failed)
+                        goto error;
+
+                    pa->damaged = TRUE;
+                }
+            }
+
+            if (SetSignal(0, SIGBREAKF_CTRL_C) & SIGBREAKF_CTRL_C)
+                goto end;
+
+            /* Update x */
+            x = bx + box;
+
+            /* Update the y only if x > maxx */
+            if (x > maxx)
+                y = by + boy;
+        }
+    }
+
+end:
+    return buflist; /* list of damaged buffers */
+
+error:
     return NULL;
 }
 //-
@@ -79,10 +358,22 @@ brush_new(PyTypeObject *type, PyObject *args)
 
     self = (PyBrush *)type->tp_alloc(type, 0); /* NR */
     if (NULL != self) {
+        int i;
+
+        NEWLIST(&self->b_PACacheList);
+
+        for (i=0; i < PA_CACHE_SIZE; i++) {
+            ADDTAIL(&self->b_PACacheList, &self->b_PACache[i]);
+        }
+
+        self->b_FirstInvalid = &self->b_PACache[0];
+
         self->b_Hardness = 0.5;
-        self->b_Alpha = 255;
+        self->b_Alpha = 1<<15;
         self->b_BaseRadius = 8.0;
         self->b_BaseYRatio = 1.0;
+
+        /* the rest to 0 */
     }
 
     return (PyObject *)self;
@@ -112,164 +403,154 @@ brush_dealloc(PyBrush *self)
     self->ob_type->tp_free((PyObject *)self);
 }
 //-
-//+ brush_draw
+//+ brush_drawdab_solid
 static PyObject *
-brush_draw(PyBrush *self, PyObject *args)
+brush_drawdab_solid(PyBrush *self, PyObject *args)
 {
     LONG sx, sy; /* Center position (surface units) */
-    FLOAT p; /* Pressure, range =  [0.0, 0.1] */
-    LONG minx, miny, maxx, maxy, x, y;
-    FLOAT radius_radius;
-    PyObject *buflist;
+    FLOAT pressure; /* Pressure, range =  [0.0, 0.1] */
+    FLOAT radius; /* Radius, range =  [0.0, 0.1] */
+    FLOAT yratio; /* YRatio, range =  [0.0, inf] */
+    FLOAT hardness; /* Hardness, range =  [0.0, inf] */
+    PyObject *buflist, *ret;
 
     if (NULL == self->b_Surface)
         return PyErr_Format(PyExc_RuntimeError, "No surface set.");
 
-    /* Hardness = 0 => nothing to draw */
-    if (self->b_Hardness == 0.0)
-        Py_RETURN_NONE;
+    /* Set defaults for optional arguments */
+    radius = self->b_BaseRadius;
+    yratio = self->b_BaseYRatio;
+    hardness = self->b_Hardness;
+    pressure = 0.5;
+
+    if (!PyArg_ParseTuple(args, "(kk)|ffff", &sx, &sy,  &pressure, &radius, &yratio, &hardness))
+        return NULL;
+
+    CLAMP(0.0, pressure, 1.0);
+    CLAMP(0.0, radius, 1.0);
 
     buflist = PyList_New(0); /* NR */
     if (NULL == buflist)
         return NULL;
 
-    if (!PyArg_ParseTuple(args, "(kk)f", &sx, &sy,  &p))
-        goto error;
+    /* Check if have something to draw or just return the empty damaged list */
+    if ((0.0 <= hardness) || (yratio <= 0.0) || (0.0 == pressure) || (0.0 == radius))
+        return buflist;
 
-    minx = floorf(sx - self->b_BaseRadius);
-    maxx = ceilf(sx + self->b_BaseRadius);
-    miny = floorf(sy - self->b_BaseRadius * self->b_BaseYRatio);
-    maxy = ceilf(sy + self->b_BaseRadius * self->b_BaseYRatio);
+    ret = drawdab_solid(self, buflist, self->b_Surface, sx, sy, radius, yratio, pressure, hardness,
+                        self->b_Alpha, self->b_Red, self->b_Green, self->b_Blue);
+    if (NULL == ret)
+        Py_CLEAR(buflist);
 
-    DPRINT("BDraw: bbox = (%ld, %ld, %ld, %ld)\n", minx, miny, maxx, maxy);
-    radius_radius = self->b_BaseRadius * self->b_BaseRadius;
+    return buflist;
+}
+//-
+//+ brush_drawstroke
+static PyObject *
+brush_drawstroke(PyBrush *self, PyObject *args)
+{
+    PyObject *stroke, *o, *buflist;
+    LONG sx, sy;
+    LONG dx, dy;
+    FLOAT pressure;
+    ULONG i, d;
 
-    /* Loop on all pixels inside a bbox centered on (sx, sy) */
-    for (y=miny; y <= maxy;) {
-        for (x=minx; x <= maxx;) {
-            PyPixelArray *o_buf;
-            USHORT *buf;
-            LONG bsx, bsy; /* Position of the top/left corner of the buffer on surface */
-            LONG bx, by;
-            int i = -1; /* >=0 when some pixels have been written */
+    if (NULL == self->b_Surface)
+        return PyErr_Format(PyExc_RuntimeError, "Uninitialized brush");
 
-            /* Try to obtain the surface pixels buffer for the point (x, y).
-             * Search in internal cache for it, then ask directly to the surface object.
-             */
+    /* TODO: yes, stroke is currently a dict object... */
+    if (!PyArg_ParseTuple(args, "O!", &PyDict_Type, &stroke))
+        return NULL;
 
-            buf = obtain_pixbuf(self->b_Surface, x, y, &bsx, &bsy, (APTR)&o_buf /* NR */);
-            if (NULL == buf)
-                goto error;
+    o = PyDict_GetItemString(stroke, "pos"); /* BR */
+    if ((NULL == o) || !PyArg_ParseTuple(o, "kk", &sx, &sy))
+        return NULL;
 
-            /* 'buf' pointer is supposed to be an ARGB15X pixels buffer.
-             * This pointer is directly positionned on pixel (bsx, bsy).
-             * Buffer is o_buf->width pixels of width and o_buf->height pixels of height.
-             * o_buf->bpr gives the number of bytes to add to pass directly
-             * to the pixel just below the current position.
-             */
-            
-            /* BBox inside the given buffer (surface units):
-             * XMin = x;  XMax = min(maxx, bsx + o_buf->width)
-             * YMin = y;  YMax = min(maxy, bsy + o_buf->height)
-             * When this area is filled, we keep the x (=XMax+1),
-             * but set y to the value before this inner loop.
-             */
+    o = PyDict_GetItemString(stroke, "pressure");
+    if ((NULL == o) || ((pressure = PyFloat_AsDouble(o)), NULL != PyErr_Occurred()))
+        return NULL;
 
-            bx = x-bsx; /* To remove a compiler warning */
-            buf += (y-bsy) * o_buf->bpr / sizeof(*buf);
+    buflist = PyList_New(0); /* NR */
+    if (NULL == buflist)
+        return NULL;
 
-            DPRINT("BDraw: area = (%ld, %ld, %ld, %ld)\n",
-                   x - bsx, y - bsy,
-                   MIN(maxx-bsx, o_buf->width-1), MIN(maxy-bsy, o_buf->height-1));
+    /* TODO: CHANGE ME (Test routine) */
+#define DABS_PER_RADIUS 2.2
 
-            /* Filling one PixelBuffer (inner loop)
-            ** OPTIMIZATION: using a kind of bresenham algo and remove all float computations ?
-            */
-            for (by=y-bsy; by <= MIN(maxy-bsy, o_buf->width-1); by++) {
-                for (bx=x-bsx; bx <= MIN(maxx-bsx, o_buf->height-1); bx++) {
-                    FLOAT drx, dry;
-                    FLOAT rr;
+    dx = sx - self->b_X;
+    dy = sy - self->b_Y;
+    if (self->b_BaseYRatio >= 1.0)
+        d = sqrtf(dx*dx+dy*dy) * DABS_PER_RADIUS / self->b_BaseRadius + 0.5;
+    else
+        d = sqrtf(dx*dx+dy*dy) * DABS_PER_RADIUS / (self->b_BaseRadius*self->b_BaseYRatio) + 0.5;
+    
+    d = MAX(d, 1);
+    for (i=0; i < d; i++) {
+        PyObject *ret;
+        LONG x, y;
+#ifdef STAT_TIMING
+        UQUAD t1, t2;
+#endif
 
-                    /* Compute the square of ellipse radius
-                     * Note: Why +0.5 for each coordinate? because we put the center of
-                     * ellipse in the center of the pixel (pixel positions are integers).
-                     */
-                    drx = bx+bsx - sx + 0.5;
-                    dry = (by+bsy - sy + 0.5) / self->b_BaseYRatio;
-                    rr = (drx*drx + dry*dry) / radius_radius;
+        /* Simple linear interpolation */
+        x = self->b_X + (ULONG)((FLOAT)(sx - self->b_X) * i / d);
+        y = self->b_Y + (ULONG)((FLOAT)(sy - self->b_Y) * i / d);
 
-                    /* rr range: [0.0, sqrt(2)] */
+        DPRINT("BRUSH: (%ld, %ld), s: (%ld, %ld): c: (%ld, %ld)\n", self->b_X, self->b_Y, sx, sy, x, y);
 
-                    /* P=(x, y) in the Ellipse ? */
-                    if (rr <= 1.0) {
-                        FLOAT density = p;
-                        ULONG alpha, one_minus_alpha;
-
-                        /* density = p * f(r), where:
-                         *   - f is a falloff function
-                         *   - r the radius (we using the square radius (rr) in fact)
-                         *   - p the pressure
-                         *
-                         * hardness is the first zero of f (f(hardness)=0.0).
-                         * hardness can't be zero (or density = -infinity, clamped to zero)
-                         */
-                        if (self->b_Hardness < 1.0) {
-                            if (rr < self->b_Hardness)
-                                density *= rr + 1-(rr/self->b_Hardness);
-                            else
-                                density *= self->b_Hardness/(self->b_Hardness-1)*(rr-1);
-                        }
-
-                        i = bx * 4; /* Pixel index from the left of buffer */
-                        alpha = (ULONG)(density * self->b_alpha);
-                        one_minus_alpha = (1<<15) - alpha;
-
-                        /* 'Simple' over-alpha compositing (in 15bits fixed point arithmetics)
-                         * Supposing that color values are alpha pre-multiplied.
-                         */
-
-                        /* A */ buf[i+0] = alpha + one_minus_alpha * buf[i+0] / (1<<15);
-                        /* R */ buf[i+1] = (alpha*self->b_Red   + one_minus_alpha * buf[i+1]) / (1<<15);
-                        /* G */ buf[i+2] = (alpha*self->b_Green + one_minus_alpha * buf[i+2]) / (1<<15);
-                        /* B */ buf[i+3] = (alpha*self->b_Blue  + one_minus_alpha * buf[i+3]) / (1<<15);
-                    }
-                }
-
-                /* Go to the next row to fill */
-                buf += o_buf->bpr / sizeof(*buf);
-            }
-
-            /* Written buffer ? */
-            if (i >= 0) {
-                int failed = PyList_Append(buflist, (PyObject *)o_buf); /* shall incref */
-
-                Py_DECREF((PyObject *)o_buf);
-                if (failed)
-                    goto error;
-            } else
-                Py_DECREF((PyObject *)o_buf);
-
-            if (SetSignal(0, SIGBREAKF_CTRL_C) & SIGBREAKF_CTRL_C)
-                goto end;
-
-            /* Update x */
-            x = bx + bsx;
-
-            /* Update the y only if x > maxx */
-            if (x > maxx)
-                y = by + bsy;
+#ifdef STAT_TIMING
+        ReadCPUClock(&t1);
+#endif
+        ret = drawdab_solid(self, buflist, self->b_Surface, x, y, self->b_BaseRadius, self->b_BaseYRatio,
+                            pressure, self->b_Hardness,
+                            self->b_Alpha, self->b_Red, self->b_Green, self->b_Blue);
+#ifdef STAT_TIMING
+        ReadCPUClock(&t2);
+        self->b_Times[0] += t2 - t1;
+        self->b_TimesCount[0]++;   
+#endif
+        if (NULL == ret) {
+            Py_CLEAR(buflist); /* BUG: let pa damaged ! */
+            goto end;
         }
     }
 
-end:
-    return buflist; /* list of damaged buffers */
+    self->b_X = sx;
+    self->b_Y = sy;
 
-error:
-    Py_DECREF(buflist);
-    return NULL;
+end:
+    return buflist;
 }
 //-
+//+ brush_invalid_cache
+static PyObject *
+brush_invalid_cache(PyBrush *self, PyObject *args)
+{
+    ULONG i;
 
+#ifdef STAT_TIMING
+    Printf("Cache states: cache accesses = %lu, cache miss = %lu (%lu%%)\n",
+        self->b_CacheAccesses, self->b_CacheMiss, (ULONG)(((float)self->b_CacheMiss * 100 / self->b_CacheAccesses) + 0.5));
+    
+    for (i=0; i < sizeof(self->b_Times)/sizeof(*self->b_Times); i++) {
+        Printf("Time#%ld: %lu, %lu%-10lu\n", i,
+            self->b_TimesCount[i], (ULONG)(self->b_Times[i]>>32), (ULONG)(self->b_Times[i]&0xffffffff));
+        self->b_Times[i] = 0;
+        self->b_TimesCount[i] = 0;
+    }
+
+    self->b_CacheAccesses = 0;
+    self->b_CacheMiss = 0;
+#endif
+
+    /* invalidate the whole cache */
+    for (i=0; i < PA_CACHE_SIZE; i++)
+        self->b_PACache[i].pan_Valid = FALSE;
+    self->b_FirstInvalid = &self->b_PACache[0];
+
+    Py_RETURN_NONE;
+}
+//-
 //+ brush_get_surface
 static PyObject *
 brush_get_surface(PyBrush *self, void *closure)
@@ -327,15 +608,17 @@ brush_set_color(PyBrush *self, PyObject *value, void *closure)
 
 static PyGetSetDef brush_getseters[] = {
     {"surface", (getter)brush_get_surface, (setter)brush_set_surface, "Surface to use", NULL},
-    {"alpha",   (getter)brush_get_color,   (setter)brush_set_color,   "Color (Alpha channel)", offsetof(PyBrush, b_Alpha)},
-    {"red",     (getter)brush_get_color,   (setter)brush_set_color,   "Color (Red channel)", offsetof(PyBrush, b_Red)},
-    {"green",   (getter)brush_get_color,   (setter)brush_set_color,   "Color (Green channel)", offsetof(PyBrush, b_Green)},
-    {"blue",    (getter)brush_get_color,   (setter)brush_set_color,   "Color (Blue channel)", offsetof(PyBrush, b_Blue)},
+    {"alpha",   (getter)brush_get_color,   (setter)brush_set_color,   "Color (Alpha channel)", (APTR)offsetof(PyBrush, b_Alpha)},
+    {"red",     (getter)brush_get_color,   (setter)brush_set_color,   "Color (Red channel)", (APTR)offsetof(PyBrush, b_Red)},
+    {"green",   (getter)brush_get_color,   (setter)brush_set_color,   "Color (Green channel)", (APTR)offsetof(PyBrush, b_Green)},
+    {"blue",    (getter)brush_get_color,   (setter)brush_set_color,   "Color (Blue channel)", (APTR)offsetof(PyBrush, b_Blue)},
     {NULL} /* sentinel */
 };
 
 static struct PyMethodDef brush_methods[] = {
-    {"draw", (PyCFunction)brush_draw, METH_VARARGS, NULL},
+    {"drawdab_solid", (PyCFunction)brush_drawdab_solid, METH_VARARGS, NULL},
+    {"draw_stroke",    (PyCFunction)brush_drawstroke, METH_VARARGS, NULL},
+    {"invalid_cache",    (PyCFunction)brush_invalid_cache, METH_NOARGS, NULL},
     {NULL} /* sentinel */
 };
 
@@ -380,14 +663,24 @@ static PyMethodDef _BrushMethods[] = {
 PyMODINIT_FUNC
 INITFUNC(void)
 {
-     PyObject *m;
+    PyObject *m, *_pixarray;
 
      if (PyType_Ready(&PyBrush_Type) < 0) return;
 
      m = Py_InitModule("_brush", _BrushMethods);
-     if (NULL == m)
-         return;
+     if (NULL == m) return;
 
      ADD_TYPE(m, "Brush", &PyBrush_Type);
+
+     /* Need the PyPixelArray_Type object from _pixarray */
+     _pixarray = PyImport_ImportModule("_pixarray"); /* NR */
+     if (NULL == _pixarray)
+         return;
+
+     PyPixelArray_Type = (PyTypeObject *)PyObject_GetAttrString(_pixarray, "PixelArray"); /* NR */
+     if (NULL == PyPixelArray_Type) {
+         Py_DECREF(_pixarray);
+         return;
+     }
 }
 //-

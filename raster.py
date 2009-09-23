@@ -23,7 +23,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import pymui, _pixbuf, surface, lcms
+import pymui, _pixarray, surface, lcms
 
 class Raster(pymui.Area):
     EVENTMAP = {
@@ -111,8 +111,11 @@ class Raster(pymui.Area):
             if self.debug:
                 self._rp.Rect(3, rx, ry, rx+int(buf.Width * self.scale)-1, ry+int(buf.Height * self.scale)-1)
 
-    def AddDamagedBuffer(self, *buffers):
-        self._damagedbuflist += buffers
+    def AddDamagedBuffer(self, buffer):
+        if hasattr(buffer, '__iter__'):
+            self._damagedbuflist += buffer
+        else:
+            self._damagedbuflist.append(buffer)
 
     def ClearDamaged(self):
         self._damaged = []
@@ -216,5 +219,5 @@ class Raster(pymui.Area):
 
     def CMS_ApplyTransform(self, buf):
         if self._tmpbuf is None:
-            self._tmpbuf = _pixbuf.PixelArray(buf.Width, buf.Height, buf.ComponentNumber, buf.BitsPerComponent)
+            self._tmpbuf = buf.copy()
         return self.cms_transform(buf, self._tmpbuf, buf.Width * buf.Height)

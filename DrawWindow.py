@@ -23,6 +23,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
+__all__ = ('DrawControler', 'DrawWindow')
+
 from pymui import *
 import os.path
 
@@ -47,11 +49,8 @@ class Recorder:
     def Stop(self):
         pass
 
-    def AddEvent(self, secs, micros, pos, pressure, **extra):
-        if extra:
-            self.evtlist.append((secs, micros, pos, pressure, extra))
-        else:
-            self.evtlist.append((secs, micros, pos, pressure))
+    def AddData(self, **data):
+        self.evtlist.append(data)
 
 
 class DrawControler(object):
@@ -70,7 +69,7 @@ class DrawControler(object):
         self.view.add_watcher('rawkey', self.OnKey)
 
         self._mode = DrawControler.MODE_IDLE
-        self._rec = Recorder()
+        self._rec = Recorder() # XXX: to use, one day ;-)
 
     def OnMouseButton(self, evt):
         if self._mode == DrawControler.MODE_IDLE:
@@ -132,11 +131,9 @@ class DrawControler(object):
         self.tbx = None
         
         if mode == DrawControler.MODE_DRAW:
-            self._rec.Start(True)
             pos = self.view.GetSurfacePos(self.mx, self.my)
-            self.model.MoveBrush(*pos)
+            self.model.InitializeDrawAction(pos)
         elif mode == DrawControler.MODE_DRAG:
-            self._rec.Start(True) 
             self.view.StartMove()
 
         self.mode = mode 
@@ -144,12 +141,14 @@ class DrawControler(object):
     def CancelAction(self, mode, evt):
         if self._mode == DrawControler.MODE_DRAG:
             self.view.CancelMove()
+        elif self._mode == DrawControler.MODE_DRAW:
+            self.model.FinalizeDrawAction(False)
         self.mode = mode
-        self._rec.Stop()
 
     def ConfirmAction(self, mode, evt):
+        if self._mode == DrawControler.MODE_DRAW:
+            self.model.FinalizeDrawAction(True)
         self.mode = mode
-        self._rec.Stop()
 
     def DragOnMotion(self, evt):
         # Raster moves never use tablet data, only mouse (pixel unit)
@@ -157,28 +156,25 @@ class DrawControler(object):
         self.view.RedrawDamaged()
 
     def DrawOnMotion(self, evt):
+        # create the stroke data
         if evt.ValidTD:
-            if self.tbx is not None:
-                speed = (evt.td_NormTabletX - self.tbx,
-                         evt.td_NormTabletY - self.tby)
-                self.tbx = evt.td_NormTabletX
-                self.tby = evt.td_NormTabletY
-            else:
-                speed = None
+            #if self.tbx is not None:
+            #    speed = (evt.td_NormTabletX - self.tbx,
+            #             evt.td_NormTabletY - self.tby)
+            #    self.tbx = evt.td_NormTabletX
+            #    self.tby = evt.td_NormTabletY
             p = float(evt.td_Tags.get(TABLETA_Pressure, PRESSURE_MAX/2)) / PRESSURE_MAX
-            #tilt = (float(evt.td_Tags.get(TABLETA_AngleX, 2147483648))/0x7ffffff8-1, float(evt.td_Tags.get(TABLETA_AngleY, 2147483648))/0x7ffffff8-1)
         else:
-            speed = None
             p = 0.5
 
-        if not speed:
-            speed = ((evt.MouseX - self.mx)/self.view.SRangeX, (evt.MouseY - self.my)/self.view.SRangeY)
-        
-        # draw inside the model
         pos = self.view.GetSurfacePos(evt.MouseX, evt.MouseY)
-        self._rec.AddEvent(evt.Seconds, evt.Micros, pos, p)
-        _ = tuple(self.model.Draw(pos, speed=speed, pressure=p))
-        self.view.AddDamagedBuffer(*_)
+        
+        # record and render the stroke
+        # TODO: for now, a stroke is just a dict object.
+        # we need to use a custom object later for optimizations.
+        stroke = dict(pos=pos, pressure=p, time=evt.Seconds+evt.Micros*1e-6)
+        self.model.RecordStroke(stroke)
+        self.view.AddDamagedBuffer(self.model.RenderStroke(stroke))
         self.view.RedrawDamaged()
 
     def OnMouseWheelUp(self, evt):
@@ -219,8 +215,4 @@ class DrawWindow(Window):
                                          RootObject=raster,
                                          TabletMessages=True, # enable tablet events support
                                          **kwds)
-
-    def _isfile(self, path):
-        if not os.path.isfile(path):
-            raise IOError("given path doesn't exist or not a file: '%s'" % path)
 

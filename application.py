@@ -146,7 +146,7 @@ class Gribouillis(Application):
         self.set_color(1.0, 1.0, 1.0)
 
         # Init backgrounds selection window
-        self.win_MiniBGSel.add_watcher(self.UseBackground)
+        self.win_MiniBGSel.add_watcher(self.LoadBackground)
         for name in sorted(os.listdir("backgrounds")):
             self.win_MiniBGSel.AddImage(os.path.join("backgrounds", name))
 
@@ -236,8 +236,8 @@ class Gribouillis(Application):
 
     brush = property(fget=lambda self: self._draw_brush, fset=set_active_brush)
 
-    def UseBackground(self, bg):
-        self.controler.view.Background = "5:"+bg.Name
+    def LoadBackground(self, filename):
+        self.controler.LoadBackground(filename)
 
     def OnLoadImage(self):
         filename = pymui.getfilename(self.win_Draw, "Select image to load",

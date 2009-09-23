@@ -29,17 +29,21 @@ import _pixarray
 T_SIZE = 64
 
 class Tile:
-    def __init__(self, nc, bpc):
+    def __init__(self, nc, bpc, clear=True):
         # pixel buffer, 'bpc' bit per composent, nc composent
         self.pixels = _pixarray.PixelArray(T_SIZE, T_SIZE, nc, bpc)
-        self.Clear()
+        if clear:
+            self.Clear()
 
     def Clear(self):
         self.pixels.zero()
 
+    def Copy(self):
+        return self.pixels.copy()
+
 
 class Surface(object):
-    def GetBuffer(self, x, y, read=True, clear=False):
+    def GetBuffer(self, x, y, read=True, bg=None):
         pass # subclass implemented
     
     def Clear(self):
@@ -49,12 +53,18 @@ class Surface(object):
 
 
 class TiledSurface(Surface):
-    def __init__(self, nc=4, bpc=16):
+    def __init__(self, nc=4, bpc=16, bg=None):
         super(TiledSurface, self).__init__()
         self.tiles = {}
         self._nc = nc
         self._bpc = bpc
-        self._ro_tile = Tile(nc, bpc)
+        if bg:
+            assert isinstance(bg, Tile)
+            assert bg.BitsPerComponent == bpc
+            assert bg.ComponentNumber == nc
+            self._ro_tile = bg
+        else:
+            self._ro_tile = Tile(nc, bpc)
 
     def GetBuffer(self, x, y, read=True, clear=False):
         """GetBuffer(x, y, read=True, clear=False) -> pixel array
@@ -62,7 +72,7 @@ class TiledSurface(Surface):
         Returns the pixel buffer and its left-top corner, containing the point p=(x, y).
         If no tile exist yet, return a read only buffer if read is True,
         otherwhise create a new tile and returns it.
-        If clear is true and read is false, the buffer is cleared.
+        If clear, new created tiles are cleared before given.
         """
 
         x = int(x // T_SIZE)
@@ -70,14 +80,13 @@ class TiledSurface(Surface):
 
         tile = self.tiles.get((x, y))
         if tile:
-            if clear and not read: tile.Clear()
             return tile.pixels
         elif read:
             self._ro_tile.pixels.x = x*T_SIZE
             self._ro_tile.pixels.y = y*T_SIZE
             return self._ro_tile.pixels
         else:
-            tile = Tile(self._nc, self._bpc)
+            tile = Tile(self._nc, self._bpc, clear=clear)
             tile.pixels.x = x*T_SIZE
             tile.pixels.y = y*T_SIZE
             self.tiles[(x, y)] = tile
@@ -91,8 +100,7 @@ class TiledSurface(Surface):
             yield tile.pixels
 
     def Clear(self):
-        for tile in self.tiles.itervalues():
-            tile.Clear()
+        self.tiles.clear()
 
     @property
     def bbox(self):
@@ -130,7 +138,7 @@ class TiledSurface(Surface):
         return Image.frombuffer(mode, (pa.Width, pa.Height), pa, 'raw', mode, 0, 1)
     
     def ImportFromPILImage(self, im, w, h):
-        im = im.convert('RGB')
+        im = im.convert('RGB') # TODO: need support of RGBA
         src = _pixarray.PixelArray(T_SIZE, T_SIZE, 3, 8)
         for ty in xrange(0, h, T_SIZE):
             for tx in xrange(0, w, T_SIZE):
@@ -139,3 +147,4 @@ class TiledSurface(Surface):
                 sy = min(h, ty+T_SIZE)
                 src.from_string(im.crop((tx, ty, sx, sy)).tostring())
                 _pixarray.rgb8_to_argb8(src, buf)
+

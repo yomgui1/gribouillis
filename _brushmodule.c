@@ -453,7 +453,7 @@ brush_drawstroke(PyBrush *self, PyObject *args)
     LONG sx, sy;
     LONG dx, dy;
     FLOAT pressure, time, d;
-    ULONG i;
+    ULONG i, n;
 
     if (NULL == self->b_Surface)
         return PyErr_Format(PyExc_RuntimeError, "Uninitialized brush");
@@ -479,7 +479,7 @@ brush_drawstroke(PyBrush *self, PyObject *args)
         return NULL;
 
     /* TODO: CHANGE ME (Test routine) */
-#define DABS_PER_RADIUS 2.9
+#define DABS_PER_RADIUS 5
 #define DABS_PER_SECONDS 0
 
     dx = sx - self->b_X;
@@ -495,8 +495,9 @@ brush_drawstroke(PyBrush *self, PyObject *args)
 
     d += time * DABS_PER_SECONDS;
 
-    //d = MAX(d, 1);
-    for (i=0; i < (ULONG)d; i++) {
+    n = (ULONG)d;
+    n = MAX(1, n);
+    for (i=0; i <= n; i++) {
         PyObject *ret;
         LONG x, y;
 #ifdef STAT_TIMING
@@ -504,8 +505,8 @@ brush_drawstroke(PyBrush *self, PyObject *args)
 #endif
 
         /* Simple linear interpolation */
-        x = self->b_X + (ULONG)((FLOAT)(sx - self->b_X) * i / d);
-        y = self->b_Y + (ULONG)((FLOAT)(sy - self->b_Y) * i / d);
+        x = self->b_X + (LONG)((FLOAT)dx*i/n);
+        y = self->b_Y + (LONG)((FLOAT)dy*i/n);
 
         DPRINT("BRUSH: (%ld, %ld), s: (%ld, %ld): c: (%ld, %ld)\n", self->b_X, self->b_Y, sx, sy, x, y);
 

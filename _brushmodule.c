@@ -475,7 +475,7 @@ brush_drawstroke(PyBrush *self, PyObject *args)
         return NULL;
 
     /* TODO: CHANGE ME (Test routine) */
-#define DABS_PER_RADIUS 2.2
+#define DABS_PER_RADIUS 3.6
 
     dx = sx - self->b_X;
     dy = sy - self->b_Y;

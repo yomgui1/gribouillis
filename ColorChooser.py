@@ -64,7 +64,7 @@ class ColorChooser(Window):
 
     @staticmethod
     def FloatToSysCol(v):
-        return clamp(0, int(v * 0xff) * 0x01010101, 255)
+        return clamp(0, int(v * 0xff), 255) * 0x01010101
 
     def OnColStrChanged(self):
         s = self._colstr.Contents

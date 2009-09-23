@@ -140,7 +140,7 @@ class Gribouillis(Application):
         # Init color
         self.win_Color.add_watcher(self.OnColorChanged)
         self.set_active_brush(self.brushes[0])
-        self.set_color(0.0, 0.0, 0.0)
+        self.set_color(1.0, 1.0, 1.0)
 
         # Init backgrounds selection window
         self.win_MiniBGSel.add_watcher(self.UseBackground)

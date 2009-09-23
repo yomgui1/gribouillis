@@ -36,9 +36,9 @@ class Brush(Dtpic):
         super(Brush, self).__init__(InputMode=MUIV_InputMode_Toggle, Frame=MUIV_Frame_ImageButton)
         self._set(MUIA_Dtpic_Scale, self.BRUSH_SCALE, 'I')
         self.shortname = ''
-        self.base_radius = 64
+        self.base_radius = 4.61
         self.base_yratio = 1.0
-        self.hardness = 0.9
+        self.hardness = 0.5
 
         # Brush model (features + drawing routines)
         self._brush = _brush.Brush()

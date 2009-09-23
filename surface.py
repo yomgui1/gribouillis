@@ -27,7 +27,6 @@ import PIL.Image as image
 import _pixarray
 
 T_SIZE = 64
-DEBUG = True
 
 class Tile:
     def __init__(self, nc, bpc):
@@ -40,12 +39,18 @@ class Tile:
 
 
 class Surface(object):
-    pass
+    def GetBuffer(self, x, y, read=True, clear=False):
+        pass # subclass implemented
+    
+    def Clear(self):
+        pass # subclass implemented
+
+    bbox = property() # subclass implemented
 
 
 class TiledSurface(Surface):
     def __init__(self, nc=4, bpc=16):
-        Surface.__init__(self)
+        super(TiledSurface, self).__init__()
         self.tiles = {}
         self._nc = nc
         self._bpc = bpc
@@ -77,6 +82,45 @@ class TiledSurface(Surface):
             tile.pixels.y = y*T_SIZE
             self.tiles[(x, y)] = tile
             return tile.pixels
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        for tile in self.tiles.itervalues():
+            yield tile.pixels
+
+    def Clear(self):
+        for tile in self.tiles.itervalues():
+            tile.Clear()
+
+    @property
+    def bbox(self):
+        minx = maxx = miny = maxy = 0
+        for buf in self:
+            minx = min(buf.x, minx)
+            miny = min(buf.y, miny)
+            maxx = max(buf.x+buf.Width-1, maxx)
+            maxy = max(buf.y+buf.Height-1, maxy)
+        return minx, miny, maxx, maxy
+
+    def RenderAsPixelArray(self, format='RGBA'):
+        minx, miny, maxx, maxy = self.bbox
+        w = maxx-minx+1
+        h = maxy-miny+1
+        if format in ('RGBA', 'ARGB'):
+            pa = _pixarray.PixelArray(w, h, 4, 8)
+            if format == 'RGBA':
+                blit = _pixarray.argb15x_to_rgba8
+            else:
+                blit = _pixarray.argb15x_to_argb8
+        elif format == 'RGB':
+            pa = _pixarray.PixelArray(w, h, 3, 8)
+            blit = _pixarray.argb15x_to_rgb8
+            
+        for buf in self:
+            blit(buf, pa, buf.x-minx, buf.y-miny)
+        return pa
     
     def ImportFromPILImage(self, im, w, h):
         im = im.convert('RGB')
@@ -88,11 +132,3 @@ class TiledSurface(Surface):
                 sy = min(h, ty+T_SIZE)
                 src.from_string(im.crop((tx, ty, sx, sy)).tostring())
                 _pixarray.rgb8_to_argb8(src, buf)
-
-    def IterBuffers(self):
-        for tile in self.tiles.itervalues():
-            yield tile.pixels
-
-    def Clear(self):
-        for tile in self.tiles.itervalues():
-            tile.Clear()

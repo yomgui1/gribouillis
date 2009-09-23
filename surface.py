@@ -23,7 +23,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import PIL.Image as image
+import PIL.Image as Image
 import _pixarray
 
 T_SIZE = 64
@@ -104,23 +104,30 @@ class TiledSurface(Surface):
             maxy = max(buf.y+buf.Height-1, maxy)
         return minx, miny, maxx, maxy
 
-    def RenderAsPixelArray(self, format='RGBA'):
+    def RenderAsPixelArray(self, mode='RGBA'):
         minx, miny, maxx, maxy = self.bbox
         w = maxx-minx+1
         h = maxy-miny+1
-        if format in ('RGBA', 'ARGB'):
+        if mode in ('RGBA', 'ARGB'):
             pa = _pixarray.PixelArray(w, h, 4, 8)
-            if format == 'RGBA':
+            if mode == 'RGBA':
                 blit = _pixarray.argb15x_to_rgba8
             else:
                 blit = _pixarray.argb15x_to_argb8
-        elif format == 'RGB':
+        elif mode == 'RGB':
             pa = _pixarray.PixelArray(w, h, 3, 8)
             blit = _pixarray.argb15x_to_rgb8
+        else:
+            raise ValueError("Unsupported mode '%s'" % mode)
             
         for buf in self:
             blit(buf, pa, buf.x-minx, buf.y-miny)
+            
         return pa
+
+    def ExportAsPILImage(self, mode='RGBA'):
+        pa = self.RenderAsPixelArray(mode)
+        return Image.frombuffer(mode, (pa.Width, pa.Height), pa, 'raw', mode, 0, 1)
     
     def ImportFromPILImage(self, im, w, h):
         im = im.convert('RGB')

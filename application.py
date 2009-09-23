@@ -37,6 +37,7 @@ from CMSPrefs import CMSPrefsWindow
 from model_ui import DataWindow
 from raster import Raster
 from model import SimpleModel
+from controler import DrawControler
 
 class Gribouillis(Application):
     VERSION = 0.1
@@ -172,7 +173,7 @@ class Gribouillis(Application):
         self.win_Draw = None
 
     def init_brushes(self):
-        self._main_brush = self.win_BSel.brush
+        self._draw_brush = self.win_BSel.brush
         self._brush = None
         
         self.paths['builtins_brushes'] = os.path.join(self.paths['data'], 'brushes')
@@ -218,20 +219,20 @@ class Gribouillis(Application):
         self.brush.color = color
 
     def OnSelectBrush(self, brush):
-        if not self._brush is brush:
+        if self._brush is not brush:
             self.brush = brush
         else:
             brush.NNSet(MUIA_Selected, True)
 
     def set_active_brush(self, brush):
-        self._main_brush.copy(brush)
+        self.brush.copy(brush)
         if self._brush:
             self._brush.NNSet(MUIA_Selected, False)
         self._brush = brush
         brush.NNSet(MUIA_Selected, True)
-        self.controler.model.SetBrush(self.brush)
+        self.controler.model.UseBrush(self.brush)
 
-    brush = property(fget=lambda self: self._main_brush, fset=set_active_brush)
+    brush = property(fget=lambda self: self._draw_brush, fset=set_active_brush)
 
     def UseBackground(self, bg):
         self.controler.view.Background = "5:"+bg.Name
@@ -249,14 +250,16 @@ class Gribouillis(Application):
         state = self.win_Draw.fullscreen
         self.TermDrawWindow()
         self.InitDrawWindow(not state)
-        self.controler.model.SetBrush(self.brush)
         self.win_Draw.Open()
 
     def OnChangedCMSProfiles(self, prefs):
-        self.controler.view.CMS_SetInputProfile(prefs.in_profile)
-        self.controler.view.CMS_SetOutputProfile(prefs.out_profile)
-        self.controler.view.CMS_InitTransform()
-        self.controler.view.EnableCMS()
+        if prefs.in_profile and prefs.out_profile:
+            self.controler.view.CMS_SetInputProfile(prefs.in_profile)
+            self.controler.view.CMS_SetOutputProfile(prefs.out_profile)
+            self.controler.view.CMS_InitTransform()
+            self.controler.view.EnableCMS()
+        else:
+            self.controler.view.EnableCMS(False)
         self.controler.view.RedrawFull()
 
     def SetDebug(self, what):

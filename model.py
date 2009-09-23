@@ -59,7 +59,7 @@ class Model(object):
             for tx in xrange(xmin, xmax+T_SIZE-1, T_SIZE):
                 yield self._rsurface.GetBuffer(tx, ty)
 
-    def SetBrush(self, b):
+    def UseBrush(self, b):
         assert isinstance(b, Brush)
         self._brush = b
 
@@ -93,7 +93,7 @@ class SimpleModel(Model):
         self._surface.Clear() # clear the draw surface
 
     def InitBrush(self, pos):
-        self._brush.Init(self._surface, pos)
+        self._brush.InitDraw(self._surface, pos)
 
     def RenderStroke(self, stroke):
         for buf in self._brush.DrawStroke(stroke):

@@ -23,14 +23,17 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
+__all__ = ('Brush', 'DummyBrush')
+
 import os
 from pymui import MUIV_InputMode_Toggle, MUIV_Frame_ImageButton, Dtpic
-import _brush
+import _brush, functools
 
 MUIA_Dtpic_Scale = 0x8042ca4c  # private
 
 class Brush(Dtpic):
     BRUSH_SCALE = 48
+    DEFAULT_COLOR = (0.0, )*3
 
     def __init__(self):
         super(Brush, self).__init__(InputMode=MUIV_InputMode_Toggle, Frame=MUIV_Frame_ImageButton)
@@ -39,9 +42,7 @@ class Brush(Dtpic):
         self.base_radius = 4.61
         self.base_yratio = 1.0
         self.hardness = 0.5
-
-        # Brush model (features + drawing routines)
-        self._brush = _brush.Brush()
+        del self.color
 
     def load(self, search_paths, name):
         fullname = name + '_prev.png'
@@ -56,22 +57,35 @@ class Brush(Dtpic):
         
         raise RuntimeError('brush "' + name + '" not found')
 
-    def set_color(self, color):
-        self._brush.red, self._brush.green, self._brush.blue = color
-
-    color = property(fget=lambda self: (self._brush.red, self._brush.green, self._brush.blue),
-                     fset=set_color)
-
     def copy(self, brush):
         self.shortname = brush.shortname
         self.color = brush.color
+        self.Name = brush.Name # in last because can trig some notification callbacks
+
+    def get_color(self):
+        return self._color
+
+    def set_color(self, color):
+        self._color = color
+
+    color = property(fget=get_color, fset=set_color, fdel=functools.partial(set_color, Brush.DEFAULT_COLOR))
+
+
+class DrawableBrush(Brush):
+    def __init__(self):
+        super(DrawableBrush, self).__init__()
+        
+        # Brush model (features + drawing routines)
+        self._brush = _brush.Brush()
+        del self.color
+        
+    def copy(self, brush):
         self._brush.base_radius = brush.base_radius
         self._brush.base_yratio = brush.base_yratio
         self._brush.hardness = brush.hardness
-
-        self.Name = brush.Name # in last because can trig some notification callbacks
-
-    def Init(self, sf, pos):
+        super(DrawableBrush, self).copy(brush)
+            
+    def InitDraw(self, sf, pos):
         self._brush.invalid_cache()
         self._brush.surface = sf
         self._brush.x, self._brush.y = pos
@@ -82,10 +96,18 @@ class Brush(Dtpic):
     def DrawSolidDab(self, pos, pressure=0.5):
         return self._brush.drawdab_solid(pos, pressure, 0.6)
 
+    def get_color(self):
+        return self._brush.red, self._brush.green, self._brush.blue
+
+    def set_color(self, color):
+        self._brush.red, self._brush.green, self._brush.blue = color
+
+    color = property(fget=get_color, fset=set_color, fdel=functools.partial(set_color, Brush.DEFAULT_COLOR))
+
 
 class DummyBrush:
     "Class used when no brush is set for a model."
-    def Init(self, *a, **k):
+    def InitDraw(self, *a, **k):
         pass
 
     def DrawStroke(self, *a, **k):

@@ -74,6 +74,9 @@ class Model(object):
     def RecordStroke(self, stroke):
         self._stroke_rec.Add(stroke)
 
+    def AsPILImage(self):
+        pass # Must be implemented by subclasses
+
     def InitBrush(self, pos):
         pass # Must be implemented by subclasses
 
@@ -102,3 +105,6 @@ class SimpleModel(Model):
             _pixarray.bltalpha_argb15x_to_rgb8(buf, rbuf);
             buf.Damaged = False    
             yield rbuf
+
+    def AsPILImage(self, mode):
+        return self._surface.ExportAsPILImage(mode)

@@ -49,6 +49,7 @@ class Gribouillis(Application):
 
         self.paths = dict(data=datapath, user=userpath) 
         self.last_loaded_dir = None
+        self.last_saved_dir = None
 
         # Create the MVC object
         model = SimpleModel()
@@ -67,6 +68,7 @@ class Gribouillis(Application):
 
         # Create Menus
         menu_def = { 'Project': (('Load Image...', 'L', self.OnLoadImage),
+                                 ('Save Image...', 'S', self.OnSaveImage),
                                  None, # Separator
                                  ('Setup data...', 'ctrl d', self.win_Data.Open),
                                  None,
@@ -243,7 +245,15 @@ class Gribouillis(Application):
                                      False)
         if filename:
             self.last_loaded_dir = os.path.dirname(filename)
-            self.win_Draw.LoadImage(filename)
+            self.controler.LoadImage(filename)
+
+    def OnSaveImage(self):
+        filename = pymui.getfilename(self.win_Draw, "Select a filename to save your image",
+                                     self.last_saved_dir, "#?.(png|jpeg|jpg|targa|tga|gif)",
+                                     True)
+        if filename:
+            self.last_saved_dir = os.path.dirname(filename)
+            self.controler.SaveImage(filename)
 
     def OnQuitRequest(self):
         self.Quit()

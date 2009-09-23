@@ -50,4 +50,3 @@ class DrawWindow(Window):
                                          RootObject=raster,
                                          TabletMessages=True, # enable tablet events support
                                          **kwds)
-

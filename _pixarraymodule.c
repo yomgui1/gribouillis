@@ -61,7 +61,7 @@ static struct Library *CyberGfxBase;
 
 //+ argb15x_to_argb8
 static void
-argb15x_to_argb8(USHORT *src, UBYTE *dst, ULONG w, ULONG h, Py_ssize_t stride)
+argb15x_to_argb8(USHORT *src, UBYTE *dst, ULONG w, ULONG h, Py_ssize_t bpr)
 {
     ULONG x, y;
 
@@ -84,13 +84,13 @@ argb15x_to_argb8(USHORT *src, UBYTE *dst, ULONG w, ULONG h, Py_ssize_t stride)
             dst += 4;
         }
 
-        dst += stride/sizeof(*dst);
+        dst += bpr/sizeof(*dst);
     }
 }
 //-
 //+ argb15x_to_rgba8
 static void
-argb15x_to_rgba8(USHORT *src, UBYTE *dst, ULONG w, ULONG h, Py_ssize_t stride)
+argb15x_to_rgba8(USHORT *src, UBYTE *dst, ULONG w, ULONG h, Py_ssize_t bpr)
 {
     ULONG x, y;
 
@@ -113,25 +113,33 @@ argb15x_to_rgba8(USHORT *src, UBYTE *dst, ULONG w, ULONG h, Py_ssize_t stride)
             dst += 4;
         }
 
-        dst += stride/sizeof(*dst);
+        dst += bpr/sizeof(*dst);
     }
 }
 //-
 //+ argb15x_to_rgb8
 static void
-argb15x_to_rgb8(USHORT *src, UBYTE *dst, UWORD w, UWORD h)
+argb15x_to_rgb8(USHORT *src, UBYTE *dst, UWORD w, UWORD h, Py_ssize_t bpr)
 {
-    ULONG i, n = w * h;
+    ULONG x, y;
 
-    for (i=0; i < n; i++) {
-        ULONG alpha = src[0];
+    for (y=0; y < h; y++) {
+        for (x=0; x < w; w++) {
+            ULONG alpha = src[0];
 
-        dst[0] = (ULONG)src[1]*255/alpha;
-        dst[1] = (ULONG)src[2]*255/alpha;
-        dst[2] = (ULONG)src[3]*255/alpha;
-        
-        dst += 3;
-        src += 4;
+            if (alpha > 0) {
+                /* Un-multiply by alpha, rounding and convert to range [0, 255] */
+                dst[0] = ((((ULONG)src[1]<<15) + alpha/2) / alpha * 255) >> 15;
+                dst[1] = ((((ULONG)src[2]<<15) + alpha/2) / alpha * 255) >> 15;
+                dst[2] = ((((ULONG)src[3]<<15) + alpha/2) / alpha * 255) >> 15;
+            } else
+                dst[0] = dst[1] = dst[2] = 0;
+
+            src += 4;
+            dst += 3;
+        }
+
+        dst += bpr/sizeof(*dst);
     }
 }
 //-
@@ -190,27 +198,29 @@ rgb8_to_argb8(UBYTE *src, UBYTE *dst, UWORD w, UWORD h)
 //-
 //+ blit_overalpha_argb15x_to_rgb8
 static void
-blit_overalpha_argb15x_to_rgb8(USHORT *src, UBYTE *dst, UWORD w, UWORD h)
+blit_overalpha_argb15x_to_rgb8(USHORT *src, UBYTE *dst, ULONG w, ULONG h)
 {
-    ULONG i, n = w * h;
+    ULONG x, y;
 
-    // src is a argb15x with alpha pre-multiplied rgb values.
-    // dst is not alpha premul.
+    for (y=0; y < h; y++) {
+        for (x=0; x < w; w++) {
+            ULONG one_minus_alpha = (1<<15) - src[0];
 
-    for (i=0; i < n; i++) {
-        // DestAlpha = 1.0 (full opaque surface)
-        // Dest[x] = Src[x] + (1.0 - SrcAlpha) * Dst[x]
-        ULONG one_minus_alpha = (1<<15) - src[0];
+            /* Destination Alpha = 1.0 (full opaque surface)
+             * Dest{RGB} = Src{RGB} + (1.0 - SrcAlpha) * Dst{RGB}
+             */
 
-        dst[0] = ((ULONG)src[1] * 255 + one_minus_alpha * dst[0]) >> 15;
-        dst[1] = ((ULONG)src[2] * 255 + one_minus_alpha * dst[1]) >> 15;
-        dst[2] = ((ULONG)src[3] * 255 + one_minus_alpha * dst[2]) >> 15;
+            dst[0] = ((ULONG)src[1] * 255 + one_minus_alpha * dst[0]) >> 15;
+            dst[1] = ((ULONG)src[2] * 255 + one_minus_alpha * dst[1]) >> 15;
+            dst[2] = ((ULONG)src[3] * 255 + one_minus_alpha * dst[2]) >> 15;
 
-        src += 4;
-        dst += 3;
+            src += 4;
+            dst += 3;
+        }
     }
 }
 //-
+
 
 /*******************************************************************************************
 ** PyPixelArray_Type
@@ -486,29 +496,6 @@ mod_argb8_to_argb15x(PyObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 //-
-//+ mod_argb15x_to_rgb8
-static PyObject *
-mod_argb15x_to_rgb8(PyObject *self, PyObject *args)
-{
-    PyPixelArray *src, *dst;
-
-    if (!PyArg_ParseTuple(args, "O!O!", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst))
-        return NULL;
-
-    if ((src->nc != 4) || (src->bpc != 16))
-        return PyErr_Format(PyExc_TypeError, "Incompatible source PixelArray object");
-
-    if ((dst->nc != 3) || (dst->bpc != 8))
-        return PyErr_Format(PyExc_TypeError, "Incompatible destination PixelArray object");
-
-    if ((src->width != dst->width) || (src->height != dst->height))
-        return PyErr_Format(PyExc_TypeError, "Incompatible dimensions between given PixelArray objects");
-
-    argb15x_to_rgb8(src->data, dst->data, dst->width, dst->height);
-
-    Py_RETURN_NONE;
-}
-//-
 //+ mod_bltalpha_argb15x_to_rgb8
 static PyObject *
 mod_bltalpha_argb15x_to_rgb8(PyObject *self, PyObject *args)
@@ -537,9 +524,9 @@ static PyObject *
 mod_argb15x_to_argb8(PyObject *self, PyObject *args)
 {
     PyPixelArray *src, *dst;
-    ULONG dst_x, dst_y;
+    ULONG dst_x=0, dst_y=0;
 
-    if (!PyArg_ParseTuple(args, "O!O!kk", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst, &dst_x, &dst_y))
+    if (!PyArg_ParseTuple(args, "O!O!|kk", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst, &dst_x, &dst_y))
         return NULL;
 
     if ((src->nc != 4) || (src->bpc != 16))
@@ -552,7 +539,7 @@ mod_argb15x_to_argb8(PyObject *self, PyObject *args)
     if ((src->width > dst->width) || (src->height > dst->height))
         return PyErr_Format(PyExc_TypeError, "Incompatible dimensions between given PixelArray objects");
 
-    argb15x_to_argb8(src->data, dst->data+(dst->bpr*dst_y)+(dst_x*dst->nc*dst->bpc), src->width, src->height, dst->bpr);
+    argb15x_to_argb8(src->data, dst->data+(dst->bpr*dst_y)+(dst_x*4*8), src->width, src->height, dst->bpr);
 
     Py_RETURN_NONE;
 }
@@ -562,9 +549,9 @@ static PyObject *
 mod_argb15x_to_rgba8(PyObject *self, PyObject *args)
 {
     PyPixelArray *src, *dst;
-    ULONG dst_x, dst_y;
+    ULONG dst_x=0, dst_y=0;
 
-    if (!PyArg_ParseTuple(args, "O!O!kk", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst, &dst_x, &dst_y))
+    if (!PyArg_ParseTuple(args, "O!O!|kk", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst, &dst_x, &dst_y))
         return NULL;
 
     if ((src->nc != 4) || (src->bpc != 16))
@@ -577,7 +564,32 @@ mod_argb15x_to_rgba8(PyObject *self, PyObject *args)
     if ((src->width > dst->width) || (src->height > dst->height))
         return PyErr_Format(PyExc_TypeError, "Incompatible dimensions between given PixelArray objects");
 
-    argb15x_to_rgba8(src->data, dst->data+(dst->bpr*dst_y)+(dst_x*dst->nc*dst->bpc), src->width, src->height, dst->bpr);
+    argb15x_to_rgba8(src->data, dst->data+(dst->bpr*dst_y)+(dst_x*4*8), src->width, src->height, dst->bpr);
+
+    Py_RETURN_NONE;
+}
+//-
+//+ mod_argb15x_to_rgb8
+static PyObject *
+mod_argb15x_to_rgb8(PyObject *self, PyObject *args)
+{
+    PyPixelArray *src, *dst;
+    ULONG dst_x=0, dst_y=0;
+
+    if (!PyArg_ParseTuple(args, "O!O!|kk", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst, &dst_x, &dst_y))
+        return NULL;
+
+    if ((src->nc != 4) || (src->bpc != 16))
+        return PyErr_Format(PyExc_TypeError, "Incompatible source PixelArray object");
+
+    if ((dst->nc != 3) || (dst->bpc != 8))
+        return PyErr_Format(PyExc_TypeError, "Incompatible destination PixelArray object");
+
+    /* No clipping */
+    if ((src->width > dst->width) || (src->height > dst->height))
+        return PyErr_Format(PyExc_TypeError, "Incompatible dimensions between given PixelArray objects");
+
+    argb15x_to_rgb8(src->data, dst->data+(dst->bpr*dst_y)+(dst_x*3*8), dst->width, dst->height, dst->bpr);
 
     Py_RETURN_NONE;
 }
@@ -587,9 +599,9 @@ static PyMethodDef methods[] = {
     {"rgb8_to_argb8",            (PyCFunction)mod_rgb8_to_argb8,            METH_VARARGS, NULL},
     {"rgb8_to_argb15x",          (PyCFunction)mod_rgb8_to_argb15x,          METH_VARARGS, NULL},
     {"argb8_to_argb15x",         (PyCFunction)mod_argb8_to_argb15x,         METH_VARARGS, NULL},
-    {"argb15x_to_rgb8",          (PyCFunction)mod_argb15x_to_rgb8,          METH_VARARGS, NULL},
     {"argb15x_to_argb8",         (PyCFunction)mod_argb15x_to_argb8,         METH_VARARGS, NULL},
     {"argb15x_to_rgba8",         (PyCFunction)mod_argb15x_to_rgba8,         METH_VARARGS, NULL},
+    {"argb15x_to_rgb8",          (PyCFunction)mod_argb15x_to_rgb8,          METH_VARARGS, NULL},
     {"bltalpha_argb15x_to_rgb8", (PyCFunction)mod_bltalpha_argb15x_to_rgb8, METH_VARARGS, NULL},
     {0}
 };

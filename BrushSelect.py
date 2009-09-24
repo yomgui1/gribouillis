@@ -25,16 +25,16 @@
 
 from pymui import *
 from pymui.mcc import laygroup
-from brush import DrawBrush
+from brush import DrawableBrush
 
 class BrushSelect(Window):
     def __init__(self, title):
         super(BrushSelect, self).__init__(title, ID="BSEL",
                                           RightEdge=64, BottomEdge=64,
-                                          Width=6*DrawBrush.BRUSH_SCALE,
-                                          Height=12*DrawBrush.BRUSH_SCALE)
+                                          Width=6*DrawableBrush.BRUSH_SCALE,
+                                          Height=12*DrawableBrush.BRUSH_SCALE)
 
-        self.brush = DrawBrush()
+        self.brush = DrawableBrush()
         self.brush.Notify('Name', MUIV_EveryTime, self.OnBrushChange)
 
         self.obj_EditBrush = SimpleButton("Edit")

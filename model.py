@@ -40,10 +40,8 @@ class Model(object):
 
     
     def __init__(self):
-        self._bg = Tile(nc=3, bpc=8)
-
-        # XXX: The rendering surface is more a thing for the view than the model!
-        self._rsurface = TiledSurface(nc=3, bpc=8, ro_tile=self._bg) # RGB 8-bits per component surface for display
+        self._bg = Tile(nc=3, bpc=8) 
+        self._rsurface = TiledSurface(nc=3, bpc=8, bg=self._bg) # RGB 8-bits per component surface for display
         
         self._brush = DummyBrush() # that gives a way to remove some 'if' sentences...
 
@@ -82,10 +80,15 @@ class Model(object):
     def LoadBackground(self, filename):
         im = Image.open(filename).convert('RGB')
         s = im.crop((0, 0, T_SIZE, T_SIZE)).tostring()
-        self._bg.from_string(s)
+        self._bg.pixels.from_string(s)
+        self._rsurface.Clear()
+        self.RenderFull()
 
     def InitBrush(self, pos):
         pass # Must be implemented by subclasses
+
+    def RenderFull(self):
+        pass # Must be implemented by subclasses   
 
     def RenderStroke(self, stroke):
         pass # Must be implemented by subclasses
@@ -108,18 +111,27 @@ class SimpleModel(Model):
     def InitBrush(self, pos):
         self._brush.InitDraw(self._surface, pos)
 
+    def RenderFull(self):
+        for buf in self._surface.IterPixelArray():
+            self.RenderBuffer(buf)
+
+    def RenderBuffer(self, buf):
+        # Get a RGB buffer for rendering
+        rbuf = self._rsurface.GetBuffer(buf.x, buf.y, read=False, clear=False)
+        
+        # Copy the background buffer
+        rbuf.from_pixarray(self._bg.pixels)
+        
+        # blit on the rendering surface modified buffers from the active surface
+        _pixarray.bltalpha_argb15x_to_rgb8(buf, rbuf)
+        buf.Damaged = False
+        return rbuf
+
     def RenderStroke(self, stroke):
-        for buf in self._brush.DrawStroke(stroke):
-            # Get a RGB buffer for rendering
-            rbuf = self._rsurface.GetBuffer(buf.x, buf.y, read=False, clear=False)
+        return (self.RenderBuffer(buf) for buf in self._brush.DrawStroke(stroke))
 
-            # Copy the background tile before rendering the draw surface on it
-            rbuf.from_pixarray(self._bg.pixels)
-            
-            # blit on the rendering surface modified buffers from the active surface
-            _pixarray.bltalpha_argb15x_to_rgb8(buf, rbuf);
-            buf.Damaged = False    
-            yield rbuf
-
-    def AsPILImage(self, mode):
+    def AsPILImage(self, mode='RGBA'):
         return self._surface.ExportAsPILImage(mode)
+
+    def AsPixelArray(self, mode='RGBA'):
+        return self._surface.RenderAsPixelArray(mode)

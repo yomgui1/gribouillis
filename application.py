@@ -29,7 +29,7 @@ import os, sys
 import pymui
 from pymui import *
 from brush import Brush
-from DrawWindow import DrawWindow, DrawControler
+from DrawWindow import DrawWindow
 from ColorChooser import ColorChooser
 from BrushSelect import BrushSelect
 from BGSelect import MiniBackgroundSelect
@@ -48,8 +48,8 @@ class Gribouillis(Application):
             userpath = datapath
 
         self.paths = dict(data=datapath, user=userpath) 
-        self.last_loaded_dir = None
-        self.last_saved_dir = None
+        self.last_loaded_dir = 'RAM:'
+        self.last_saved_dir = 'RAM:'
 
         # Create the MVC object
         model = SimpleModel()
@@ -236,8 +236,8 @@ class Gribouillis(Application):
 
     brush = property(fget=lambda self: self._draw_brush, fset=set_active_brush)
 
-    def LoadBackground(self, filename):
-        self.controler.LoadBackground(filename)
+    def LoadBackground(self, bg):
+        self.controler.LoadBackground(bg.Name)
 
     def OnLoadImage(self):
         filename = pymui.getfilename(self.win_Draw, "Select image to load",

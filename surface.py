@@ -60,14 +60,14 @@ class TiledSurface(Surface):
         self._bpc = bpc
         if bg:
             assert isinstance(bg, Tile)
-            assert bg.BitsPerComponent == bpc
-            assert bg.ComponentNumber == nc
+            assert bg.pixels.BitsPerComponent == bpc
+            assert bg.pixels.ComponentNumber == nc
             self._ro_tile = bg
         else:
             self._ro_tile = Tile(nc, bpc)
 
-    def GetBuffer(self, x, y, read=True, clear=False):
-        """GetBuffer(x, y, read=True, clear=False) -> pixel array
+    def GetBuffer(self, x, y, read=True, clear=True):
+        """GetBuffer(x, y, read=True, clear=True) -> pixel array
 
         Returns the pixel buffer and its left-top corner, containing the point p=(x, y).
         If no tile exist yet, return a read only buffer if read is True,
@@ -92,10 +92,7 @@ class TiledSurface(Surface):
             self.tiles[(x, y)] = tile
             return tile.pixels
 
-    def __iter__(self):
-        return self
-
-    def next(self):
+    def IterPixelArray(self):
         for tile in self.tiles.itervalues():
             yield tile.pixels
 
@@ -104,18 +101,19 @@ class TiledSurface(Surface):
 
     @property
     def bbox(self):
-        minx = maxx = miny = maxy = 0
-        for buf in self:
+        if not self.tiles:
+            return (0,)*4
+        minx = miny = 2<<31
+        maxx = maxy = -2<<31
+        for buf in self.IterPixelArray():
             minx = min(buf.x, minx)
             miny = min(buf.y, miny)
-            maxx = max(buf.x+buf.Width-1, maxx)
-            maxy = max(buf.y+buf.Height-1, maxy)
-        return minx, miny, maxx, maxy
+            maxx = max(buf.x+buf.Width, maxx)
+            maxy = max(buf.y+buf.Height, maxy)
+        return minx, miny, maxx-minx, maxy-miny
 
     def RenderAsPixelArray(self, mode='RGBA'):
-        minx, miny, maxx, maxy = self.bbox
-        w = maxx-minx+1
-        h = maxy-miny+1
+        minx, miny, w, h = self.bbox
         if mode in ('RGBA', 'ARGB'):
             pa = _pixarray.PixelArray(w, h, 4, 8)
             if mode == 'RGBA':
@@ -128,7 +126,7 @@ class TiledSurface(Surface):
         else:
             raise ValueError("Unsupported mode '%s'" % mode)
             
-        for buf in self:
+        for buf in self.IterPixelArray():
             blit(buf, pa, buf.x-minx, buf.y-miny)
             
         return pa

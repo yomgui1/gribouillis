@@ -42,7 +42,7 @@ class Brush(Dtpic):
         self.base_radius = 4.61
         self.base_yratio = 1.0
         self.hardness = 0.5
-        del self.color
+        self.color = self.DEFAULT_COLOR
 
     def load(self, search_paths, name):
         fullname = name + '_prev.png'
@@ -68,16 +68,17 @@ class Brush(Dtpic):
     def set_color(self, color):
         self._color = color
 
-    color = property(fget=get_color, fset=set_color, fdel=functools.partial(set_color, Brush.DEFAULT_COLOR))
+    def del_color(self):
+        self.set_color(self.DEFAULT_COLOR)
+
+    color = property(fget=get_color, fset=set_color, fdel=functools.partial(set_color, DEFAULT_COLOR))
 
 
 class DrawableBrush(Brush):
     def __init__(self):
-        super(DrawableBrush, self).__init__()
-        
-        # Brush model (features + drawing routines)
+        # Brush model (features + drawing routines) 
         self._brush = _brush.Brush()
-        del self.color
+        super(DrawableBrush, self).__init__()
         
     def copy(self, brush):
         self._brush.base_radius = brush.base_radius
@@ -102,7 +103,10 @@ class DrawableBrush(Brush):
     def set_color(self, color):
         self._brush.red, self._brush.green, self._brush.blue = color
 
-    color = property(fget=get_color, fset=set_color, fdel=functools.partial(set_color, Brush.DEFAULT_COLOR))
+    def del_color(self):
+        self.set_color(self.DEFAULT_COLOR)
+
+    color = property(fget=get_color, fset=set_color, fdel=del_color)
 
 
 class DummyBrush:

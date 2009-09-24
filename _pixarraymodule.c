@@ -65,8 +65,10 @@ argb15x_to_argb8(USHORT *src, UBYTE *dst, ULONG w, ULONG h, Py_ssize_t bpr)
 {
     ULONG x, y;
 
+    bpr -= w*4;
+
     for (y=0; y < h; y++) {
-        for (x=0; x < w; w++) {
+        for (x=0; x < w; x++) {
             ULONG alpha = src[0];
 
             if (alpha > 0) {
@@ -84,7 +86,7 @@ argb15x_to_argb8(USHORT *src, UBYTE *dst, ULONG w, ULONG h, Py_ssize_t bpr)
             dst += 4;
         }
 
-        dst += bpr/sizeof(*dst);
+        dst += bpr;
     }
 }
 //-
@@ -94,8 +96,10 @@ argb15x_to_rgba8(USHORT *src, UBYTE *dst, ULONG w, ULONG h, Py_ssize_t bpr)
 {
     ULONG x, y;
 
+    bpr -= w*4;
+
     for (y=0; y < h; y++) {
-        for (x=0; x < w; w++) {
+        for (x=0; x < w; x++) {
             ULONG alpha = src[0];
 
             if (alpha > 0) {
@@ -113,7 +117,7 @@ argb15x_to_rgba8(USHORT *src, UBYTE *dst, ULONG w, ULONG h, Py_ssize_t bpr)
             dst += 4;
         }
 
-        dst += bpr/sizeof(*dst);
+        dst += bpr;
     }
 }
 //-
@@ -123,8 +127,10 @@ argb15x_to_rgb8(USHORT *src, UBYTE *dst, UWORD w, UWORD h, Py_ssize_t bpr)
 {
     ULONG x, y;
 
+    bpr -= w*4;
+
     for (y=0; y < h; y++) {
-        for (x=0; x < w; w++) {
+        for (x=0; x < w; x++) {
             ULONG alpha = src[0];
 
             if (alpha > 0) {
@@ -139,7 +145,7 @@ argb15x_to_rgb8(USHORT *src, UBYTE *dst, UWORD w, UWORD h, Py_ssize_t bpr)
             dst += 3;
         }
 
-        dst += bpr/sizeof(*dst);
+        dst += bpr;
     }
 }
 //-
@@ -203,7 +209,7 @@ blit_overalpha_argb15x_to_rgb8(USHORT *src, UBYTE *dst, ULONG w, ULONG h)
     ULONG x, y;
 
     for (y=0; y < h; y++) {
-        for (x=0; x < w; w++) {
+        for (x=0; x < w; x++) {
             ULONG one_minus_alpha = (1<<15) - src[0];
 
             /* Destination Alpha = 1.0 (full opaque surface)
@@ -526,7 +532,7 @@ mod_argb15x_to_argb8(PyObject *self, PyObject *args)
     PyPixelArray *src, *dst;
     ULONG dst_x=0, dst_y=0;
 
-    if (!PyArg_ParseTuple(args, "O!O!|kk", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst, &dst_x, &dst_y))
+    if (!PyArg_ParseTuple(args, "O!O!|KK", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst, &dst_x, &dst_y))
         return NULL;
 
     if ((src->nc != 4) || (src->bpc != 16))
@@ -539,7 +545,7 @@ mod_argb15x_to_argb8(PyObject *self, PyObject *args)
     if ((src->width > dst->width) || (src->height > dst->height))
         return PyErr_Format(PyExc_TypeError, "Incompatible dimensions between given PixelArray objects");
 
-    argb15x_to_argb8(src->data, dst->data+(dst->bpr*dst_y)+(dst_x*4*8), src->width, src->height, dst->bpr);
+    //argb15x_to_argb8(src->data, dst->data+(dst->bpr*dst_y)+dst_x*4, src->width, src->height, dst->bpr);
 
     Py_RETURN_NONE;
 }
@@ -550,8 +556,9 @@ mod_argb15x_to_rgba8(PyObject *self, PyObject *args)
 {
     PyPixelArray *src, *dst;
     ULONG dst_x=0, dst_y=0;
+    APTR ptr;
 
-    if (!PyArg_ParseTuple(args, "O!O!|kk", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst, &dst_x, &dst_y))
+    if (!PyArg_ParseTuple(args, "O!O!|II", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst, &dst_x, &dst_y))
         return NULL;
 
     if ((src->nc != 4) || (src->bpc != 16))
@@ -564,7 +571,9 @@ mod_argb15x_to_rgba8(PyObject *self, PyObject *args)
     if ((src->width > dst->width) || (src->height > dst->height))
         return PyErr_Format(PyExc_TypeError, "Incompatible dimensions between given PixelArray objects");
 
-    argb15x_to_rgba8(src->data, dst->data+(dst->bpr*dst_y)+(dst_x*4*8), src->width, src->height, dst->bpr);
+    ptr = dst->data+(dst->bpr*dst_y)+dst_x*4; 
+    Printf("data=%p, ptr=%p, %ld (%lu), x=%ld, y=%ld\n", dst->data, ptr, ptr-dst->data, dst->height*dst->bpr, dst_x, dst_y);
+    argb15x_to_rgba8(src->data, ptr, src->width, src->height, dst->bpr);
 
     Py_RETURN_NONE;
 }
@@ -576,7 +585,7 @@ mod_argb15x_to_rgb8(PyObject *self, PyObject *args)
     PyPixelArray *src, *dst;
     ULONG dst_x=0, dst_y=0;
 
-    if (!PyArg_ParseTuple(args, "O!O!|kk", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst, &dst_x, &dst_y))
+    if (!PyArg_ParseTuple(args, "O!O!|KK", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst, &dst_x, &dst_y))
         return NULL;
 
     if ((src->nc != 4) || (src->bpc != 16))
@@ -589,7 +598,7 @@ mod_argb15x_to_rgb8(PyObject *self, PyObject *args)
     if ((src->width > dst->width) || (src->height > dst->height))
         return PyErr_Format(PyExc_TypeError, "Incompatible dimensions between given PixelArray objects");
 
-    argb15x_to_rgb8(src->data, dst->data+(dst->bpr*dst_y)+(dst_x*3*8), dst->width, dst->height, dst->bpr);
+    //argb15x_to_rgb8(src->data, dst->data+(dst->bpr*dst_y)+dst_x*3, src->width, src->height, dst->bpr);
 
     Py_RETURN_NONE;
 }

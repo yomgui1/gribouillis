@@ -39,6 +39,11 @@ from raster import Raster
 from model import SimpleModel
 from controler import DrawControler
 
+from languages import lang_dict
+
+# TODO: dynamic selection
+lang = lang_dict['default']
+
 class Gribouillis(Application):
     VERSION = 0.1
     DATE    = "05/09/2009"
@@ -58,39 +63,39 @@ class Gribouillis(Application):
 
         # Create Windows
         self.win_Draw = None
-        self.win_Color = ColorChooser("Color Selection")
-        self.win_BSel = BrushSelect("Brush Selection")
-        self.win_MiniBGSel = MiniBackgroundSelect()
-        self.win_CMSPrefs = CMSPrefsWindow("Color Management Profiles Preferences")
-        self.win_Data = DataWindow("Project Preferences", model)
+        self.win_Color = ColorChooser(lang.ColorChooserTitle)
+        self.win_BSel = BrushSelect(lang.BrushSelectWinTitle)
+        self.win_MiniBGSel = MiniBackgroundSelect(lang.MBgSelectWinTitle)
+        self.win_CMSPrefs = CMSPrefsWindow()
+        self.win_Data = DataWindow(lang.DataWinTitle, model)
 
         self.win_CMSPrefs.AddOkCallback(self.OnChangedCMSProfiles)
 
         # Create Menus
-        menu_def = { 'Project': (('Load Image...', 'L', self.OnLoadImage),
-                                 ('Save Image...', 'S', self.OnSaveImage),
-                                 None, # Separator
-                                 ('Setup data...', 'ctrl d', self.win_Data.Open),
-                                 None,
-                                 ('Quit',          'Q', self.OnQuitRequest),
-                                ),
-                     'Edit':    (('Clear all',     'K', self.ClearAll),
-                                 ('Increase Zoom', '+', None),
-                                 ('Decrease Zoom', '-', None),
-                                 ('Reset Zoom',    '=', None),
-                                 None,
-                                 ('Set CMS Profiles...', 'P', self.win_CMSPrefs.Open),
-                                ),
-                     'Window':  (('#Fullscreen',     'F', self.ToggleFullscreen),
-                                 None, # Separator
-                                 ('Draw Surface',    'D', self.OpenDrawWindow),
-                                 ('Color Chooser',   'C', self.win_Color.Open),
-                                 ('Brush Selection', 'B', self.win_BSel.Open),
-                                 ('Mini Background Selection', 'G', self.win_MiniBGSel.Open),
-                                ),
-                     'Debug':   (('#Raster', None, self.SetDebug, 'raster'),
-                                )
-                   }
+        menu_def = { lang.MenuProject: ((lang.MenuProjectLoadImage,   'L', self.OnLoadImage),
+                                        (lang.MenuProjectSaveImage,   'S', self.OnSaveImage),
+                                        None, # Separator
+                                        (lang.MenuProjectSetupData,   'ctrl d', self.win_Data.Open),
+                                        None,
+                                        (lang.MenuProjectQuit,        'Q', self.OnQuitRequest),
+                                        ),
+                     lang.MenuEdit:    ((lang.MenuEditClearAll,       'K', self.ClearAll),
+                                        ),
+                     lang.MenuView:    ((lang.MenuViewIncreaseZoom,   '+', None),
+                                        (lang.MenuViewDecreaseZoom,   '-', None),
+                                        (lang.MenuViewResetZoom,      '=', None),
+                                        ('#'+lang.MenuViewFullscreen, 'F', self.ToggleFullscreen),
+                                        None,
+                                        (lang.MenuViewSetCMSProfile,  'P', self.win_CMSPrefs.Open),
+                                        ),
+                     lang.MenuWindows: ((lang.MenuWindowDraw,         'D', self.OpenDrawWindow),
+                                        (lang.MenuWindowColorChooser, 'C', self.win_Color.Open),
+                                        (lang.MenuWindowBrushSel,     'B', self.win_BSel.Open),
+                                        (lang.MenuWindowMiniBGSel,    'G', self.win_MiniBGSel.Open),
+                                        ),
+                     lang.MenuDebug:   (('#'+lang.MenuDegugRaster,    None, self.SetDebug, 'raster'),
+                                        )
+                     }
 
         strip = Menustrip()   
         for k, v in menu_def.iteritems():
@@ -116,7 +121,7 @@ class Gribouillis(Application):
             Version     = "$VER: Gribouillis %s (%s)" % (self.VERSION, self.DATE),
             Copyright   = "\xa92009, Guillaume ROGUEZ",
             Author      = "Guillaume ROGUEZ",
-            Description = "Simple Painting program for MorphOS",
+            Description = lang.AppliDescription,
             Base        = "Gribouillis",
             Menustrip   = strip,
         )
@@ -161,7 +166,7 @@ class Gribouillis(Application):
     def InitDrawWindow(self, fullscreen=False):
         if self.win_Draw: return
         
-        self.win_Draw = DrawWindow("Draw Area", self.controler.view, fullscreen)
+        self.win_Draw = DrawWindow(lang.DrawWinTitle, self.controler.view, fullscreen)
         self.AddWindow(self.win_Draw)
         self.win_Draw.Notify('CloseRequest', True, self.Quit)
         
@@ -240,7 +245,7 @@ class Gribouillis(Application):
         self.controler.LoadBackground(bg.Name)
 
     def OnLoadImage(self):
-        filename = pymui.getfilename(self.win_Draw, "Select image to load",
+        filename = pymui.getfilename(self.win_Draw, lang.LoadImageReqTitle,
                                      self.last_loaded_dir, "#?.(png|jpeg|jpg|targa|tga|gif)",
                                      False)
         if filename:
@@ -248,7 +253,7 @@ class Gribouillis(Application):
             self.controler.LoadImage(filename)
 
     def OnSaveImage(self):
-        filename = pymui.getfilename(self.win_Draw, "Select a filename to save your image",
+        filename = pymui.getfilename(self.win_Draw, lang.SaveImageReqTitle,
                                      self.last_saved_dir, "#?.(png|jpeg|jpg|targa|tga|gif)",
                                      True)
         if filename:

@@ -213,3 +213,11 @@ class DrawControler(object):
 
     def LoadBackground(self, filename):
         self.model.LoadBackground(filename)
+
+    def Undo(self):
+        self.model.Undo()
+        self.view.RedrawFull()
+        
+    def Redo(self):
+        self.model.Redo()
+        self.view.RedrawFull()

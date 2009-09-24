@@ -37,6 +37,8 @@ class BaseLanguage:
     MenuProjectQuit        = "Quit"
     MenuEdit               = "Edit"
     MenuEditClearAll       = "Clear all"
+    MenuEditUndo           = "Undo"
+    MenuEditRedo           = "Redo"
     MenuView               = "View"
     MenuViewIncreaseZoom   = "Increase Zoom"
     MenuViewDecreaseZoom   = "Decrease Zoom"

@@ -47,3 +47,6 @@ class StrokeRecord(object):
     def Replay(self, surface, brush):
         "Like Draw() but use timerstamp also."
         pass
+
+    def __len__(self):
+        return len(self.strokes)

@@ -67,12 +67,28 @@ class Model(object):
         self._brush = b
 
     def InitializeDrawAction(self, pos):
-        self._stroke_rec = StrokeRecord(pos)
         self.InitBrush(pos)
+
+        # Undo management at stroke level
+        self._stroke_rec = StrokeRecord(pos)
         
-    def FinalizeDrawAction(self, ok=True):
-        self._strokes.append(self._stroke_rec)
+        # Undo management at surface level
+        self.InitWriteContext()
+        
+    def FinalizeDrawAction(self, cancelled=True):
+        self.TermWriteContext(cancelled)
+        
+        if not cancelled and self._stroke_rec:
+            self._strokes.append(self._stroke_rec)
         self._stroke_rec = None
+
+    def Undo(self):
+        # TODO: undo last stroke record
+        pass
+
+    def Redo(self):
+        # TODO: redo redo stroke record
+        pass
 
     def RecordStroke(self, stroke):
         self._stroke_rec.Add(stroke)
@@ -80,7 +96,7 @@ class Model(object):
     def LoadBackground(self, filename):
         im = Image.open(filename).convert('RGB')
         s = im.crop((0, 0, T_SIZE, T_SIZE)).tostring()
-        self._bg.pixels.from_string(s)
+        self._bg.from_string(s)
         self._rsurface.Clear()
         self.RenderFull()
 
@@ -96,6 +112,12 @@ class Model(object):
     def AsPILImage(self):
         pass # Must be implemented by subclasses
 
+    def InitWriteContext(self):
+        pass # Must be implemented by subclasses
+
+    def TermWriteContext(self, ok):
+        pass # Must be implemented by subclasses
+
 
 class SimpleModel(Model):
     def __init__(self):
@@ -107,6 +129,12 @@ class SimpleModel(Model):
     def Clear(self):
         super(SimpleModel, self).Clear() # clear the render surface
         self._surface.Clear() # clear the draw surface
+
+    def InitWriteContext(self):
+        self._surface.InitWrite()
+
+    def TermWriteContext(self, kill=False):
+        self._surface.TermWrite(kill)
 
     def InitBrush(self, pos):
         self._brush.InitDraw(self._surface, pos)
@@ -135,3 +163,11 @@ class SimpleModel(Model):
 
     def AsPixelArray(self, mode='RGBA'):
         return self._surface.RenderAsPixelArray(mode)
+
+    def Undo(self):
+        super(SimpleModel, self).Undo()
+        self._surface.Undo()
+
+    def Redo(self):
+        super(SimpleModel, self).Undo()
+        self._surface.Undo()

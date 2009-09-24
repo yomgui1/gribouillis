@@ -80,6 +80,8 @@ class Gribouillis(Application):
                                         (lang.MenuProjectQuit,        'Q', self.OnQuitRequest),
                                         ),
                      lang.MenuEdit:    ((lang.MenuEditClearAll,       'K', self.ClearAll),
+                                        (lang.MenuEditUndo,           'Z', self.Undo),
+                                        (lang.MenuEditRedo,           'Y', self.Redo),
                                         ),
                      lang.MenuView:    ((lang.MenuViewIncreaseZoom,   '+', None),
                                         (lang.MenuViewDecreaseZoom,   '-', None),
@@ -286,3 +288,9 @@ class Gribouillis(Application):
 
     def ClearAll(self):
         self.controler.Clear()
+
+    def Undo(self):
+        self.controler.Undo()
+        
+    def Redo(self):
+        self.controler.Redo()

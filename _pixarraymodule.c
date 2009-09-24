@@ -371,7 +371,7 @@ pixarray_copy(PyPixelArray *self)
 {
     PyPixelArray *copy;
 
-    copy = PyObject_New(PyPixelArray, &PyPixelArray_Type);
+    copy = PyObject_New(PyPixelArray, self->ob_type);
     if (NULL != copy) {
         if (initialize_pixarray(copy, self->width, self->height, self->nc, self->bpc)) {
             copy->x = self->x;
@@ -532,7 +532,7 @@ mod_argb15x_to_argb8(PyObject *self, PyObject *args)
     PyPixelArray *src, *dst;
     ULONG dst_x=0, dst_y=0;
 
-    if (!PyArg_ParseTuple(args, "O!O!|KK", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst, &dst_x, &dst_y))
+    if (!PyArg_ParseTuple(args, "O!O!|II", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst, &dst_x, &dst_y))
         return NULL;
 
     if ((src->nc != 4) || (src->bpc != 16))
@@ -572,7 +572,7 @@ mod_argb15x_to_rgba8(PyObject *self, PyObject *args)
         return PyErr_Format(PyExc_TypeError, "Incompatible dimensions between given PixelArray objects");
 
     ptr = dst->data+(dst->bpr*dst_y)+dst_x*4; 
-    Printf("data=%p, ptr=%p, %ld (%lu), x=%ld, y=%ld\n", dst->data, ptr, ptr-dst->data, dst->height*dst->bpr, dst_x, dst_y);
+    //Printf("data=%p, ptr=%p, %ld (%lu), x=%ld, y=%ld\n", dst->data, ptr, ptr-dst->data, dst->height*dst->bpr, dst_x, dst_y);
     argb15x_to_rgba8(src->data, ptr, src->width, src->height, dst->bpr);
 
     Py_RETURN_NONE;
@@ -585,7 +585,7 @@ mod_argb15x_to_rgb8(PyObject *self, PyObject *args)
     PyPixelArray *src, *dst;
     ULONG dst_x=0, dst_y=0;
 
-    if (!PyArg_ParseTuple(args, "O!O!|KK", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst, &dst_x, &dst_y))
+    if (!PyArg_ParseTuple(args, "O!O!|II", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst, &dst_x, &dst_y))
         return NULL;
 
     if ((src->nc != 4) || (src->bpc != 16))

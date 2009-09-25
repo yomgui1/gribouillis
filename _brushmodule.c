@@ -38,6 +38,10 @@ OTHER DEALINGS IN THE SOFTWARE.
 #define INITFUNC init_brush
 #endif
 
+#ifndef MODNAME
+#define MODNAME "_brush"
+#endif
+
 #define NDEBUG
 
 #ifdef NDEBUG
@@ -706,22 +710,22 @@ INITFUNC(void)
 {
     PyObject *m, *_pixarray;
 
-     if (PyType_Ready(&PyBrush_Type) < 0) return;
+    if (PyType_Ready(&PyBrush_Type) < 0) return;
 
-     m = Py_InitModule("_brush", _BrushMethods);
-     if (NULL == m) return;
+    m = Py_InitModule(MODNAME, _BrushMethods);
+    if (NULL == m) return;
 
-     ADD_TYPE(m, "Brush", &PyBrush_Type);
+    ADD_TYPE(m, "Brush", &PyBrush_Type);
 
-     /* Need the PyPixelArray_Type object from _pixarray */
-     _pixarray = PyImport_ImportModule("_pixarray"); /* NR */
-     if (NULL == _pixarray)
-         return;
+    /* Need the PyPixelArray_Type object from _pixarray */
+    _pixarray = PyImport_ImportModule("_pixarray"); /* NR */
+    if (NULL == _pixarray)
+        return;
 
-     PyPixelArray_Type = (PyTypeObject *)PyObject_GetAttrString(_pixarray, "PixelArray"); /* NR */
-     if (NULL == PyPixelArray_Type) {
-         Py_DECREF(_pixarray);
-         return;
-     }
+    PyPixelArray_Type = (PyTypeObject *)PyObject_GetAttrString(_pixarray, "PixelArray"); /* NR */
+    if (NULL == PyPixelArray_Type) {
+        Py_DECREF(_pixarray);
+        return;
+    }
 }
 //-

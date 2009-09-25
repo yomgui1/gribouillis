@@ -62,25 +62,33 @@ typedef struct PANode_STRUCT {
 typedef struct PyBrush_STRUCT {
     PyObject_HEAD
 
+    /* Object Data */
     PyObject *      b_Surface;
+    PANode          b_PACache[PA_CACHE_SIZE];
+    struct MinList  b_PACacheList;
+    PANode *        b_FirstInvalid;
+
+    /* Brush Model */
     LONG            b_X;
     LONG            b_Y;
+    FLOAT           b_Time;
+
     FLOAT           b_BaseRadius;
     FLOAT           b_BaseYRatio;
     FLOAT           b_Hardness;
+
     USHORT          b_Alpha;
     USHORT          b_Red;
     USHORT          b_Green;
     USHORT          b_Blue;
-    PANode          b_PACache[PA_CACHE_SIZE];
-    struct MinList  b_PACacheList;
-    PANode *        b_FirstInvalid;
+
 #ifdef STAT_TIMING
     ULONG           b_CacheAccesses;
     ULONG           b_CacheMiss;
     UQUAD           b_Times[3];
     ULONG           b_TimesCount[3];
 #endif
+
 } PyBrush;
 
 static PyTypeObject PyBrush_Type;

@@ -28,7 +28,7 @@ class BaseLanguage:
     DrawWinTitle           = "Draw Area"
     ColorChooserWinTitle   = "Color Selection"
     BrushSelectWinTitle    = "Brush Selection"
-    MBgSelectWinTitle      = "Color Management Profiles Preferences"
+    CMSWinTitle            = "Color Management Profiles Preferences"
     DataWinTitle           = "Project Preferences"
     MenuProject            = "Project"
     MenuProjectLoadImage   = "Load Image..."

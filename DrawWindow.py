@@ -27,6 +27,9 @@ __all__ = ('DrawWindow', )
 
 from pymui import *
 
+POINTERTYPE_NORMAL = 0
+POINTERTYPE_AIMING = 6
+
 class DrawWindow(Window):
     def __init__(self, title, raster, fullscreen=False):
         self.fullscreen = fullscreen
@@ -50,3 +53,14 @@ class DrawWindow(Window):
                                          RootObject=raster,
                                          TabletMessages=True, # enable tablet events support
                                          **kwds)
+
+        self.Notify('Activate', MUIV_EveryTime, self.OnActivate, MUIV_TriggerValue)
+
+    def OnActivate(self, state):
+        try:
+            if state:
+                self.pointer = POINTERTYPE_AIMING
+            else:
+                self.pointer = POINTERTYPE_NORMAL
+        except:
+            print 'error'

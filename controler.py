@@ -25,7 +25,7 @@
 
 __all__ = ('DrawControler', )
 
-from pymui import TABLETA_Pressure
+from pymui import TABLETA_Pressure, MUI_EventHandlerRC_Eat
 
 IECODE_UP_PREFIX = 0x80
 IECODE_LBUTTON   = 0x68
@@ -56,10 +56,12 @@ class DrawControler(object):
     MODE_IDLE = 0
     MODE_DRAW = 1
     MODE_DRAG = 2
+    SCALE_VALUES = [0.2, 0.25, 0.3, 0.5, 1.0, 1.5, 2.0, 3.0, 5.0, 8.0]
     
     def __init__(self, view, model):
         self.view = view
         self.model = model
+        self.scale_idx = self.SCALE_VALUES.index(1.0)
         self.view.ConnectToModel(model)
 
         # Inputs comes from the view
@@ -105,9 +107,12 @@ class DrawControler(object):
         
     def OnKey(self, evt):
         if evt.Up:
-            cb = self.KEYMAPS.get(evt.Key)
-            if cb:
-                cb(self, evt)
+            cb = self.KEYMAPS_UP.get(evt.Key)
+        else:
+            cb = self.KEYMAPS_DOWN.get(evt.Key)
+
+        if cb:
+            cb(self, evt)
 
     def SetMode(self, mode):
         if mode != self._mode:
@@ -182,18 +187,34 @@ class DrawControler(object):
         self.view.RedrawDamaged()
 
     def OnMouseWheelUp(self, evt):
-        pass
+        if self.scale_idx+1 < len(self.SCALE_VALUES):
+            x, y = self.view.GetSurfacePos(evt.MouseX, evt.MouseY) 
+            self.scale_idx += 1        
+            self.view.scale = self.SCALE_VALUES[self.scale_idx]
+            x, y = self.view.GetRasterPos(x, y)
+            self.view.osx += evt.MouseX-x
+            self.view.osy += evt.MouseY-y
+            self.view.RedrawFull()
 
     def OnMouseWheelDown(self, evt):
-        pass
-
+        if self.scale_idx-1 >= 0:
+            x, y = self.view.GetSurfacePos(evt.MouseX, evt.MouseY)
+            self.scale_idx -= 1 
+            self.view.scale = self.SCALE_VALUES[self.scale_idx]
+            x, y = self.view.GetRasterPos(x, y)
+            self.view.osx += evt.MouseX-x
+            self.view.osy += evt.MouseY-y
+            self.view.RedrawFull()
+    
     def Clear(self):
         self.model.Clear()
         self.view.RedrawFull()
 
-    KEYMAPS = { NM_WHEEL_UP:     OnMouseWheelUp,
-                NM_WHEEL_DOWN:   OnMouseWheelDown,
-                }
+    KEYMAPS_UP = { }
+
+    KEYMAPS_DOWN = { NM_WHEEL_UP:     OnMouseWheelUp,
+                     NM_WHEEL_DOWN:   OnMouseWheelDown,
+                   }
 
     def LoadImage(self, filename):
         assert "METHOD" is "NOT IMPLEMENTED"
@@ -213,6 +234,7 @@ class DrawControler(object):
 
     def LoadBackground(self, filename):
         self.model.LoadBackground(filename)
+        self.view.RedrawFull()
 
     def Undo(self):
         self.model.Undo()
@@ -221,3 +243,12 @@ class DrawControler(object):
     def Redo(self):
         self.model.Redo()
         self.view.RedrawFull()
+
+    def ResetZoom(self):
+        self.view.scale = 1.0
+        self.view.osx = self.view.osy = 0
+        self.view.RedrawFull()
+
+    def Center(self):
+        # TODO
+        pass

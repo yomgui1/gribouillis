@@ -63,10 +63,10 @@ class Gribouillis(Application):
 
         # Create Windows
         self.win_Draw = None
-        self.win_Color = ColorChooser(lang.ColorChooserTitle)
+        self.win_Color = ColorChooser(lang.ColorChooserWinTitle)
         self.win_BSel = BrushSelect(lang.BrushSelectWinTitle)
-        self.win_MiniBGSel = MiniBackgroundSelect(lang.MBgSelectWinTitle)
-        self.win_CMSPrefs = CMSPrefsWindow()
+        self.win_MiniBGSel = MiniBackgroundSelect()
+        self.win_CMSPrefs = CMSPrefsWindow(lang.CMSWinTitle)
         self.win_Data = DataWindow(lang.DataWinTitle, model)
 
         self.win_CMSPrefs.AddOkCallback(self.OnChangedCMSProfiles)
@@ -85,7 +85,8 @@ class Gribouillis(Application):
                                         ),
                      lang.MenuView:    ((lang.MenuViewIncreaseZoom,   '+', None),
                                         (lang.MenuViewDecreaseZoom,   '-', None),
-                                        (lang.MenuViewResetZoom,      '=', None),
+                                        (lang.MenuViewResetZoom,      '=', self.ResetZoom),
+                                        ('Center',                    '*', self.Center),
                                         ('#'+lang.MenuViewFullscreen, 'F', self.ToggleFullscreen),
                                         None,
                                         (lang.MenuViewSetCMSProfile,  'P', self.win_CMSPrefs.Open),
@@ -96,11 +97,13 @@ class Gribouillis(Application):
                                         (lang.MenuWindowMiniBGSel,    'G', self.win_MiniBGSel.Open),
                                         ),
                      lang.MenuDebug:   (('#'+lang.MenuDegugRaster,    None, self.SetDebug, 'raster'),
-                                        )
+                                        ),
                      }
 
         strip = Menustrip()   
-        for k, v in menu_def.iteritems():
+        order = (lang.MenuProject, lang.MenuEdit, lang.MenuView, lang.MenuWindows, lang.MenuDebug)
+        for k in order:
+            v = menu_def[k]
             menu = Menu(k)
             strip.AddTail(menu)
 
@@ -294,3 +297,9 @@ class Gribouillis(Application):
         
     def Redo(self):
         self.controler.Redo()
+
+    def ResetZoom(self):
+        self.controler.ResetZoom()
+
+    def Center(self):
+        self.controler.Center()

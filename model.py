@@ -42,7 +42,7 @@ class Model(object):
     def __init__(self):
         self._bg = Tile(nc=3, bpc=8) 
         self._rsurface = TiledSurface(nc=3, bpc=8, bg=self._bg) # RGB 8-bits per component surface for display
-        
+
         self._brush = DummyBrush() # that gives a way to remove some 'if' sentences...
 
         # Some model data (Christoph... again you!)
@@ -148,7 +148,7 @@ class SimpleModel(Model):
         rbuf = self._rsurface.GetBuffer(buf.x, buf.y, read=False, clear=False)
         
         # Copy the background buffer
-        rbuf.from_pixarray(self._bg.pixels)
+        rbuf.from_pixarray(self._bg)
         
         # blit on the rendering surface modified buffers from the active surface
         _pixarray.bltalpha_argb15x_to_rgb8(buf, rbuf)
@@ -171,3 +171,5 @@ class SimpleModel(Model):
     def Redo(self):
         super(SimpleModel, self).Undo()
         self._surface.Undo()
+
+    bbox = property(fget=lambda self: self._surface.bbox)

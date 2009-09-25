@@ -159,7 +159,7 @@ obtain_pixarray(PyBrush *self, PyObject *surface, LONG x, LONG y)
 
         Py_DECREF(o);
 
-        if (!PyPixelArray_CheckExact(o))
+        if (!PyPixelArray_Check(o))
             return (APTR)PyErr_Format(PyExc_TypeError, "Surface GetBuffer() method shall returns PixelArray instance, not %s", OBJ_TNAME(o));
 
         /* Add it to the cache as first entry */
@@ -344,7 +344,25 @@ error:
     return NULL;
 }
 //-
+//+ myrand1
+double myrand1(void)
+{
+    static ULONG seed=0;
 
+    seed = FastRand(seed);
+    return ((double)seed) / (double)0xffffffff;
+}
+//-
+//+ myrand2
+double myrand2(void)
+{
+    static ULONG seed=0x1fa9b36;
+
+    seed = FastRand(seed);
+    return ((double)seed) / (double)0xffffffff;
+}
+//-
+  
 
 /*******************************************************************************************
 ** PyBrush_Type
@@ -454,7 +472,7 @@ brush_drawstroke(PyBrush *self, PyObject *args)
     LONG dx, dy;
     FLOAT pressure, time, d;
     ULONG i, n;
-
+    
     if (NULL == self->b_Surface)
         return PyErr_Format(PyExc_RuntimeError, "Uninitialized brush");
 
@@ -497,23 +515,26 @@ brush_drawstroke(PyBrush *self, PyObject *args)
 
     n = (ULONG)d;
     n = MAX(1, n);
-    for (i=0; i <= n; i++) {
+    for (i=0; i < n; i++) {
         PyObject *ret;
         LONG x, y;
 #ifdef STAT_TIMING
         UQUAD t1, t2;
 #endif
+        LONG v1 = (myrand1()*2-1)*1.6*1./pressure*self->b_BaseRadius;
+        LONG v2 = (myrand2()*2-1)*1.6*1./pressure*self->b_BaseRadius*self->b_BaseYRatio;
 
         /* Simple linear interpolation */
-        x = self->b_X + (LONG)((FLOAT)dx*i/n);
-        y = self->b_Y + (LONG)((FLOAT)dy*i/n);
+
+        x = self->b_X + (LONG)((float)dx*i/n);
+        y = self->b_Y + (LONG)((float)dy*i/n);
 
         DPRINT("BRUSH: (%ld, %ld), s: (%ld, %ld): c: (%ld, %ld)\n", self->b_X, self->b_Y, sx, sy, x, y);
 
 #ifdef STAT_TIMING
         ReadCPUClock(&t1);
 #endif
-        ret = drawdab_solid(self, buflist, self->b_Surface, x, y, self->b_BaseRadius*pressure, self->b_BaseYRatio,
+        ret = drawdab_solid(self, buflist, self->b_Surface, x+v1, y+v2, self->b_BaseRadius*pressure, self->b_BaseYRatio,
                             pressure, self->b_Hardness,
                             self->b_Alpha, self->b_Red, self->b_Green, self->b_Blue);
 #ifdef STAT_TIMING
@@ -629,8 +650,8 @@ static PyGetSetDef brush_getseters[] = {
 
 static struct PyMethodDef brush_methods[] = {
     {"drawdab_solid", (PyCFunction)brush_drawdab_solid, METH_VARARGS, NULL},
-    {"draw_stroke",    (PyCFunction)brush_drawstroke, METH_VARARGS, NULL},
-    {"invalid_cache",    (PyCFunction)brush_invalid_cache, METH_NOARGS, NULL},
+    {"draw_stroke",   (PyCFunction)brush_drawstroke, METH_VARARGS, NULL},
+    {"invalid_cache", (PyCFunction)brush_invalid_cache, METH_NOARGS, NULL},
     {NULL} /* sentinel */
 };
 

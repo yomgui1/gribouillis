@@ -23,7 +23,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import pymui, _pixarray, surface, lcms
+import pymui, _pixarray, lcms
 
 class Raster(pymui.Area):
     EVENTMAP = {
@@ -46,10 +46,15 @@ class Raster(pymui.Area):
         self._tmpbuf = None
         self.osx = 0 # X position of the surface origin, in raster origin
         self.osy = 0 # Y position of the surface origin, in raster origin
-        self.scale = 1.0 # zoom factor
+        self._scale = 1.0 # zoom factor
         self.model = None
         self.debug = False
         self.EnableCMS(False)
+
+    def SetScale(self, v):
+        self._scale = max(0.1, min(10, v))
+
+    scale = property(fget=lambda self: self._scale, fset=SetScale)
 
     def ConnectToModel(self, model):
         self.model = model
@@ -107,9 +112,19 @@ class Raster(pymui.Area):
             pos = (buf.x, buf.y) # saved because CMS return a new buffer object
             buf = self.CMS_ApplyTransform(buf) # do color management (for Christoph ;-))
             rx, ry = self.GetRasterPos(*pos)
-            self._rp.ScaledBlit8(buf, buf.Width, buf.Height, rx, ry, int(buf.Width * self.scale), int(buf.Height * self.scale))
+
+            # Dumb scale math (like int(buf.Width * self._scale)) causes bad tile size
+            # so some lines are not filled => bad result
+            #
+            # To be sure of the raster size to draw we start from the tile (x, y)
+            # and we use the start of the tile at (+1, +1) to compute the size
+            #
+
+            rx2, ry2 = self.GetRasterPos(pos[0]+buf.Width, pos[1]+buf.Height)
+
+            self._rp.ScaledBlit8(buf, buf.Width, buf.Height, rx, ry, rx2-rx, ry2-ry)
             if self.debug:
-                self._rp.Rect(3, rx, ry, rx+int(buf.Width * self.scale)-1, ry+int(buf.Height * self.scale)-1)
+                self._rp.Rect(3, rx, ry, rx2, ry2)
 
     def AddDamagedBuffer(self, buffer):
         if hasattr(buffer, '__iter__'):
@@ -135,22 +150,22 @@ class Raster(pymui.Area):
         self._ev.install(self, idcmp)
 
     def GetSurfacePos(self, x, y):
-        return int((x - self.MLeft - self.osx) / self.scale), int((y - self.MTop - self.osy) / self.scale)
+        return int((x - self.MLeft - self.osx) / self._scale), int((y - self.MTop - self.osy) / self._scale)
 
     def GetRasterPos(self, x, y):
-        return int(x * self.scale) + self.MLeft + self.osx, int(y * self.scale) + self.MTop + self.osy
+        return int(x * self._scale) + self.MLeft + self.osx, int(y * self._scale) + self.MTop + self.osy
 
     def StartMove(self):
         "Save view state"
         self._saved_osx = self.osx
         self._saved_osy = self.osy
-        self._saved_scale = self.scale
+        self._saved_scale = self._scale
 
     def CancelMove(self):
         "Restore previously saved view state"
         self.osx = self._saved_osx 
         self.osy = self._saved_osy
-        self.scale = self._saved_scale
+        self._scale = self._saved_scale
         self.RedrawFull()
         
     def Scroll(self, dx, dy):

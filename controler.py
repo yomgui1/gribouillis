@@ -26,6 +26,7 @@
 __all__ = ('DrawControler', )
 
 from pymui import TABLETA_Pressure, MUI_EventHandlerRC_Eat
+import os
 
 IECODE_UP_PREFIX = 0x80
 IECODE_LBUTTON   = 0x68
@@ -221,12 +222,12 @@ class DrawControler(object):
     
     def SaveImage(self, filename):
         im = self.model.AsPILImage('RGBA')
-        ext = os.path.splittext(filename)[1].lower()
+        ext = os.path.splitext(filename)[1].lower()
         dpi = (self.model.info['ResolutionX'],
                self.model.info['ResolutionY'])
 
         if ext == '.png':
-            im.save(filename, 'PNG', optimize=True, dpi=dpi)
+            im.save(filename, 'PNG', optimize=True, dpi=dpi, compression=9)
         elif ext in ('.jpg', '.jpeg'):
             im.save(filename, 'JPEG', optimize=True, dpi=dpi, quality=90)
         else:

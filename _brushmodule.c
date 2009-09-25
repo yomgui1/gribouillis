@@ -534,7 +534,7 @@ brush_drawstroke(PyBrush *self, PyObject *args)
 #ifdef STAT_TIMING
         ReadCPUClock(&t1);
 #endif
-        ret = drawdab_solid(self, buflist, self->b_Surface, x+v1, y+v2, self->b_BaseRadius*pressure, self->b_BaseYRatio,
+        ret = drawdab_solid(self, buflist, self->b_Surface, x+v1, y+v2, self->b_BaseRadius, self->b_BaseYRatio,
                             pressure, self->b_Hardness,
                             self->b_Alpha, self->b_Red, self->b_Green, self->b_Blue);
 #ifdef STAT_TIMING

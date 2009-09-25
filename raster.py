@@ -172,7 +172,7 @@ class Raster(pymui.Area):
         """Scroll(dx, dy)
 
         Scroll current displayed surface using pixel vector (dx, dy).
-        ATTENTION: does't do any display refresh.
+        ATTENTION: doesn't do any display refresh.
         """
 
         self.osx -= dx

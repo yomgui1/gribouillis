@@ -27,7 +27,7 @@
 
 import os, sys
 
-sys.path.append('Libs/python2.5/site-packages')
+sys.path.append('libs')
 
 from application import Gribouillis  
 

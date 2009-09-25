@@ -507,9 +507,9 @@ brush_drawstroke(PyBrush *self, PyObject *args)
         return buflist;
 
     if (self->b_BaseYRatio >= 1.0)
-        d = sqrtf(dx*dx+dy*dy) * DABS_PER_RADIUS / self->b_BaseRadius;
+        d = sqrt(dx*dx+dy*dy) * DABS_PER_RADIUS / self->b_BaseRadius;
     else
-        d = sqrtf(dx*dx+dy*dy) * DABS_PER_RADIUS / (self->b_BaseRadius*self->b_BaseYRatio);
+        d = sqrt(dx*dx+dy*dy) * DABS_PER_RADIUS / (self->b_BaseRadius*self->b_BaseYRatio);
 
     d += time * DABS_PER_SECONDS;
 

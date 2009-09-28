@@ -27,7 +27,7 @@
 
 import os, sys
 
-sys.path.append('libs')
+sys.path.append('Libs')
 
 from application import Gribouillis  
 

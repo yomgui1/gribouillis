@@ -132,7 +132,7 @@ class TiledSurface(Surface):
             maxy = max(buf.y+buf.Height, maxy)
         return minx, miny, maxx-minx, maxy-miny
 
-    def RenderAsPixelArray(self, mode='RGBA'):
+    def RenderAsPixelArray(self, mode='RGBA', bg=None):
         minx, miny, w, h = self.bbox
         if mode in ('RGBA', 'ARGB'):
             pa = _pixarray.PixelArray(w, h, 4, 8)
@@ -145,8 +145,12 @@ class TiledSurface(Surface):
             blit = _pixarray.argb15x_to_rgb8
         else:
             raise ValueError("Unsupported mode '%s'" % mode)
-            
+
+        pa.zero()
+
         for buf in self.IterPixelArray():
+            if bg:
+                blit(bg, pa, bg.x-minx, bg.y-miny)
             blit(buf, pa, buf.x-minx, buf.y-miny)
             
         return pa

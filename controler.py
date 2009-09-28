@@ -113,7 +113,7 @@ class DrawControler(object):
             cb = self.KEYMAPS_DOWN.get(evt.Key)
 
         if cb:
-            cb(self, evt)
+            return cb(self, evt)
 
     def SetMode(self, mode):
         if mode != self._mode:

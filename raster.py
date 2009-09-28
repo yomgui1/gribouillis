@@ -84,7 +84,7 @@ class Raster(pymui.Area):
     def MCC_HandleEvent(self, evt):
         wl = self._watchers.get(Raster.EVENTMAP.get(evt.Class), [])
         for cb, args in wl:
-            cb(evt, *args)
+            return cb(evt, *args)
 
     def MCC_Draw(self, flags):
         # Draw full raster

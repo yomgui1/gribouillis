@@ -8,6 +8,10 @@ opt = ['-Wall -Wuninitialized -Wstrict-prototypes']
 modules = [os.path.splitext(x)[0] for x in glob.glob('*.py')]
 modules.remove('setup')
 
+extra_data = []
+for root, dirs, files in os.walk('Libs'):
+    extra_data.append((root, [os.path.join(root, n) for n in files]))
+
 setup(name='Gribouillis',
       version='0.1',
       author='Guillaume Roguez',
@@ -18,7 +22,11 @@ setup(name='Gribouillis',
                       ],
       py_modules=modules,
       scripts=['Gribouillis'],
-      data_files=[('brushes', glob.glob('brushes/*.mpb')
+      data_files=[('', ['libs:python.library']),
+                  ('brushes', glob.glob('brushes/*.myb')
                    + glob.glob('brushes/*.png')
-                   + glob.glob('brushes/*.conf'))],
+                   + glob.glob('brushes/*.conf')),
+                  ('backgrounds', glob.glob('backgrounds/*.conf')
+                   + glob.glob('backgrounds/*.png')),
+                  ] + extra_data,
       )

@@ -251,5 +251,5 @@ class DrawControler(object):
         self.view.RedrawFull()
 
     def Center(self):
-        # TODO
-        pass
+        x, y, w, h = self.model.bbox
+        self.view.CenterOnSurfacePoint(x+w/2, y+h/2)

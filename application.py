@@ -86,7 +86,7 @@ class Gribouillis(Application):
                      lang.MenuView:    ((lang.MenuViewIncreaseZoom,   '+', None),
                                         (lang.MenuViewDecreaseZoom,   '-', None),
                                         (lang.MenuViewResetZoom,      '=', self.ResetZoom),
-                                        ('Center',                    '*', self.Center),
+                                        (lang.MenuViewCenter,         '*', self.Center),
                                         ('#'+lang.MenuViewFullscreen, 'F', self.ToggleFullscreen),
                                         None,
                                         (lang.MenuViewSetCMSProfile,  'P', self.win_CMSPrefs.Open),

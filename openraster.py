@@ -27,17 +27,26 @@ import zlib, itertools, os, png
 import xml.etree.ElementTree as ET
 from CStringIO import StringIO
 
+__all__ = ('OpenRasterFile',)
+
 def ienumerate(iterable):
     return itertools.izip(itertools.count(), iterable)
 
+class IntegerBuffer(buf):
+    def __init__(self, buf):
+        self.b = buffer(buf)
+        
+        def __getslice__(self, start, stop):
+            return (ord(c) for c in self.b[start:stop])
+
 class OpenRasterFile:
-    def __init__(self, filename, write=False):
+    def __init__(self, filename, write=False, **kwds):
         if write:
-            self.init_write(filename)
+            self.init_write(filename, compression)
         else:
             self.init_read(filename)
 
-    def init_write(self, filename):
+    def init_write(self, filename, **kwds):
         if os.path.isfile(filename):
             tmpname = self.fp.name+'@'
         else:
@@ -47,7 +56,9 @@ class OpenRasterFile:
         self.z = zipfile.ZipFile(tmpname, 'w', compression=zipfile.ZIP_STORED)
         self.z.writestr('mimetype', 'image/openraster')
         self.stack_list = []
-        
+        self.comp = kwds.get('compression', 6)
+        self.extra = kwds.get('extra', {})
+                
     def AddSurface(self, name, surface):
         assert name
         
@@ -65,19 +76,12 @@ class OpenRasterFile:
                           x=x, y=y, src=src)
 
             outfile = StringIO()
-            writer = png.Writer(buf.Width, buf.Height, alpha=True, bitdepth=8, compression=6)
-            class IntegerBuffer(buf):
-                def __init__(self, buf):
-                    self.b = buffer(buf)
-                    
-                def __getslice__(self, start, stop):
-                    return (ord(c) for c in self.b[start:stop])
-                
+            writer = png.Writer(buf.Width, buf.Height, alpha=True, bitdepth=8, compression=self.comp)
             writer.write(outfile, IntegerBuffer(buf))
             self.z.write(outfile.getvalue(), src)
             write.close()
 
-    def Close(self, attrib={}):
+    def Close(self):
         if not stack_list:
             self.z.close()
             os.remove(self.tmpname)
@@ -98,7 +102,7 @@ class OpenRasterFile:
                 ih = h
 
         a = image.attrib
-        a.update(attrib)
+        a.update(self.extra)
         a['name'] = os.path.basename(self.filename)
         a['w'] = iw
         a['h'] = ih

@@ -261,15 +261,17 @@ class Gribouillis(Application):
         if not getattr(self, 'win_SaveWin', None):
             o = Text()
             g1 = ColGroup(2, Child=(Label("Image size:"), o))
-            b_ok = SimpleButton("_Ok")
-            b_cancel = SimpleButton("_Cancel")
+            b_ok = Simple("Ok")
+            b_cancel = SimpleButton("Cancel")
             g2 = HGroup(Child=(b_ok, b_cancel))
             self.win_SaveWin = Window("Saving Image", RootObject=VGroup(Child=(g1, HBar(3), g2)))
-            self.win_SaveWin.Notify('CloseRequest', True, self.win_Data.Close)
+            self.win_SaveWin.Notify('CloseRequest', True, self.win_SaveWin.Close)
             self.AddWindow(self.win_SaveWin)
             self.win_SaveWin.text = o
+            b_ok.CycleChain = True       
             b_ok.Notify('Pressed', False, self.win_SaveWin.Close)
             b_ok.Notify('Pressed', False, self.SaveImage)
+            b_cancel.CycleChain = True 
             b_cancel.Notify('Pressed', False, self.win_SaveWin.Close)
 
         _, _, w, h = self.controler.model.bbox

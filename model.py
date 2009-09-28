@@ -179,9 +179,9 @@ class SimpleModel(Model):
 
     bbox = property(fget=lambda self: self._surface.bbox)
 
-    def SaveAsOpenRaster(self, filename):
+    def SaveAsOpenRaster(self, filename, cb=None):
         ora = OpenRasterFile(filename, write=True, extra=self.info)
         try:
-            ora.AddSurface(self, "Main", self._surface)
+            ora.AddSurface("Main", self._surface)
         finally:
             ora.Close()

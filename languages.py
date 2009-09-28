@@ -45,7 +45,7 @@ class BaseLanguage:
     MenuViewResetZoom      = "Reset Zoom"
     MenuViewSetCMSProfile  = "Set CMS Profiles..."
     MenuViewFullscreen     = "Fullscreen"
-    lang.MenuViewCenter    = "Center on full drawing"
+    MenuViewCenter         = "Center on full drawing"
     MenuWindows            = "Windows"
     MenuWindowDraw         = "Draw Surface"
     MenuWindowColorChooser = "Color Chooser"

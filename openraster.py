@@ -23,32 +23,33 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import zlib, itertools, os, png
+import zipfile, itertools, os, png
 import xml.etree.ElementTree as ET
-from CStringIO import StringIO
+from cStringIO import StringIO
 
 __all__ = ('OpenRasterFile',)
 
 def ienumerate(iterable):
     return itertools.izip(itertools.count(), iterable)
 
-class IntegerBuffer(buf):
+class IntegerBuffer(object):
     def __init__(self, buf):
         self.b = buffer(buf)
         
-        def __getslice__(self, start, stop):
-            return (ord(c) for c in self.b[start:stop])
+    def __getslice__(self, start, stop):
+        return list(ord(c) for c in self.b[start:stop])
+
 
 class OpenRasterFile:
     def __init__(self, filename, write=False, **kwds):
         if write:
-            self.init_write(filename, compression)
+            self.init_write(filename, **kwds)
         else:
-            self.init_read(filename)
+            self.init_read(filename, **kwds)
 
     def init_write(self, filename, **kwds):
         if os.path.isfile(filename):
-            tmpname = self.fp.name+'@'
+            tmpname = filename+'@'
         else:
             tmpname = filename
         self.filename = filename
@@ -63,29 +64,29 @@ class OpenRasterFile:
         assert name
         
         sx, sy, w, h = surface.bbox
-        stack = ET.Element('stack', None, x=sx, y=sy, name=name)
+        stack = ET.Element('stack', {}, x=str(sx), y=str(sy), name=name)
         self.stack_list.append((stack, sx, sy, w, h))
         
-        for i, buf in ienumerate(surface.IterPixelArray()):
+        for i, buf in ienumerate(surface.IterRenderedPixelArray()):
             src = 'data/'+name+'/buf_%lu.png' % i
-            rbuf = surface.RenderAsPixelArray(mode='RGBA')
             x = buf.x-sx
             y = buf.y-sy
-            ET.SubElement(stack, 'layer', None,
+            ET.SubElement(stack, 'layer', {},
                           name='PixArray@%lux%lu' % (x, y),
-                          x=x, y=y, src=src)
+                          x=str(x), y=str(y), src=src)
 
             outfile = StringIO()
             writer = png.Writer(buf.Width, buf.Height, alpha=True, bitdepth=8, compression=self.comp)
-            writer.write(outfile, IntegerBuffer(buf))
-            self.z.write(outfile.getvalue(), src)
-            write.close()
+            writer.write_array(outfile, IntegerBuffer(buf))
+            self.z.writestr(src, outfile.getvalue())
+            del writer
 
     def Close(self):
-        if not stack_list:
+        if not self.stack_list:
             self.z.close()
             os.remove(self.tmpname)
-            
+            return
+
         image = ET.Element('image')
         top_stack = ET.SubElement(image, 'stack')
 
@@ -102,17 +103,17 @@ class OpenRasterFile:
                 ih = h
 
         a = image.attrib
-        a.update(self.extra)
+        a.update((k, str(v)) for k,v in self.extra.iteritems())
         a['name'] = os.path.basename(self.filename)
-        a['w'] = iw
-        a['h'] = ih
+        a['w'] = str(iw)
+        a['h'] = str(ih)
 
         print "Image bbox:", (ix, iy, iw, ih)
         
         for stack, sx, sy, _, _ in self.stack_list:
             a = stack.attrib
-            a['x'] = sx-ix
-            a['y'] = sy-iy
+            a['x'] = str(sx-ix)
+            a['y'] = str(sy-iy)
             top_stack.append(stack)
             
         xml = ET.tostring(image, encoding='UTF-8')

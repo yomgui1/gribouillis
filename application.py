@@ -261,8 +261,8 @@ class Gribouillis(Application):
         if not getattr(self, 'win_SaveWin', None):
             o = Text()
             g1 = ColGroup(2, Child=(Label("Image size:"), o))
-            b_ok = SimpleButton("Ok")
-            b_cancel = SimpleButton("Cancel")
+            b_ok = KeyButton("Ok", 'o')
+            b_cancel = KeyButton("Cancel", 'c')
             g2 = HGroup(Child=(b_ok, b_cancel))
             self.win_SaveWin = Window("Saving Image", RootObject=VGroup(Child=(g1, HBar(3), g2)))
             self.win_SaveWin.Notify('CloseRequest', True, self.win_SaveWin.Close)
@@ -280,11 +280,14 @@ class Gribouillis(Application):
 
     def SaveImage(self):
         filename = pymui.getfilename(self.win_Draw, lang.SaveImageReqTitle,
-                                     self.last_saved_dir, "#?.(png|jpeg|jpg|targa|tga|gif)",
+                                     self.last_saved_dir, "#?.(png|jpeg|jpg|targa|tga|gif|ora)",
                                      True)
         if filename:
             self.last_saved_dir = os.path.dirname(filename)
+            import time
+            start = time.time()
             self.controler.SaveImage(filename)
+            print "Saved %s in" % filename, time.time() - start, "seconds"
 
     def OnQuitRequest(self):
         self.Quit()

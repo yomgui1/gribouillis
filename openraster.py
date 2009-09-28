@@ -48,22 +48,30 @@ class OpenRasterFile:
             self.init_read(filename, **kwds)
 
     def init_write(self, filename, **kwds):
-        if os.path.isfile(filename):
-            tmpname = filename+'@'
-        else:
-            tmpname = filename
         self.filename = filename
-        self.tmpname = tmpname
-        self.z = zipfile.ZipFile(tmpname, 'w', compression=zipfile.ZIP_STORED)
+        self.z = zipfile.ZipFile(filename, 'w', compression=zipfile.ZIP_STORED)
         self.z.writestr('mimetype', 'image/openraster')
         self.stack_list = []
         self.comp = kwds.get('compression', 6)
         self.extra = kwds.get('extra', {})
-                
+        self.ix = self.iy = 1<<32
+        self.iw = self.ih = 0
+
     def AddSurface(self, name, surface):
         assert name
         
         sx, sy, w, h = surface.bbox
+
+        # Update image size
+        if sx < self.ix:
+            self.ix = sx
+        if sy < self.iy:
+            self.iy = sy
+        if self.ix+self.iw < sx+w:
+            self.iw = w
+        if self.iy+self.ih < sy+h:
+            self.ih = h
+
         stack = ET.Element('stack', {}, x=str(sx), y=str(sy), name=name)
         self.stack_list.append((stack, sx, sy, w, h))
         
@@ -84,42 +92,26 @@ class OpenRasterFile:
     def Close(self):
         if not self.stack_list:
             self.z.close()
-            os.remove(self.tmpname)
+            os.remove(self.filename)
             return
+
+        print "Image bbox:", (self.ix, self.iy, self.iw, self.ih)   
 
         image = ET.Element('image')
         top_stack = ET.SubElement(image, 'stack')
 
-        # compute image bbox
-        _, ix, iy, iw, ih = self.stack_list[0]
-        for _, x, y, w, h in self.stack_list[1:]:
-            if x < ix:
-                ix = x
-            if y < iy:
-                iy = y
-            if ix+iw < x+w:
-                iw = w
-            if iy+ih < y+h:
-                ih = h
-
         a = image.attrib
         a.update((k, str(v)) for k,v in self.extra.iteritems())
         a['name'] = os.path.basename(self.filename)
-        a['w'] = str(iw)
-        a['h'] = str(ih)
-
-        print "Image bbox:", (ix, iy, iw, ih)
+        a['w'] = str(self.iw)
+        a['h'] = str(self.ih)
         
         for stack, sx, sy, _, _ in self.stack_list:
             a = stack.attrib
-            a['x'] = str(sx-ix)
-            a['y'] = str(sy-iy)
+            a['x'] = str(sx-self.ix)
+            a['y'] = str(sy-self.iy)
             top_stack.append(stack)
             
         xml = ET.tostring(image, encoding='UTF-8')
         self.z.writestr('stack.xml', xml)
         self.z.close()
-        
-        if self.filename != self.tmpname:
-            os.remove(self.filename)
-            os.rename(self.tmpname, self.filename)

@@ -221,19 +221,39 @@ class DrawControler(object):
         assert "METHOD" is "NOT IMPLEMENTED"
     
     def SaveImage(self, filename):
-        im = self.model.AsPILImage('RGBA')
-        ext = os.path.splitext(filename)[1].lower()
+        name, ext = os.path.splitext(filename)
+        ext = ext.lower()
         dpi = (self.model.info['ResolutionX'],
                self.model.info['ResolutionY'])
 
-        if ext == '.png':
-            im.save(filename, 'PNG', optimize=True, dpi=dpi, compression=9)
-        elif ext in ('.jpg', '.jpeg'):
-            im.save(filename, 'JPEG', optimize=True, dpi=dpi, quality=90)
-        elif ext == '.ora':
-            self.model.SaveAsOpenRaster(filename)
+        cnt = 0
+        while True:
+            tmp = name + '@%lu' % cnt
+            if not os.path.isfile(tmp):
+                break
+            cnt += 1
+            assert cnt < 1024
+        tmp += ext
+
+        try:
+            if ext == '.png':
+                self.model.SaveAsPNG(tmp)
+            elif ext in ('.jpg', '.jpeg'):
+                im = self.model.AsPILImage('RGBA')   
+                im.save(tmp, 'JPEG', optimize=True, dpi=dpi, quality=90)
+            elif ext == '.ora':
+                self.model.SaveAsOpenRaster(tmp)
+            else:
+                im = self.model.AsPILImage('RGBA') 
+                im.save(tmp)
+        except:
+            if os.path.isfile(tmp):
+                os.remove(tmp)
+            raise
         else:
-            im.save(filename)
+            assert os.path.isfile(tmp)
+            os.remove(filename)
+            os.rename(tmp, filename)
 
     def LoadBackground(self, filename):
         self.model.LoadBackground(filename)

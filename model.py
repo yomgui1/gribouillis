@@ -23,6 +23,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
+from __future__ import with_statement
+
 __all__ = ('Model', 'SimpleModel')
 
 import _pixarray
@@ -30,7 +32,8 @@ from surface import TiledSurface, T_SIZE, Tile
 from brush import Brush, DummyBrush
 from stroke import StrokeRecord
 import PIL.Image as Image
-from openraster import OpenRasterFile
+from openraster import OpenRasterFile, IntegerBuffer
+import png, os
 
 class Model(object):
     """ Model() -> instance
@@ -178,6 +181,12 @@ class SimpleModel(Model):
         self._surface.Undo()
 
     bbox = property(fget=lambda self: self._surface.bbox)
+
+    def SaveAsPNG(self, filename, compression=6):
+        pa = self._surface.RenderAsPixelArray(mode='RGBA')
+        writer = png.Writer(pa.Width, pa.Height, alpha=True, bitdepth=8, compression=compression) 
+        with open(filename, 'wb') as outfile:
+            writer.write_array(outfile, IntegerBuffer(pa))
 
     def SaveAsOpenRaster(self, filename, cb=None):
         ora = OpenRasterFile(filename, write=True, extra=self.info)

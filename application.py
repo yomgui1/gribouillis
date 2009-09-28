@@ -261,7 +261,7 @@ class Gribouillis(Application):
         if not getattr(self, 'win_SaveWin', None):
             o = Text()
             g1 = ColGroup(2, Child=(Label("Image size:"), o))
-            b_ok = Simple("Ok")
+            b_ok = SimpleButton("Ok")
             b_cancel = SimpleButton("Cancel")
             g2 = HGroup(Child=(b_ok, b_cancel))
             self.win_SaveWin = Window("Saving Image", RootObject=VGroup(Child=(g1, HBar(3), g2)))

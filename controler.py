@@ -230,6 +230,8 @@ class DrawControler(object):
             im.save(filename, 'PNG', optimize=True, dpi=dpi, compression=9)
         elif ext in ('.jpg', '.jpeg'):
             im.save(filename, 'JPEG', optimize=True, dpi=dpi, quality=90)
+        elif ext == '.ora':
+            self.model.SaveAsOpenRaster(filename)
         else:
             im.save(filename)
 

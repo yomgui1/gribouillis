@@ -30,6 +30,7 @@ from surface import TiledSurface, T_SIZE, Tile
 from brush import Brush, DummyBrush
 from stroke import StrokeRecord
 import PIL.Image as Image
+from openraster import OpenRasterFile
 
 class Model(object):
     """ Model() -> instance
@@ -119,6 +120,9 @@ class Model(object):
     def TermWriteContext(self, ok):
         pass # Must be implemented by subclasses
 
+    def SaveAsOpenRaster(self, filename):
+        pass # Must be implemented by subclasses
+
 
 class SimpleModel(Model):
     def __init__(self):
@@ -174,3 +178,10 @@ class SimpleModel(Model):
         self._surface.Undo()
 
     bbox = property(fget=lambda self: self._surface.bbox)
+
+    def SaveAsOpenRaster(self, filename):
+        ora = OpenRasterFile(filename, write=True)
+        try:
+            ora.AddSurface(self, "Main", self._surface)
+        finally:
+            ora.Close(attrib=self.info)

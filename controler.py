@@ -223,8 +223,6 @@ class DrawControler(object):
     def SaveImage(self, filename):
         name, ext = os.path.splitext(filename)
         ext = ext.lower()
-        dpi = (self.model.info['ResolutionX'],
-               self.model.info['ResolutionY'])
 
         cnt = 0
         while True:
@@ -239,8 +237,7 @@ class DrawControler(object):
             if ext == '.png':
                 self.model.SaveAsPNG(tmp)
             elif ext in ('.jpg', '.jpeg'):
-                im = self.model.AsPILImage('RGBA')   
-                im.save(tmp, 'JPEG', optimize=True, dpi=dpi, quality=90)
+                self.model.SaveAsJPEG(tmp)
             elif ext == '.ora':
                 self.model.SaveAsOpenRaster(tmp)
             else:

@@ -35,7 +35,7 @@ from ColorChooser import ColorChooser
 from BrushSelect import BrushSelect
 from BGSelect import MiniBackgroundSelect
 from CMSPrefs import CMSPrefsWindow
-from model_ui import DataWindow
+from model_ui import ModelInfoWindow
 from raster import Raster
 from model import SimpleModel
 from controler import DrawControler
@@ -68,7 +68,7 @@ class Gribouillis(Application):
         self.win_BSel = BrushSelect(lang.BrushSelectWinTitle)
         self.win_MiniBGSel = MiniBackgroundSelect()
         self.win_CMSPrefs = CMSPrefsWindow(lang.CMSWinTitle)
-        self.win_Data = DataWindow(lang.DataWinTitle, model)
+        self.win_ModelInfo = ModelInfoWindow(lang.ModelInfoWinTitle)
 
         self.win_CMSPrefs.AddOkCallback(self.OnChangedCMSProfiles)
 
@@ -76,7 +76,7 @@ class Gribouillis(Application):
         menu_def = { lang.MenuProject: ((lang.MenuProjectLoadImage,   'L', self.OnLoadImage),
                                         (lang.MenuProjectSaveImage,   'S', self.OnSaveImage),
                                         None, # Separator
-                                        (lang.MenuProjectSetupData,   'ctrl d', self.win_Data.Open),
+                                        (lang.MenuProjectSetupData,   'ctrl d', self.ShowModelInfo),
                                         None,
                                         (lang.MenuProjectQuit,        'Q', self.OnQuitRequest),
                                         ),
@@ -136,14 +136,14 @@ class Gribouillis(Application):
         self.win_Color.Notify('CloseRequest', True, self.win_Color.Close)
         self.win_BSel.Notify('CloseRequest', True, self.win_BSel.Close)
         self.win_MiniBGSel.Notify('CloseRequest', True, self.win_MiniBGSel.Close)
-        self.win_Data.Notify('CloseRequest', True, self.win_Data.Close)
+        self.win_ModelInfo.Notify('CloseRequest', True, self.win_ModelInfo.Close)
 
         # We can't open a window if it has not been attached to the application
         self.AddWindow(self.win_Color)
         self.AddWindow(self.win_BSel)
         self.AddWindow(self.win_MiniBGSel)
         self.AddWindow(self.win_CMSPrefs)
-        self.AddWindow(self.win_Data)
+        self.AddWindow(self.win_ModelInfo)
 
         # Create draw window
         self.InitDrawWindow()
@@ -353,3 +353,6 @@ class Gribouillis(Application):
 
     def Center(self):
         self.controler.Center()
+
+    def ShowModelInfo(self):
+        self.win_ModelInfo.ShowModel(self.controler.model)

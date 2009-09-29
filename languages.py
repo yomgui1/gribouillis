@@ -29,7 +29,7 @@ class BaseLanguage:
     ColorChooserWinTitle   = "Color Selection"
     BrushSelectWinTitle    = "Brush Selection"
     CMSWinTitle            = "Color Management Profiles Preferences"
-    DataWinTitle           = "Project Preferences"
+    ModelInfoWinTitle      = "Model Information"
     MenuProject            = "Project"
     MenuProjectLoadImage   = "Load Image..."
     MenuProjectSaveImage   = "Save Image..."

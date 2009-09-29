@@ -51,8 +51,11 @@ class Model(object):
 
         # Some model data (Christoph... again you!)
         self.info = dict()
-        self.info['ResolutionX'] = 75 # Number of pixels for 1 inch on the X-axis
-        self.info['ResolutionY'] = 75 # Number of pixels for 1 inch on the Y-axis
+        dpi = (72, 72)
+        self.info['DPI'] = dpi
+        self.info['ResolutionUnit'] = 'in'
+        self.info['XResolution'] = dpi[0] # Number of pixels per ResolutionUnit on the X-axis
+        self.info['YResolution'] = dpi[1] # Number of pixels per ResolutionUnit on the Y-axis
         
         self.Clear()
         
@@ -182,15 +185,19 @@ class SimpleModel(Model):
 
     bbox = property(fget=lambda self: self._surface.bbox)
 
+    def SaveAsOpenRaster(self, filename):
+        with OpenRasterFileWriter(filename, extra=self.info) as ora:
+            ora.AddSurface("Main", self._surface)
+
     def SaveAsPNG(self, filename, compression=6):
         pa = self._surface.RenderAsPixelArray(mode='RGBA')
         writer = png.Writer(pa.Width, pa.Height, alpha=True, bitdepth=8, compression=compression) 
         with open(filename, 'wb') as outfile:
             writer.write_array(outfile, IntegerBuffer(pa))
 
-    def SaveAsOpenRaster(self, filename):
-        with OpenRasterFileWriter(filename, extra=self.info) as ora:
-            ora.AddSurface("Main", self._surface)
+    def SaveAsJPEG(self, filename, quality=95):
+        im = self.AsPILImage('RGBA')
+        im.save(filename, 'JPEG', optimize=True, dpi=self.info["DPI"], quality=quality)
 
     def LoadFromOpenRaster(self, filename):
         self.Clear()

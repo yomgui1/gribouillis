@@ -275,3 +275,4 @@ class DrawControler(object):
     def Center(self):
         x, y, w, h = self.model.bbox
         self.view.CenterOnSurfacePoint(x+w/2, y+h/2)
+        self.view.RedrawFull()

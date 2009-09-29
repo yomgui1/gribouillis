@@ -213,10 +213,10 @@ class Raster(pymui.Area):
         elif dy > 0:
             self.AddDamagedRect(a, d-dy, c, d) #4
 
-    def CenterOnSurfacePoint(*pos):
+    def CenterOnSurfacePoint(self, *pos):
         x, y = self.GetRasterPos(*pos)
-        self.osx = x-self.MWidth/2
-        self.osy = y-self.MHeight/2
+        self.osx += self.MLeft + self.MWidth/2 - x
+        self.osy += self.MTop +self.MHeight/2 - y
 
     ##############################
     ## Color Management Methods ##

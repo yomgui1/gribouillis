@@ -32,7 +32,7 @@ from pymui.mcc.busy import Busy
 from brush import Brush
 from DrawWindow import DrawWindow
 from ColorChooser import ColorChooser
-from BrushSelect import BrushSelect
+from brush_ui import BrushSelectWindow
 from BGSelect import MiniBackgroundSelect
 from CMSPrefs import CMSPrefsWindow
 from model_ui import ModelInfoWindow
@@ -65,7 +65,7 @@ class Gribouillis(Application):
         # Create Windows
         self.win_Draw = None
         self.win_Color = ColorChooser(lang.ColorChooserWinTitle)
-        self.win_BSel = BrushSelect(lang.BrushSelectWinTitle)
+        self.win_BSel = BrushSelectWindow(lang.BrushSelectWinTitle)
         self.win_MiniBGSel = MiniBackgroundSelect()
         self.win_CMSPrefs = CMSPrefsWindow(lang.CMSWinTitle)
         self.win_ModelInfo = ModelInfoWindow(lang.ModelInfoWinTitle)

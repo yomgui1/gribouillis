@@ -27,9 +27,11 @@ from pymui import *
 from pymui.mcc import laygroup
 from brush import DrawableBrush
 
-class BrushSelect(Window):
+__all__ = ('BrushSelectWindow', 'BrushEditorWindow')
+
+class BrushSelectWindow(Window):
     def __init__(self, title):
-        super(BrushSelect, self).__init__(title, ID="BSEL",
+        super(BrushSelectWindow, self).__init__(title, ID="BSEL",
                                           RightEdge=64, BottomEdge=64,
                                           Width=6*DrawableBrush.BRUSH_SCALE,
                                           Height=12*DrawableBrush.BRUSH_SCALE)
@@ -37,8 +39,9 @@ class BrushSelect(Window):
         self.brush = DrawableBrush()
         self.brush.Notify('Name', MUIV_EveryTime, self.OnBrushChange)
 
-        self.obj_EditBrush = SimpleButton("Edit")
-        brush_group = VGroup(Child=(self.brush, self.obj_EditBrush))
+        o = SimpleButton("Edit")
+        o.Notify('Pressed', False, self.EditBrush)
+        brush_group = VGroup(Child=(self.brush, o))
 
         self.obj_BName = Text(Frame=MUIV_Frame_Text, SetMin=False)
         info_group = VGroup(Child=(self.obj_BName, VSpace(0)))
@@ -58,3 +61,37 @@ class BrushSelect(Window):
         self._bgroup.DoMethod(MUIM_Group_InitChange)
         self._bgroup.AddChild(lock=True, *brushes)
         self._bgroup.DoMethod(MUIM_Group_ExitChange)
+
+    def EditBrush(self):
+        if not hasattr(self, '_editor'):
+            self._editor = BrushEditorWindow()
+            self.ApplicationObject.AddWindow(self._editor)
+        else:
+            self._editor.Close()
+        self._editor.SetBrush(self.brush)
+        self._editor.Open()
+
+        
+class BrushEditorWindow(Window):
+    def __init__(self, title):
+        ro = ColGroup(3)
+        super(BrushEditorWindow, self).__init__(title, ID="BrushEditor", RootObject=ro)
+
+        def FxBt(obj):
+            o = SimpleButton("F(x)")
+            o.Notify('Pressed', False, self.OpenFxWinx, obj)
+            return o
+
+        o = self._obj['radius'] = Slider(Min=1, Max=128)
+        b = FxBt(o)
+        ro.AddChild(Label(), o, b)
+
+        o = self._obj['hardness'] = String(Frame='Button')
+        b = FxBt(o)
+        ro.AddChild(Label(), o, b)
+
+    def SetBrush(self, brush):
+        pass
+
+    def OpenFxWin(self, obj):
+        pass

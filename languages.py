@@ -23,6 +23,13 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
+#  This is the default language class
+#
+# /!\  DON'T TOUCH  /!\
+#
+# See below if you need to add a new one
+#
+
 class BaseLanguage:
     AppliDescription       = "Simple Painting program for MorphOS"
     DrawWinTitle           = "Draw Area"

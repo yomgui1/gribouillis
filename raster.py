@@ -44,12 +44,15 @@ class Raster(pymui.Area):
         self._watchers = {}
         self._ev = pymui.EventHandler()
         self._tmpbuf = None
-        self.osx = 0 # X position of the surface origin, in raster origin
-        self.osy = 0 # Y position of the surface origin, in raster origin
-        self._scale = 1.0 # zoom factor
+        self.Reset()
         self.model = None
         self.debug = False
         self.EnableCMS(False)
+
+    def Reset(self):
+        self.osx = 0 # X position of the surface origin, in raster origin
+        self.osy = 0 # Y position of the surface origin, in raster origin
+        self._scale = 1.0 # zoom factor
 
     def SetScale(self, v):
         self._scale = max(0.1, min(10, v))

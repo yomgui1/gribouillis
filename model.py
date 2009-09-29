@@ -188,6 +188,21 @@ class SimpleModel(Model):
         with open(filename, 'wb') as outfile:
             writer.write_array(outfile, IntegerBuffer(pa))
 
-    def SaveAsOpenRaster(self, filename, cb=None):
-        with OpenRasterFile(filename, write=True, extra=self.info) as ora:
+    def SaveAsOpenRaster(self, filename):
+        with OpenRasterFileWriter(filename, extra=self.info) as ora:
             ora.AddSurface("Main", self._surface)
+
+    def LoadFromOpenRaster(self, filename):
+        self.Clear()
+        with OpenRasterFileReader(filename) as ora:
+            a = ora.GetImageAttributes.copy()
+            self.info.update(a)
+            w = int(self.info.pop('w'))
+            h = int(self.info.pop('h'))
+            y = int(self.info.pop('x'))
+            x = int(self.info.pop('y'))
+            self.info.pop('name')
+            for x, y, pixels in ora.GetSurface("Main", T_SIZE, T_SIZE):
+                buf = self._surface.GetBuffer(x, y)
+                buf.from_string(pixels)
+            return x, y, w, h

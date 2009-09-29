@@ -255,6 +255,21 @@ class DrawControler(object):
             os.remove(filename)
             os.rename(tmp, filename)
 
+    def LoadImage(self, filename):
+        name, ext = os.path.splitext(filename)
+        ext = ext.lower()
+
+        if ext == '.ora':
+            bbox = self.model.LoadFromOpenRaster(filename)
+        else:
+            raise TypeError('Unsupported extension %s' % ext)
+
+        print "[*DBG*] Loaded image bbox", box
+        rx, ry = self.view.GetRasterPos(bbox[0], bbox[1])
+        self.viey.osx += rx
+        self.viey.osx += ry
+        self.view.RedrawFull()
+
     def LoadBackground(self, filename):
         self.model.LoadBackground(filename)
         self.view.RedrawFull()
@@ -268,8 +283,7 @@ class DrawControler(object):
         self.view.RedrawFull()
 
     def ResetZoom(self):
-        self.view.scale = 1.0
-        self.view.osx = self.view.osy = 0
+        self.view.Reset()
         self.view.RedrawFull()
 
     def Center(self):

@@ -290,6 +290,7 @@ class Gribouillis(Application):
         _, _, w, h = self.controler.model.bbox
         self.win_SaveWin.text.Contents = "%u x %u" % (w, h)
         self.win_Draw.Sleep = True
+        self.win_SaveWin.RefWindow=self.win_Draw
         self.win_SaveWin.Open()
 
     def OkSaveImage(self):

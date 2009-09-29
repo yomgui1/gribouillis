@@ -89,13 +89,11 @@ class OpenRasterFile:
             self.z.writestr(src, outfile.getvalue())
             del writer
 
-    def Close(self):
+    def close(self):
         if not self.stack_list:
             self.z.close()
             os.remove(self.filename)
             return
-
-        print "Image bbox:", (self.ix, self.iy, self.iw, self.ih)   
 
         image = ET.Element('image')
         top_stack = ET.SubElement(image, 'stack')
@@ -115,3 +113,9 @@ class OpenRasterFile:
         xml = ET.tostring(image, encoding='UTF-8')
         self.z.writestr('stack.xml', xml)
         self.z.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, tb):
+        self.close()

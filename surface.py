@@ -36,17 +36,17 @@ class Tile(_pixarray.PixelArray):
         return _pixarray.PixelArray.__new__(cl, T_SIZE, T_SIZE, nc, bpc)
 
     def __init__(self, nc=4, bpc=16, clear=True):
-        self.saved = False # True if in the undo dict
         self.clear = self.zero
+        self.ro = False
 
         if clear:
             self.clear()
 
     def copy(self):
-        o = Tile(self.ComponentNumber, self.BitsPerComponent)
+        o = Tile(self.ComponentNumber, self.BitsPerComponent, clear=False)
         o.from_pixarray(self)
-        o.saved = False
         o.clear = o.zero
+        o.ro = self.ro
         return o
 
 
@@ -73,6 +73,7 @@ class TiledSurface(Surface):
             self._ro_tile = bg
         else:
             self._ro_tile = Tile(nc, bpc)
+        self._ro_tile.ro = True       
 
     def GetBuffer(self, x, y, read=True, clear=True):
         """GetBuffer(x, y, read=True, clear=True) -> pixel array

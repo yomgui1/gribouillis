@@ -189,8 +189,5 @@ class SimpleModel(Model):
             writer.write_array(outfile, IntegerBuffer(pa))
 
     def SaveAsOpenRaster(self, filename, cb=None):
-        ora = OpenRasterFile(filename, write=True, extra=self.info)
-        try:
+        with OpenRasterFile(filename, write=True, extra=self.info) as ora:
             ora.AddSurface("Main", self._surface)
-        finally:
-            ora.Close()

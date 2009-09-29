@@ -28,6 +28,7 @@ import os, sys
 
 import pymui
 from pymui import *
+from pymui.mcc.busy import Busy
 from brush import Brush
 from DrawWindow import DrawWindow
 from ColorChooser import ColorChooser
@@ -259,35 +260,59 @@ class Gribouillis(Application):
 
     def OnSaveImage(self):
         if not getattr(self, 'win_SaveWin', None):
-            o = Text()
+            o_text = Text(Frame='String', Background='TextBack')
             g1 = ColGroup(2, Child=(Label("Image size:"), o))
-            b_ok = KeyButton("Ok", 'o')
-            b_cancel = KeyButton("Cancel", 'c')
+            
+            b_ok = KeyButton(lang.ButtonOk, lang.ButtonCancelLabel)
+            b_ok.CycleChain = True
+            b_cancel = KeyButton(lang.ButtonCancel, lang.ButtonCancelKey)
+            b_cancel.CycleChain = True
             g2 = HGroup(Child=(b_ok, b_cancel))
-            self.win_SaveWin = Window("Saving Image", RootObject=VGroup(Child=(g1, HBar(3), g2)))
-            self.win_SaveWin.Notify('CloseRequest', True, self.win_SaveWin.Close)
-            self.AddWindow(self.win_SaveWin)
-            self.win_SaveWin.text = o
-            b_ok.CycleChain = True       
-            b_ok.Notify('Pressed', False, self.win_SaveWin.Close)
-            b_ok.Notify('Pressed', False, self.SaveImage)
-            b_cancel.CycleChain = True 
-            b_cancel.Notify('Pressed', False, self.win_SaveWin.Close)
 
+            o_busy = Busy(ShowMe=False)
+            top = VGroup(Child=(g1, o_busy, HBar(3), g2)
+
+            self.win_SaveWin = Window("Saving Image",
+                                      RootObject=top)
+                                      DefaultObject=b_ok)
+            self.win_SaveWin.text = o_text
+            self.win_SaveWin.busy = o_busy
+            self.win_SaveWin.bt_group = g2
+            
+            self.win_SaveWin.Notify('CloseRequest', True, self.CancelSaveImage)
+            b_ok.Notify('Pressed', False, self.OkSaveImage)
+            b_cancel.Notify('Pressed', False, self.CancelSaveImage)
+
+            self.AddWindow(self.win_SaveWin)
+        else:
+            self.win_SaveWin.Close()
+            
         _, _, w, h = self.controler.model.bbox
         self.win_SaveWin.text.Contents = "%u x %u" % (w, h)
+        self.win_Draw.Sleep = True
         self.win_SaveWin.Open()
 
-    def SaveImage(self):
+    def OkSaveImage(self):
         filename = pymui.getfilename(self.win_Draw, lang.SaveImageReqTitle,
                                      self.last_saved_dir, "#?.(png|jpeg|jpg|targa|tga|gif|ora)",
                                      True)
         if filename:
             self.last_saved_dir = os.path.dirname(filename)
+            self.win_SaveWin.bt_group.Disabled = True
+            self.win_SaveWin.busy.ShowMe = True # cause window refresh
             import time
             start = time.time()
             self.controler.SaveImage(filename)
-            print "Saved %s in" % filename, time.time() - start, "seconds"
+            self.win_SaveWin.bt_group.Disabled = False
+            self.win_SaveWin.busy.ShowMe = False # cause window refresh
+            print "[*DBG*]: Saved %s in" % filename, time.time() - start, "seconds"
+
+        self.win_SaveWin.Close()
+        self.win_Draw.Sleep = False
+
+    def CancelSaveImage(self):
+        self.win_SaveWin.Close()
+        self.win_Draw.Sleep = False
 
     def OnQuitRequest(self):
         self.Quit()

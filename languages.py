@@ -55,6 +55,10 @@ class BaseLanguage:
     MenuDegugRaster        = "Raster"
     LoadImageReqTitle      = "Select image to load"
     SaveImageReqTitle      = "Select a filename to save your image"
+    ButtonOkLabel          = "Ok"
+    ButtonOkKey            = 'o'
+    ButtonCancelLabel      = "Cancel"
+    ButtonCancelKey        = 'c'
     
 # BEGIN - LANGUAGES
 

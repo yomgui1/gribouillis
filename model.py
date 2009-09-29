@@ -195,8 +195,8 @@ class SimpleModel(Model):
     def LoadFromOpenRaster(self, filename):
         self.Clear()
         with OpenRasterFileReader(filename) as ora:
-            a = ora.GetImageAttributes.copy()
-            self.info.update(a)
+            a = ora.GetImageAttributes
+            self.info = a.copy()
             w = int(self.info.pop('w'))
             h = int(self.info.pop('h'))
             y = int(self.info.pop('x'))

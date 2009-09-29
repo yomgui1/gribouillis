@@ -206,3 +206,6 @@ class SimpleModel(Model):
                 buf = self._surface.GetBuffer(x, y)
                 buf.from_string(pixels)
             return x, y, w, h
+
+    def GetMemoryUsed(self):
+        return self._surface.GetMemoryUsed()

@@ -75,6 +75,9 @@ class TiledSurface(Surface):
             self._ro_tile = Tile(nc, bpc)
         self._ro_tile.ro = True       
 
+    def GetMemoryUsed(self):
+        return len(self.tiles) * self._nc * self._bpc * T_SIZE**2 / 8
+
     def GetBuffer(self, x, y, read=True, clear=True):
         """GetBuffer(x, y, read=True, clear=True) -> pixel array
 

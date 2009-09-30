@@ -43,25 +43,203 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 static struct Library *CyberGfxBase;
 
+typedef struct PA_InitValue
+{
+    UBYTE          nc;
+    UBYTE          bpc;
+    colfloat2natif cfromfloat;
+    colnatif2float ctofloat;
+    writefunc      writepixel;
+} PA_InitValue;
+
+static void rgb8_writepixel(APTR, FLOAT, APTR);
+static void argb8_writepixel(APTR, FLOAT, APTR);
+static void rgba8_writepixel(APTR, FLOAT, APTR);
+static void rgba15x_writepixel(APTR, FLOAT, APTR);
+static void cmyk8_writepixel(APTR, FLOAT, APTR);
+static void cmyka15x_writepixel(APTR, FLOAT, APTR);
+
+static void rgb8_fromfloat(FLOAT, APTR *);
+static void rgba15x_fromfloat(FLOAT, APTR *);
+
+static FLOAT rgb8_tofloat(APTR);
+static FLOAT rgba15x_tofloat(APTR);
+
+static const PA_InitValue gInitValues[] = {
+    {/*PyPixelArray_PIXFMT_RGB_8,*/     3, 8,  rgb8_fromfloat,    rgb8_tofloat,    rgb8_writepixel},
+    {/*PyPixelArray_PIXFMT_ARGB_8,*/    4, 8,  rgb8_fromfloat,    rgb8_tofloat,    argb8_writepixel},
+    {/*PyPixelArray_PIXFMT_RGBA_8,*/    4, 8,  rgb8_fromfloat,    rgb8_tofloat,    rgba8_writepixel},
+    {/*PyPixelArray_PIXFMT_CMYK_8,*/    4, 8,  rgb8_fromfloat,    rgb8_tofloat,    cmyk8_writepixel},
+    {/*PyPixelArray_PIXFMT_RGBA_15X,*/  4, 16, rgba15x_fromfloat, rgba15x_tofloat, rgba15x_writepixel},
+    {/*PyPixelArray_PIXFMT_CMYKA_15X,*/ 5, 16, rgba15x_fromfloat, rgba15x_tofloat, cmyka15x_writepixel},
+
+    {NULL}
+};
+
 
 /*******************************************************************************************
 ** Private routines
 */
 
+//+ get_init_values
+const PA_InitValue *
+get_init_values(ULONG pixfmt)
+{
+    switch (pixfmt) {
+        case PyPixelArray_PIXFMT_RGB_8:     return &gInitValues[0];
+        case PyPixelArray_PIXFMT_ARGB_8:    return &gInitValues[1];
+        case PyPixelArray_PIXFMT_RGBA_8:    return &gInitValues[2];
+        case PyPixelArray_PIXFMT_CMYK_8:    return &gInitValues[3];
+        case PyPixelArray_PIXFMT_RGBA_15X:  return &gInitValues[4];
+        case PyPixelArray_PIXFMT_CMYKA_15X: return &gInitValues[5];
+
+        default: return NULL;
+    }
+}
+//-
+
+/*** Pixel write functions ***/
+
+//+ rgb8_writepixel
+static void
+rgb8_writepixel(APTR data, FLOAT opacity, APTR color)
+{
+    UBYTE *pixel = data;
+    ULONG alpha = (ULONG)(opacity * 255);
+    ULONG one_minus_alpha = 255 - alpha;
+    UBYTE *col = (APTR)color;
+
+    /* R */ pixel[0] = (alpha*col[0] + one_minus_alpha*pixel[0]) / 255;
+    /* G */ pixel[1] = (alpha*col[1] + one_minus_alpha*pixel[1]) / 255;
+    /* B */ pixel[2] = (alpha*col[2] + one_minus_alpha*pixel[2]) / 255;
+}
+//-
+//+ rgba8_writepixel
+static void
+rgba8_writepixel(APTR data, FLOAT opacity, APTR color)
+{
+    UBYTE *pixel = data;
+    ULONG alpha = (ULONG)(opacity * 255);
+    ULONG one_minus_alpha = 255 - alpha;
+    UBYTE *col = (APTR)color;
+
+    /* R */ pixel[0] = (alpha*col[0] + one_minus_alpha*pixel[0]) / 255;
+    /* G */ pixel[1] = (alpha*col[1] + one_minus_alpha*pixel[1]) / 255;
+    /* B */ pixel[2] = (alpha*col[2] + one_minus_alpha*pixel[2]) / 255;
+    /* A */ pixel[3] =  alpha        + one_minus_alpha*pixel[3]  / 255;
+}
+//-
+//+ rgb8_writepixel
+static void
+argb8_writepixel(APTR data, FLOAT opacity, APTR color)
+{
+    UBYTE *pixel = data;
+    ULONG alpha = (ULONG)(opacity * 255);
+    ULONG one_minus_alpha = 255 - alpha;
+    UBYTE *col = (APTR)color;
+
+    /* A */ pixel[0] =  alpha        + one_minus_alpha*pixel[0]  / 255;
+    /* R */ pixel[1] = (alpha*col[0] + one_minus_alpha*pixel[1]) / 255;
+    /* G */ pixel[2] = (alpha*col[1] + one_minus_alpha*pixel[2]) / 255;
+    /* B */ pixel[3] = (alpha*col[2] + one_minus_alpha*pixel[3]) / 255;
+}
+//-
+//+ cmyk8_writepixel
+static void
+cmyk8_writepixel(APTR data, FLOAT opacity, APTR color)
+{
+    UBYTE *pixel = data;
+    ULONG alpha = (ULONG)(opacity * 255);
+    ULONG one_minus_alpha = 255 - alpha;
+    UBYTE *col = (APTR)color;
+
+    /* C */ pixel[0] = (alpha*col[0] + one_minus_alpha*pixel[0]) / 255;
+    /* M */ pixel[1] = (alpha*col[1] + one_minus_alpha*pixel[1]) / 255;
+    /* Y */ pixel[2] = (alpha*col[2] + one_minus_alpha*pixel[2]) / 255;
+    /* K */ pixel[3] = (alpha*col[3] + one_minus_alpha*pixel[3]) / 255;
+}
+//-
+//+ rgba15x_writepixel
+static void
+rgba15x_writepixel(APTR data, FLOAT opacity, APTR color)
+{
+    USHORT *pixel = data;
+    ULONG alpha = (ULONG)(opacity * (1<<15));
+    ULONG one_minus_alpha = (1<<15) - alpha;
+    USHORT *col = (APTR)color;
+
+    /* R */ pixel[0] = (alpha*col[0] + one_minus_alpha*pixel[0]) / (1<<15);
+    /* G */ pixel[1] = (alpha*col[1] + one_minus_alpha*pixel[1]) / (1<<15);
+    /* B */ pixel[2] = (alpha*col[2] + one_minus_alpha*pixel[2]) / (1<<15);
+    /* A */ pixel[3] =  alpha        + one_minus_alpha*pixel[3]  / (1<<15);
+}
+//-
+//+ cmyka15x_writepixel
+static void
+cmyka15x_writepixel(APTR data, FLOAT opacity, APTR color)
+{
+    USHORT *pixel = data;
+    ULONG alpha = (ULONG)(opacity * (1<<15));
+    ULONG one_minus_alpha = (1<<15) - alpha;
+    USHORT *col = (APTR)color;
+
+    /* C */ pixel[0] = (alpha*col[0] + one_minus_alpha*pixel[0]) / (1<<15);
+    /* M */ pixel[1] = (alpha*col[1] + one_minus_alpha*pixel[1]) / (1<<15);
+    /* Y */ pixel[2] = (alpha*col[2] + one_minus_alpha*pixel[2]) / (1<<15);
+    /* K */ pixel[3] = (alpha*col[3] + one_minus_alpha*pixel[3]) / (1<<15);
+    /* A */ pixel[4] =  alpha        + one_minus_alpha*pixel[4]  / (1<<15);
+}
+//-
+
+/*** Color conversion functions ***/
+
+/* /!\ no clamping applied ! */
+
+//+ rgb8_fromfloat
+static void
+rgb8_fromfloat(FLOAT from, APTR *to)
+{
+    *((UBYTE *)to) = (UBYTE)(from * 255);
+}
+//-
+//+ rgba15x_fromfloat
+static void
+rgba15x_fromfloat(FLOAT from, APTR *to)
+{
+    *((USHORT *)to) = (USHORT)(from * (1<<15));
+}
+//-
+
+//+ rgb8_tofloat
+static FLOAT
+rgb8_tofloat(APTR from)
+{
+    return (FLOAT)(*(UBYTE *)from) / 255;
+}
+//-
+//+ rgba15x_tofloat
+static FLOAT
+rgba15x_tofloat(APTR from)
+{
+    return (FLOAT)(*(USHORT *)from) / (1<<15);
+}
+//-
+
+
 /* About color format in buffers.
  *
- * Pixels colors are stored as 4 components (ARGB) using fixed point encoding.
+ * Pixels colors are stored as 4 components (RGBA/ARGB/CMYKA) using fixed point encoding.
  * So the floating point range [0.0, 1.0] is converted into integer range [0, 2**15].
  * Using 2**15 than a more natural 2**16 value gives the way to store the 1.0 value
  * into a short integer (16bits) and permit to use a logical shift operation of 15 bits,
  * when we need to multiply/divide values in fixed-point arithmetic computations.
  *
- * In all the application I'll note argb15x a ARGB pixel buffer using this convention.
+ * In all the application I'll note rgba15x a RGBA pixels buffer using this convention.
  */
 
-//+ argb15x_to_argb8
+//+ rgba15x_to_argb8
 static void
-argb15x_to_argb8(USHORT *src, UBYTE *dst, ULONG w, ULONG h, Py_ssize_t bpr)
+rgba15x_to_argb8(USHORT *src, UBYTE *dst, ULONG w, ULONG h, Py_ssize_t bpr)
 {
     ULONG x, y;
 
@@ -69,16 +247,16 @@ argb15x_to_argb8(USHORT *src, UBYTE *dst, ULONG w, ULONG h, Py_ssize_t bpr)
 
     for (y=0; y < h; y++) {
         for (x=0; x < w; x++) {
-            ULONG alpha = src[0];
+            ULONG alpha = src[3];
 
             if (alpha > 0) {
                 /* Convert alpha to range [0, 255] */
                 dst[0] = (alpha * 255) >> 15;
 
                 /* Un-multiply by alpha, rounding and convert to range [0, 255] */
-                dst[1] = ((((ULONG)src[1]<<15) + alpha/2) / alpha * 255) >> 15;
-                dst[2] = ((((ULONG)src[2]<<15) + alpha/2) / alpha * 255) >> 15;
-                dst[3] = ((((ULONG)src[3]<<15) + alpha/2) / alpha * 255) >> 15;
+                dst[1] = ((((ULONG)src[0]<<15) + alpha/2) / alpha * 255) >> 15;
+                dst[2] = ((((ULONG)src[1]<<15) + alpha/2) / alpha * 255) >> 15;
+                dst[3] = ((((ULONG)src[2]<<15) + alpha/2) / alpha * 255) >> 15;
             } else
                 *(ULONG *)dst = 0;
             
@@ -90,9 +268,9 @@ argb15x_to_argb8(USHORT *src, UBYTE *dst, ULONG w, ULONG h, Py_ssize_t bpr)
     }
 }
 //-
-//+ argb15x_to_rgba8
+//+ rgba15x_to_rgba8
 static void
-argb15x_to_rgba8(USHORT *src, UBYTE *dst, ULONG w, ULONG h, Py_ssize_t bpr)
+rgba15x_to_rgba8(USHORT *src, UBYTE *dst, ULONG w, ULONG h, Py_ssize_t bpr)
 {
     ULONG x, y;
 
@@ -100,13 +278,13 @@ argb15x_to_rgba8(USHORT *src, UBYTE *dst, ULONG w, ULONG h, Py_ssize_t bpr)
 
     for (y=0; y < h; y++) {
         for (x=0; x < w; x++) {
-            ULONG alpha = src[0];
+            ULONG alpha = src[3];
 
             if (alpha > 0) {
                 /* Un-multiply by alpha, rounding and convert to range [0, 255] */
-                dst[0] = ((((ULONG)src[1]<<15) + alpha/2) / alpha * 255) >> 15;
-                dst[1] = ((((ULONG)src[2]<<15) + alpha/2) / alpha * 255) >> 15;
-                dst[2] = ((((ULONG)src[3]<<15) + alpha/2) / alpha * 255) >> 15;
+                dst[0] = ((((ULONG)src[0]<<15) + alpha/2) / alpha * 255) >> 15;
+                dst[1] = ((((ULONG)src[1]<<15) + alpha/2) / alpha * 255) >> 15;
+                dst[2] = ((((ULONG)src[2]<<15) + alpha/2) / alpha * 255) >> 15;
 
                 /* Convert alpha to range [0, 255] */
                 dst[3] = (alpha * 255) >> 15;
@@ -121,23 +299,23 @@ argb15x_to_rgba8(USHORT *src, UBYTE *dst, ULONG w, ULONG h, Py_ssize_t bpr)
     }
 }
 //-
-//+ argb15x_to_rgb8
+//+ rgba15x_to_rgb8
 static void
-argb15x_to_rgb8(USHORT *src, UBYTE *dst, UWORD w, UWORD h, Py_ssize_t bpr)
+rgba15x_to_rgb8(USHORT *src, UBYTE *dst, UWORD w, UWORD h, Py_ssize_t bpr)
 {
     ULONG x, y;
 
-    bpr -= w*4;
+    bpr -= w*3;
 
     for (y=0; y < h; y++) {
         for (x=0; x < w; x++) {
-            ULONG alpha = src[0];
+            ULONG alpha = src[3];
 
             if (alpha > 0) {
                 /* Un-multiply by alpha, rounding and convert to range [0, 255] */
-                dst[0] = ((((ULONG)src[1]<<15) + alpha/2) / alpha * 255) >> 15;
-                dst[1] = ((((ULONG)src[2]<<15) + alpha/2) / alpha * 255) >> 15;
-                dst[2] = ((((ULONG)src[3]<<15) + alpha/2) / alpha * 255) >> 15;
+                dst[0] = ((((ULONG)src[0]<<15) + alpha/2) / alpha * 255) >> 15;
+                dst[1] = ((((ULONG)src[1]<<15) + alpha/2) / alpha * 255) >> 15;
+                dst[2] = ((((ULONG)src[2]<<15) + alpha/2) / alpha * 255) >> 15;
             } else
                 dst[0] = dst[1] = dst[2] = 0;
 
@@ -149,36 +327,72 @@ argb15x_to_rgb8(USHORT *src, UBYTE *dst, UWORD w, UWORD h, Py_ssize_t bpr)
     }
 }
 //-
-//+ argb8_to_argb15x
+//+ rgba8_to_rgba15x
 static void
-argb8_to_argb15x(UBYTE *src, USHORT *dst, UWORD w, UWORD h)
+rgba8_to_rgba15x(UBYTE *src, USHORT *dst, UWORD w, UWORD h)
 {
     ULONG i, n = w * h;
 
     for (i=0; i < n; i++) {
-        USHORT alpha = ((ULONG)src[0] << 15) / 255;
+        USHORT alpha = ((ULONG)src[3] << 15) / 255;
         
-        dst[0] = alpha;
+        dst[0] = (ULONG)src[0] * alpha / 255;
         dst[1] = (ULONG)src[1] * alpha / 255;
         dst[2] = (ULONG)src[2] * alpha / 255;
-        dst[3] = (ULONG)src[3] * alpha / 255;
+        dst[3] = alpha;
 
         src += 4;
         dst += 4;
     }
 }
 //-
-//+ rgb8_to_argb15x
+//+ argb8_to_rgba15x
 static void
-rgb8_to_argb15x(UBYTE *src, USHORT *dst, UWORD w, UWORD h)
+argb8_to_rgba15x(UBYTE *src, USHORT *dst, UWORD w, UWORD h)
 {
     ULONG i, n = w * h;
 
     for (i=0; i < n; i++) {
-        dst[0] = 1 << 15;
-        dst[1] = ((ULONG)src[0] << 15) / 255;
-        dst[2] = ((ULONG)src[1] << 15) / 255;
-        dst[3] = ((ULONG)src[2] << 15) / 255;
+        USHORT alpha = ((ULONG)src[0] << 15) / 255;
+        
+        dst[0] = (ULONG)src[1] * alpha / 255;
+        dst[1] = (ULONG)src[2] * alpha / 255;
+        dst[2] = (ULONG)src[3] * alpha / 255;
+        dst[3] = alpha;
+
+        src += 4;
+        dst += 4;
+    }
+}
+//-
+//+ rgb8_to_rgba15x
+static void
+rgb8_to_rgba15x(UBYTE *src, USHORT *dst, UWORD w, UWORD h)
+{
+    ULONG i, n = w * h;
+
+    for (i=0; i < n; i++) {
+        dst[0] = ((ULONG)src[0] << 15) / 255;
+        dst[1] = ((ULONG)src[1] << 15) / 255;
+        dst[2] = ((ULONG)src[2] << 15) / 255;
+        dst[3] = 1 << 15;
+
+        src += 3;
+        dst += 4;
+    }
+}
+//-
+//+ rgb8_to_rgba8
+static void
+rgb8_to_rgba8(UBYTE *src, UBYTE *dst, UWORD w, UWORD h)
+{
+    ULONG i, n = w * h;
+
+    for (i=0; i < n; i++) {
+        dst[0] = src[0];
+        dst[1] = src[1];
+        dst[2] = src[2];
+        dst[3] = 255;
 
         src += 3;
         dst += 4;
@@ -202,27 +416,75 @@ rgb8_to_argb8(UBYTE *src, UBYTE *dst, UWORD w, UWORD h)
     }
 }
 //-
-//+ blit_overalpha_argb15x_to_rgb8
+//+ compose_rgba15x_to_rgb8
 static void
-blit_overalpha_argb15x_to_rgb8(USHORT *src, UBYTE *dst, ULONG w, ULONG h)
+compose_rgba15x_to_rgb8(USHORT *src, UBYTE *dst, ULONG w, ULONG h)
 {
     ULONG x, y;
 
     for (y=0; y < h; y++) {
         for (x=0; x < w; x++) {
-            ULONG one_minus_alpha = (1<<15) - src[0];
+            ULONG one_minus_alpha = (1<<15) - src[3];
 
             /* Destination Alpha = 1.0 (full opaque surface)
              * Dest{RGB} = Src{RGB} + (1.0 - SrcAlpha) * Dst{RGB}
              */
 
-            dst[0] = ((ULONG)src[1] * 255 + one_minus_alpha * dst[0]) >> 15;
-            dst[1] = ((ULONG)src[2] * 255 + one_minus_alpha * dst[1]) >> 15;
-            dst[2] = ((ULONG)src[3] * 255 + one_minus_alpha * dst[2]) >> 15;
+            dst[0] = ((ULONG)src[0] * 255 + one_minus_alpha * dst[0]) >> 15;
+            dst[1] = ((ULONG)src[1] * 255 + one_minus_alpha * dst[1]) >> 15;
+            dst[2] = ((ULONG)src[2] * 255 + one_minus_alpha * dst[2]) >> 15;
 
             src += 4;
             dst += 3;
         }
+    }
+}
+//-
+
+//+ cmyka15x_to_cmyk8
+static void
+cmyka15x_to_cmyk8(USHORT *src, UBYTE *dst, UWORD w, UWORD h, Py_ssize_t bpr)
+{
+    ULONG x, y;
+
+    bpr -= w*4;
+
+    for (y=0; y < h; y++) {
+        for (x=0; x < w; x++) {
+            ULONG alpha = src[4];
+
+            if (alpha > 0) {
+                /* Un-multiply by alpha, rounding and convert to range [0, 255] */
+                dst[0] = ((((ULONG)src[0]<<15) + alpha/2) / alpha * 255) >> 15;
+                dst[1] = ((((ULONG)src[1]<<15) + alpha/2) / alpha * 255) >> 15;
+                dst[2] = ((((ULONG)src[2]<<15) + alpha/2) / alpha * 255) >> 15;
+                dst[3] = ((((ULONG)src[3]<<15) + alpha/2) / alpha * 255) >> 15;
+            } else
+                *(ULONG *)dst = 0;
+
+            src += 5;
+            dst += 4;
+        }
+
+        dst += bpr;
+    }
+}
+//-
+//+ cmyk8_to_cmyka15x
+static void
+cmyk8_to_cmyka15x(UBYTE *src, USHORT *dst, UWORD w, UWORD h)
+{
+    ULONG i, n = w * h;
+
+    for (i=0; i < n; i++) {
+        dst[0] = ((ULONG)src[0] << 15) / 255;
+        dst[1] = ((ULONG)src[1] << 15) / 255;
+        dst[2] = ((ULONG)src[2] << 15) / 255;
+        dst[3] = ((ULONG)src[3] << 15) / 255;
+        dst[4] = 1 << 15;
+
+        src += 4;
+        dst += 5;
     }
 }
 //-
@@ -234,15 +496,30 @@ blit_overalpha_argb15x_to_rgb8(USHORT *src, UBYTE *dst, ULONG w, ULONG h)
 
 //+ new_pixarray
 static BOOL
-initialize_pixarray(PyPixelArray *self, UWORD width, UWORD height, UBYTE nc, UBYTE bpc)
+initialize_pixarray(PyPixelArray *self, UWORD width, UWORD height, ULONG pixfmt)
 {
-    self->bpr = width * ((bpc * nc) >> 3); 
+    const PA_InitValue *init_values = get_init_values(pixfmt);
+
+    if (NULL == init_values) {
+        PyErr_Format(PyExc_ValueError, "Invalid pixel format (%lx)", pixfmt);
+        return FALSE;
+    }
+
+    self->bpc = init_values->bpc;
+    self->nc = init_values->nc;
+    self->bpr = width * ((self->bpc * self->nc) >> 3);
+
     self->data = PyMem_Malloc(self->bpr * height);
     if (NULL != self->data) {
+        self->damaged = FALSE;
+        self->x = self->y = 0;
+        self->pixfmt = pixfmt;
         self->width = width;
         self->height = height;
-        self->nc  = nc;
-        self->bpc = bpc;
+        self->cfromfloat = init_values->cfromfloat;
+        self->ctofloat = init_values->ctofloat;
+        self->writepixel = init_values->writepixel;
+
         return TRUE;
     }
 
@@ -256,23 +533,14 @@ pixarray_new(PyTypeObject *type, PyObject *args)
 {
     PyPixelArray *self;
     UWORD w, h;
-    UBYTE nc, bpc;
+    ULONG pixfmt;
 
-    if (!PyArg_ParseTuple(args, "HHBB:__new__", &w, &h, &nc, &bpc)) /* BR */
+    if (!PyArg_ParseTuple(args, "HHI:__new__", &w, &h, &pixfmt)) /* BR */
         return NULL;
 
-    if (nc > 4)
-        return PyErr_Format(PyExc_ValueError, "PixelArray support 4 composants at maximum, not %u", nc);
-
-    if (bpc > 32)
-        return PyErr_Format(PyExc_ValueError, "PixelArray support 32 bits per composant at maximum, not %u", bpc);
-
-    if ((nc * bpc) % 8)
-        return PyErr_Format(PyExc_ValueError, "PixelArray needs the number of components by the number of bit per component aligned on byte size");
- 
     self = (PyPixelArray *)type->tp_alloc(type, 0); /* NR */
     if (NULL != self) {
-        if (!initialize_pixarray(self, w, h, nc, bpc))
+        if (!initialize_pixarray(self, w, h, pixfmt))
             Py_CLEAR((PyObject *)self);
     }
 
@@ -359,6 +627,10 @@ pixarray_from_pixarray(PyPixelArray *self, PyObject *arg)
         return PyErr_Format(PyExc_TypeError, "instance of PixelArray waited as first argument, not %s", OBJ_TNAME(arg));
     
     src = (APTR)arg;
+
+    if ((src->bpr * src->height) < (self->bpr * self->height))
+        return PyErr_Format(PyExc_TypeError, "Source array is too small, %lu bytes needed, get %lu", self->bpr * self->height, src->bpr * src->height);
+
     len = MIN(self->bpr * self->height, src->bpr * src->height);
     CopyMem(src->data, self->data, len);
 
@@ -373,7 +645,7 @@ pixarray_copy(PyPixelArray *self)
 
     copy = PyObject_New(PyPixelArray, self->ob_type);
     if (NULL != copy) {
-        if (initialize_pixarray(copy, self->width, self->height, self->nc, self->bpc)) {
+        if (initialize_pixarray(copy, self->width, self->height, self->pixfmt)) {
             copy->x = self->x;
             copy->y = self->y;
             CopyMem(self->data, copy->data, copy->bpr*copy->height);
@@ -395,6 +667,7 @@ static struct PyMethodDef pixarray_methods[] = {
 };
 
 static PyMemberDef pixarray_members[] = {
+    {"pixfmt", T_ULONG, offsetof(PyPixelArray, pixfmt), 0, NULL},
     {"x", T_LONG, offsetof(PyPixelArray, x), 0, NULL},
     {"y", T_LONG, offsetof(PyPixelArray, y), 0, NULL},
     {"Width", T_USHORT, offsetof(PyPixelArray, width), RO, NULL},
@@ -433,6 +706,7 @@ static PyTypeObject PyPixelArray_Type = {
 ** Module
 */
 
+#if 0
 //+ mod_rgb8_to_argb8
 static PyObject *
 mod_rgb8_to_argb8(PyObject *self, PyObject *args)
@@ -442,16 +716,12 @@ mod_rgb8_to_argb8(PyObject *self, PyObject *args)
     if (!PyArg_ParseTuple(args, "O!O!", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst))
         return NULL;
 
-    if ((src->nc != 3) || (src->bpc != 8))
-        return PyErr_Format(PyExc_TypeError, "Incompatible source PixelArray object");
-
-    if ((dst->nc != 4) || (dst->bpc != 8))
-        return PyErr_Format(PyExc_TypeError, "Incompatible destination PixelArray object");
+    
 
     if ((src->width != dst->width) || (src->height != dst->height))
         return PyErr_Format(PyExc_TypeError, "Incompatible dimensions between given PixelArray objects");
 
-    rgb8_to_argb8(src->data, dst->data, dst->width, dst->height);
+    /* todo */
 
     Py_RETURN_NONE;
 }
@@ -603,21 +873,35 @@ mod_argb15x_to_rgb8(PyObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 //-
+#endif
 
 static PyMethodDef methods[] = {
-    {"rgb8_to_argb8",            (PyCFunction)mod_rgb8_to_argb8,            METH_VARARGS, NULL},
+    /*{"rgb8_to_argb8",            (PyCFunction)mod_rgb8_to_argb8,            METH_VARARGS, NULL},
     {"rgb8_to_argb15x",          (PyCFunction)mod_rgb8_to_argb15x,          METH_VARARGS, NULL},
     {"argb8_to_argb15x",         (PyCFunction)mod_argb8_to_argb15x,         METH_VARARGS, NULL},
     {"argb15x_to_argb8",         (PyCFunction)mod_argb15x_to_argb8,         METH_VARARGS, NULL},
     {"argb15x_to_rgba8",         (PyCFunction)mod_argb15x_to_rgba8,         METH_VARARGS, NULL},
     {"argb15x_to_rgb8",          (PyCFunction)mod_argb15x_to_rgb8,          METH_VARARGS, NULL},
-    {"bltalpha_argb15x_to_rgb8", (PyCFunction)mod_bltalpha_argb15x_to_rgb8, METH_VARARGS, NULL},
+    {"bltalpha_argb15x_to_rgb8", (PyCFunction)mod_bltalpha_argb15x_to_rgb8, METH_VARARGS, NULL},*/
     {0}
 };
 
 //+ add_constants
 static int add_constants(PyObject *m)
 {
+    INSI(m, "PIXFMT_RGB_8", PyPixelArray_PIXFMT_RGB_8);
+    INSI(m, "PIXFMT_RGBA_8", PyPixelArray_PIXFMT_RGBA_8);
+    INSI(m, "PIXFMT_CMYK_8", PyPixelArray_PIXFMT_CMYK_8);
+    INSI(m, "PIXFMT_ARGB_8", PyPixelArray_PIXFMT_ARGB_8);
+    INSI(m, "PIXFMT_RGBA_15X", PyPixelArray_PIXFMT_RGBA_15X);
+    INSI(m, "PIXFMT_CMYKA_15X", PyPixelArray_PIXFMT_CMYKA_15X);
+    INSI(m, "FLAG_RGB", PyPixelArray_FLAG_RGB);
+    INSI(m, "FLAG_CMYK", PyPixelArray_FLAG_CMYK);
+    INSI(m, "FLAG_15X", PyPixelArray_FLAG_15X);
+    INSI(m, "FLAG_8", PyPixelArray_FLAG_8);
+    INSI(m, "FLAG_ALPHA_FIRST", PyPixelArray_FLAG_ALPHA_FIRST);
+    INSI(m, "FLAG_ALPHA_LAST", PyPixelArray_FLAG_ALPHA_LAST);
+
     return 0;
 }
 //-

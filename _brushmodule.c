@@ -80,11 +80,11 @@ typedef struct PyBrush_STRUCT {
     FLOAT           b_BaseRadius;
     FLOAT           b_BaseYRatio;
     FLOAT           b_Hardness;
+    FLOAT           b_Opacity;
+    FLOAT           b_TargetAlpha;
 
-    USHORT          b_Alpha;
-    USHORT          b_Red;
-    USHORT          b_Green;
-    USHORT          b_Blue;
+    USHORT          b_RGBColor[3];
+    USHORT          b_CMYKColor[4];
 
 #ifdef STAT_TIMING
     ULONG           b_CacheAccesses;
@@ -188,15 +188,18 @@ obtain_pixarray(PyBrush *self, PyObject *surface, LONG x, LONG y)
 //+ drawdab_solid
 /* Solid spherical filling engine */
 static PyObject *
-drawdab_solid(PyBrush *self,
-              PyObject *buflist, PyObject *surface,
+drawdab_solid(PyBrush *self, /* In: */
+              PyObject *buflist, /* Out: */
+              PyObject *surface, /* In: Give information on color space also */
               LONG sx, LONG sy,
               FLOAT radius, FLOAT yratio,
-              FLOAT pressure, FLOAT hardness,
-              FLOAT ca, FLOAT cr, FLOAT cg, FLOAT cb)
+              FLOAT hardness, /* Never set it to 0.0 ! */
+              FLOAT target_alpha, /* 0.0=erase, 1.0=normal, between = translucent target color */
+              FLOAT opacity /* 0.0=nothing drawn, 1.0=solid, between = translucent color */)
 {
     LONG minx, miny, maxx, maxy, x, y;
     FLOAT radius_radius;
+    APTR color = NULL;
 #ifdef STAT_TIMING
     UQUAD t1, t2;
 #endif
@@ -233,6 +236,14 @@ drawdab_solid(PyBrush *self,
 #endif
             if (NULL == pa)
                 goto error;
+
+            /* XXX: I consider that all pixelarray have the same color space */
+            if (NULL == color) {
+                if (pa->pixfmt & PyPixelArray_FLAG_RGB)
+                    color = self->b_RGBColor;
+                else
+                    color = self->b_CMYKColor;
+            }
 
             box = pa->x;
             boy = pa->y;
@@ -280,10 +291,7 @@ drawdab_solid(PyBrush *self,
 
                     /* P=(x, y) in the Ellipse ? */
                     if (rr <= 1.0) {
-                        FLOAT density = pressure;
-                        ULONG alpha, one_minus_alpha;
-
-                        /* density = p * f(r), where:
+                        /* opacity = p * f(r), where:
                          *   - f is a falloff function
                          *   - r the radius (we using the square radius (rr) in fact)
                          *   - p the pressure
@@ -293,23 +301,12 @@ drawdab_solid(PyBrush *self,
                          */
                         if (hardness < 1.0) {
                             if (rr < hardness)
-                                density *= rr + 1-(rr/hardness);
+                                opacity *= rr + 1-(rr/hardness);
                             else
-                                density *= hardness/(hardness-1)*(rr-1);
+                                opacity *= hardness/(hardness-1)*(rr-1);
                         }
 
-                        i = bx * 4; /* Pixel index from the left of buffer */
-                        alpha = (ULONG)(density * ca);
-                        one_minus_alpha = (1<<15) - alpha;
-
-                        /* 'Simple' over-alpha compositing (in 15bits fixed point arithmetics)
-                         * Supposing that color values are alpha pre-multiplied.
-                         */
-
-                        /* A */ buf[i+0] = alpha + one_minus_alpha * buf[i+0] / (1<<15);
-                        /* R */ buf[i+1] = (alpha*cr + one_minus_alpha * buf[i+1]) / (1<<15);
-                        /* G */ buf[i+2] = (alpha*cg + one_minus_alpha * buf[i+2]) / (1<<15);
-                        /* B */ buf[i+3] = (alpha*cb + one_minus_alpha * buf[i+3]) / (1<<15);
+                        pa->writepixel(&buf[bx * 4], opacity * target_alpha, color);
                     }
                 }
 
@@ -398,10 +395,10 @@ brush_new(PyTypeObject *type, PyObject *args)
 
         self->b_FirstInvalid = &self->b_PACache[0];
 
-        self->b_Hardness = 0.5;
-        self->b_Alpha = 1<<15;
         self->b_BaseRadius = 8.0;
         self->b_BaseYRatio = 1.0;
+        self->b_Hardness = 0.5;
+        self->b_Opacity = 1.0;
 
         /* the rest to 0 */
     }
@@ -467,8 +464,9 @@ brush_drawdab_solid(PyBrush *self, PyObject *args)
     if ((0.0 <= hardness) || (yratio <= 0.0) || (0.0 == pressure) || (0.0 == radius))
         return buflist;
 
-    ret = drawdab_solid(self, buflist, self->b_Surface, sx, sy, radius, yratio, pressure, hardness,
-                        self->b_Alpha, self->b_Red, self->b_Green, self->b_Blue);
+    ret = drawdab_solid(self, buflist, self->b_Surface,
+                        sx, sy, radius, yratio,
+                        hardness, self->b_TargetAlpha, self->b_Opacity);
     if (NULL == ret)
         Py_CLEAR(buflist);
 
@@ -546,9 +544,9 @@ brush_drawstroke(PyBrush *self, PyObject *args)
 #ifdef STAT_TIMING
         ReadCPUClock(&t1);
 #endif
-        ret = drawdab_solid(self, buflist, self->b_Surface, x+v1, y+v2, self->b_BaseRadius, self->b_BaseYRatio,
-                            pressure, self->b_Hardness,
-                            self->b_Alpha, self->b_Red, self->b_Green, self->b_Blue);
+        ret = drawdab_solid(self, buflist, self->b_Surface,
+                            x+v1, y+v2, self->b_BaseRadius, self->b_BaseYRatio,
+                            self->b_Hardness, self->b_TargetAlpha, self->b_Opacity);
 #ifdef STAT_TIMING
         ReadCPUClock(&t2);
         self->b_Times[0] += t2 - t1;
@@ -626,13 +624,42 @@ brush_set_surface(PyBrush *self, PyObject *value, void *closure)
     return 0;
 }
 //-
+//+ brush_get_normalized_float
+static PyObject *
+brush_get_normalized_float(PyBrush *self, void *closure)
+{
+    FLOAT *ptr = (APTR)self + (ULONG)closure;
+
+    return PyFloat_FromDouble((double)*ptr);
+}
+//-
+//+ brush_set_normalized_float
+static int
+brush_set_normalized_float(PyBrush *self, PyObject *value, void *closure)
+{
+    FLOAT *ptr = (APTR)self + (ULONG)closure;
+    DOUBLE v;
+
+    if (NULL == value) {
+        *ptr = 0;
+        return 0;
+    }
+
+    v = PyFloat_AsDouble(value);
+    if (PyErr_Occurred())
+        return 1;
+
+    *ptr = CLAMP(v, 0.0, 1.0);
+    return 0;
+}
+//-
 //+ brush_get_color
 static PyObject *
 brush_get_color(PyBrush *self, void *closure)
 {
     USHORT *ptr = (APTR)self + (ULONG)closure;
-    
-    return PyFloat_FromDouble((double)*ptr / (1<<15));
+
+    return PyFloat_FromDouble(((DOUBLE)*ptr) / (1<<15));
 }
 //-
 //+ brush_set_color
@@ -640,23 +667,36 @@ static int
 brush_set_color(PyBrush *self, PyObject *value, void *closure)
 {
     USHORT *ptr = (APTR)self + (ULONG)closure;
+    DOUBLE v;
 
     if (NULL == value) {
         *ptr = 0;
         return 0;
     }
+
+    v = PyFloat_AsDouble(value);
+    if (PyErr_Occurred())
+        return 1;
     
-    *ptr = CLAMP((ULONG)(PyFloat_AsDouble(value) * (1<<15)), 0, 1<<15);
-    return PyErr_Occurred() != NULL;
+    *ptr = CLAMP(v * (1<<15), 0, 1<<15);
+    return 0;
 }
 //-
 
 static PyGetSetDef brush_getseters[] = {
-    {"surface", (getter)brush_get_surface, (setter)brush_set_surface, "Surface to use", NULL},
-    {"alpha",   (getter)brush_get_color,   (setter)brush_set_color,   "Color (Alpha channel)", (APTR)offsetof(PyBrush, b_Alpha)},
-    {"red",     (getter)brush_get_color,   (setter)brush_set_color,   "Color (Red channel)", (APTR)offsetof(PyBrush, b_Red)},
-    {"green",   (getter)brush_get_color,   (setter)brush_set_color,   "Color (Green channel)", (APTR)offsetof(PyBrush, b_Green)},
-    {"blue",    (getter)brush_get_color,   (setter)brush_set_color,   "Color (Blue channel)", (APTR)offsetof(PyBrush, b_Blue)},
+    {"surface",  (getter)brush_get_surface, (setter)brush_set_surface, "Surface to use", NULL},
+    {"radius",   (getter)brush_get_normalized_float, (setter)brush_set_normalized_float, "Base radius",             (APTR)offsetof(PyBrush, b_BaseRadius)},
+    {"yratio",   (getter)brush_get_normalized_float, (setter)brush_set_normalized_float, "Base Y-ratio",            (APTR)offsetof(PyBrush, b_BaseYRatio)},
+    {"hardness", (getter)brush_get_normalized_float, (setter)brush_set_normalized_float, "Hardness",                (APTR)offsetof(PyBrush, b_Hardness)},
+    {"opacity",  (getter)brush_get_normalized_float, (setter)brush_set_normalized_float, "Opacity",                 (APTR)offsetof(PyBrush, b_Opacity)},
+    {"red",      (getter)brush_get_color,            (setter)brush_set_color,            "Color (Red channel)",     (APTR)(offsetof(PyBrush, b_RGBColor)+0)},
+    {"green",    (getter)brush_get_color,            (setter)brush_set_color,            "Color (Green channel)",   (APTR)(offsetof(PyBrush, b_RGBColor)+1)},
+    {"blue",     (getter)brush_get_color,            (setter)brush_set_color,            "Color (Blue channel)",    (APTR)(offsetof(PyBrush, b_RGBColor)+2)},
+    {"cyan",     (getter)brush_get_color,            (setter)brush_set_color,            "Color (Cyan channel)",    (APTR)(offsetof(PyBrush, b_CMYKColor)+0)},
+    {"magenta",  (getter)brush_get_color,            (setter)brush_set_color,            "Color (Magenta channel)", (APTR)(offsetof(PyBrush, b_CMYKColor)+1)},
+    {"yellow",   (getter)brush_get_color,            (setter)brush_set_color,            "Color (Yellow channel)",  (APTR)(offsetof(PyBrush, b_CMYKColor)+2)},
+    {"key",      (getter)brush_get_color,            (setter)brush_set_color,            "Color (Key channel)",     (APTR)(offsetof(PyBrush, b_CMYKColor)+3)},
+
     {NULL} /* sentinel */
 };
 
@@ -668,11 +708,8 @@ static struct PyMethodDef brush_methods[] = {
 };
 
 static PyMemberDef brush_members[] = {
-    {"x",           T_LONG,   offsetof(PyBrush, b_X), 0, NULL},
-    {"y",           T_LONG,   offsetof(PyBrush, b_Y), 0, NULL},
-    {"base_radius", T_FLOAT,  offsetof(PyBrush, b_BaseRadius), 0, NULL},
-    {"base_yratio", T_FLOAT,  offsetof(PyBrush, b_BaseYRatio), 0, NULL},
-    {"hardness",    T_FLOAT,  offsetof(PyBrush, b_Hardness), 0, NULL},
+    {"x",            T_LONG,   offsetof(PyBrush, b_X), 0, NULL},
+    {"y",            T_LONG,   offsetof(PyBrush, b_Y), 0, NULL},
     {NULL}
 };
 

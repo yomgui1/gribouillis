@@ -66,7 +66,10 @@ class BaseLanguage:
     ButtonOkKey            = 'o'
     ButtonCancelLabel      = "Cancel"
     ButtonCancelKey        = 'c'
-    
+
+    ShortHelp_BrushEditor_Radius = "X-Radius value of basic brush ellipse shape."
+    ShortHelp_BrushEditor_YRatio = "Y-ratio to compute the ellipse Y radius, from the X-radius."
+
 # BEGIN - LANGUAGES
 
 # To add a new language support, don't make a copy yourself.

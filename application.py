@@ -43,6 +43,8 @@ from controler import DrawControler
 from languages import lang_dict
 
 # TODO: dynamic selection
+global lang
+
 lang = lang_dict['default']
 
 class Gribouillis(Application):

@@ -66,6 +66,7 @@ class BrushSelectWindow(Window):
         if not hasattr(self, '_editor'):
             self._editor = BrushEditorWindow("Brush Editor")
             self.ApplicationObject.AddWindow(self._editor)
+            self._editor.Notify('CloseRequest', True, self._editor.Close)
         else:
             self._editor.Close()
         self._editor.SetBrush(self.brush)

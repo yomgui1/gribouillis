@@ -24,6 +24,7 @@
 ###############################################################################
 
 from pymui import *
+from pymui.mcc.textinput import Textinputscroll
 
 class ModelInfoWindow(Window):
     __res_units = {
@@ -45,10 +46,10 @@ class ModelInfoWindow(Window):
         gp = ColGroup(2)
         ro.AddChild(gp)
 
-        self._ImageSize = Text()
+        self._ImageSize = Text(PreParse=MUIX_R)
         gp.AddChild(Label("Image area:"), self._ImageSize)
         
-        self._MemoryUsed = Text()
+        self._MemoryUsed = Text(PreParse=MUIX_R)
         gp.AddChild(Label("Memory used:"), self._MemoryUsed)
 
         self._ResUnit = Cycle(self.__res_units_keys, CycleChain=True)
@@ -66,13 +67,13 @@ class ModelInfoWindow(Window):
         self._Author.Notify('Contents', MUIV_EveryTime, self.OnContentsChanged, self._Author, 'Author')
         gp.AddChild(Label("Author:"), self._Author)
 
-        self._Comments = Text(Frame='String', SetVMax=False, CycleChain=True)
+        self._Comments = Textinputscroll(Frame='String', Multiline=True, CycleChain=True)
         self._Comments.Notify('Contents', MUIV_EveryTime, self.OnContentsChanged, self._Comments, 'Comments')
-        gp.AddChild(Label("Comments:"), self._Comments)
+        gp.AddChild(VGroup(Child=(FreeLabel("Comments:"), VSpace(0))), self._Comments)
 
         o = SimpleButton("Refresh"); o.CycleChain = True
         o.Notify('Pressed', False, self.ShowModel, None)
-        ro.AddChild(HBar(4), o)
+        ro.AddChild(HBar(2), o)
 
     def ShowModel(self, model):
         if model:
@@ -84,8 +85,20 @@ class ModelInfoWindow(Window):
             
         self.Close()
         info = model.info
-        self._Author.Contents = info.get('Author')
-        self._Comments.Contents = info.get('Comments')
+        self._ImageSize.Contents = "%lu x %lu" % model.bbox[2:]
+        mem = model.GetMemoryUsed()
+        if mem < 1024:
+            mem = "%lu Byte(s)" % mem
+        elif mem < 1024**2:
+            mem = "%lu KBytes" % (mem/1024)
+        elif mem < 1024**3:
+            mem = "%lu MBytes" % (mem/(1024**2))
+        else:
+            mem = "%lu GBytes" % (mem/(1024**3))
+  
+        self._MemoryUsed.Contents = mem
+        self._Author.Contents = info.get('Author', '')
+        self._Comments.Contents = info.get('Comments', '')
         unit = info.get('ResolutionUnit', 'in')
         self._ResUnit.NNSet('Active', self.__res_units_keys.index(unit))
         for i, n in enumerate("XY"):
@@ -101,7 +114,7 @@ class ModelInfoWindow(Window):
         # Change current resolution for this new unit
         new_unit = self.__res_units_keys[active]
         for i, (res, unit) in enumerate(self._res):
-            self.ResObj[i].Integer = int(res/self.__res_units[unit][1]*self.__res_units[new_unit][1])
+            self._ResObj[i].Integer = int(res/self.__res_units[unit][1]*self.__res_units[new_unit][1])
         self.model.info['ResolutionUnit'] = new_unit
 
     def OnResolutionChanged(self, n, value):
@@ -125,9 +138,8 @@ class ModelInfoWindow(Window):
     @property
     def dpi(self):
         "2-Tuple containing X and Y surface resolutions in dot per inch (dpi)"
-        res_x, res_y = self._ResObj
         def ConvertToDPI():
-            for res in enumerate(self._ResObj):
+            for res in self._res:
                 if res[1] == 'in':
                     yield res[0]
                 else:

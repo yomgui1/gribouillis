@@ -38,11 +38,11 @@ class IntegerBuffer(object):
         self.b = buffer(buf)
         
     def __getslice__(self, start, stop):
-        return list(ord(c) for c in self.b[start:stop])
+        return tuple(ord(c) for c in self.b[start:stop])
 
 
 class OpenRasterFileReader:
-    def init_read(self, filename, **kwds):
+    def __init__(self, filename, **kwds):
         self.filename = filename
         self.z = zipfile.ZipFile(filename, 'r')
         s = self.z.read('mimetype').strip()
@@ -95,7 +95,7 @@ class OpenRasterFileReader:
     def __enter__(self):
         return self
 
-    def __exit__(self):
+    def __exit__(self, *args):
         self.close()
 
         
@@ -172,5 +172,5 @@ class OpenRasterFileWriter:
     def __enter__(self):
         return self
 
-    def __exit__(self, exc_type, exc_value, tb):
+    def __exit__(self, *args):
         self.close()

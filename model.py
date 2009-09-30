@@ -191,7 +191,7 @@ class SimpleModel(Model):
 
     def SaveAsPNG(self, filename, compression=6):
         pa = self._surface.RenderAsPixelArray(mode='RGBA')
-        writer = png.Writer(pa.Width, pa.Height, alpha=True, bitdepth=8, compression=compression) 
+        writer = png.Writer(width=pa.Width, height=pa.Height, alpha=True, bitdepth=8, compression=compression)
         with open(filename, 'wb') as outfile:
             writer.write_array(outfile, IntegerBuffer(pa))
 

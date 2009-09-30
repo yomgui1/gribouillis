@@ -45,9 +45,6 @@ from languages import lang_dict
 # TODO: dynamic selection
 lang = lang_dict['default']
 
-def toto(*args):
-    pass
-
 class Gribouillis(Application):
     VERSION = 0.1
     DATE    = "05/09/2009"
@@ -255,7 +252,7 @@ class Gribouillis(Application):
 
     def OnLoadImage(self):
         filename = pymui.getfilename(self.win_Draw, lang.LoadImageReqTitle,
-                                     self.last_loaded_dir, "#?.(png|jpeg|jpg|targa|tga|gif)",
+                                     self.last_loaded_dir, "#?.(png|jpeg|jpg|targa|tga|gif|ora)",
                                      False)
         if filename:
             self.last_loaded_dir = os.path.dirname(filename)
@@ -272,7 +269,7 @@ class Gribouillis(Application):
             b_cancel.CycleChain = True
             g2 = HGroup(Child=(b_ok, b_cancel))
 
-            o_busy = Busy(ShowMe=False)
+            o_busy = Busy(ShowMe=False, FixHeight=8)
             top = VGroup(Child=(g1, o_busy, HBar(3), g2))
 
             self.win_SaveWin = Window("Saving Image",
@@ -306,7 +303,7 @@ class Gribouillis(Application):
             self.win_SaveWin.bt_group.Disabled = True
             self.win_SaveWin.busy.ShowMe = True
             
-            thread.start_new_thread(toto, (time, filename))
+            thread.start_new_thread(self.SaveImageJob, (time, filename))
 
     def SaveImageFinalize(self):
         self.win_SaveWin.bt_group.Disabled = False
@@ -314,11 +311,12 @@ class Gribouillis(Application):
         self.win_Draw.Sleep = False
 
     def SaveImageJob(self, time, filename):
-        pass
-        #start = time.time()
-        #self.controler.SaveImage(filename)
-        #print "[*DBG*]: Saved %s in" % filename, time.time() - start, "seconds"
-        #self._do(MUIM_Application_PushMethod, (self.win_SaveWin, 3, MUIM_Set, MUIA_Window_Open, False))
+        try:
+            start = time.time()
+            self.controler.SaveImage(filename)
+            print "[*DBG*]: Saved %s in" % filename, time.time() - start, "seconds"
+        finally:
+            self._do(MUIM_Application_PushMethod, (self.win_SaveWin, 3, MUIM_Set, MUIA_Window_Open, False))
 
     def OnQuitRequest(self):
         self.Quit()

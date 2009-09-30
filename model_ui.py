@@ -35,7 +35,7 @@ class ModelInfoWindow(Window):
 
     def __init__(self, title):
         ro = VGroup()
-        super(DataWindow, self).__init__(title, ID='Data', RootObject=ro)
+        super(ModelInfoWindow, self).__init__(title, ID='Data', RootObject=ro)
 
         # Defaults
         self.__res_units_keys = ['m', 'cm', 'mm', 'in']
@@ -56,6 +56,7 @@ class ModelInfoWindow(Window):
         self._ResUnit.Notify('Active', MUIV_EveryTime, self.OnResUnitChanged, MUIV_TriggerValue)
         gp.AddChild(Label("Resolution unit:"), self._ResUnit)
         
+        self._ResObj = [None, None]
         for i, n in enumerate("XY"):
             self._ResObj[i] = String(Accept="1234567890", Format='r', MaxLen=10, Frame='String', CycleChain=True)
             self._ResObj[i].Notify('Integer', MUIV_EveryTime, self.OnResolutionChanged, i, MUIV_TriggerValue)
@@ -65,13 +66,13 @@ class ModelInfoWindow(Window):
         self._Author.Notify('Contents', MUIV_EveryTime, self.OnContentsChanged, self._Author, 'Author')
         gp.AddChild(Label("Author:"), self._Author)
 
-        self._Comments = String(Frame='String', SetVMax=False, CycleChain=True)
+        self._Comments = Text(Frame='String', SetVMax=False, CycleChain=True)
         self._Comments.Notify('Contents', MUIV_EveryTime, self.OnContentsChanged, self._Comments, 'Comments')
         gp.AddChild(Label("Comments:"), self._Comments)
 
         o = SimpleButton("Refresh"); o.CycleChain = True
         o.Notify('Pressed', False, self.ShowModel, None)
-        ro.AddChild(HBar(), o)
+        ro.AddChild(HBar(4), o)
 
     def ShowModel(self, model):
         if model:

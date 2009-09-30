@@ -27,7 +27,7 @@ import zipfile, itertools, os, png
 import xml.etree.ElementTree as ET
 from cStringIO import StringIO
 
-__all__ = ('OpenRasterFileWriter', 'OpenRasterFileReader')
+__all__ = ('OpenRasterFileWriter', 'OpenRasterFileReader', 'IntegerBuffer')
 
 def ienumerate(iterable):
     return itertools.izip(itertools.count(), iterable)
@@ -100,7 +100,7 @@ class OpenRasterFileReader:
 
         
 class OpenRasterFileWriter:
-    def __init__(self, filename **kwds):
+    def __init__(self, filename, **kwds):
         self.filename = filename
         self.z = zipfile.ZipFile(filename, 'w', compression=zipfile.ZIP_STORED)
         self.z.writestr('mimetype', 'image/openraster')

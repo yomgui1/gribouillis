@@ -249,7 +249,8 @@ class DrawControler(object):
             raise
         else:
             assert os.path.isfile(tmp)
-            os.remove(filename)
+            if os.path.isfile(filename):
+                os.remove(filename)
             os.rename(tmp, filename)
 
     def LoadImage(self, filename):

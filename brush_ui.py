@@ -64,7 +64,7 @@ class BrushSelectWindow(Window):
 
     def EditBrush(self):
         if not hasattr(self, '_editor'):
-            self._editor = BrushEditorWindow()
+            self._editor = BrushEditorWindow("Brush Editor")
             self.ApplicationObject.AddWindow(self._editor)
         else:
             self._editor.Close()
@@ -77,18 +77,20 @@ class BrushEditorWindow(Window):
         ro = ColGroup(3)
         super(BrushEditorWindow, self).__init__(title, ID="BrushEditor", RootObject=ro)
 
+        self._obj = {}
+
         def FxBt(obj):
             o = SimpleButton("F(x)")
-            o.Notify('Pressed', False, self.OpenFxWinx, obj)
+            o.Notify('Pressed', False, self.OpenFxWin, obj)
             return o
 
         o = self._obj['radius'] = Slider(Min=1, Max=128)
         b = FxBt(o)
-        ro.AddChild(Label(), o, b)
+        ro.AddChild(Label('Radius:'), o, b)
 
         o = self._obj['hardness'] = String(Frame='Button')
         b = FxBt(o)
-        ro.AddChild(Label(), o, b)
+        ro.AddChild(Label('Hardness:'), o, b)
 
     def SetBrush(self, brush):
         pass

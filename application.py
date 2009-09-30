@@ -24,7 +24,7 @@
 ###############################################################################
 
 from __future__ import with_statement
-import os, sys
+import os, sys, thread, time
 
 import pymui
 from pymui import *
@@ -44,6 +44,9 @@ from languages import lang_dict
 
 # TODO: dynamic selection
 lang = lang_dict['default']
+
+def toto(*args):
+    pass
 
 class Gribouillis(Application):
     VERSION = 0.1
@@ -261,27 +264,28 @@ class Gribouillis(Application):
     def OnSaveImage(self):
         if not getattr(self, 'win_SaveWin', None):
             o_text = Text(Frame='String', Background='TextBack')
-            g1 = ColGroup(2, Child=(Label("Image size:"), o))
+            g1 = ColGroup(2, Child=(Label("Image size:"), o_text))
             
-            b_ok = KeyButton(lang.ButtonOk, lang.ButtonCancelLabel)
+            b_ok = KeyButton(lang.ButtonOkLabel, lang.ButtonOkKey)
             b_ok.CycleChain = True
-            b_cancel = KeyButton(lang.ButtonCancel, lang.ButtonCancelKey)
+            b_cancel = KeyButton(lang.ButtonCancelLabel, lang.ButtonCancelKey)
             b_cancel.CycleChain = True
             g2 = HGroup(Child=(b_ok, b_cancel))
 
             o_busy = Busy(ShowMe=False)
-            top = VGroup(Child=(g1, o_busy, HBar(3), g2)
+            top = VGroup(Child=(g1, o_busy, HBar(3), g2))
 
             self.win_SaveWin = Window("Saving Image",
-                                      RootObject=top)
+                                      RootObject=top,
                                       DefaultObject=b_ok)
             self.win_SaveWin.text = o_text
             self.win_SaveWin.busy = o_busy
             self.win_SaveWin.bt_group = g2
             
-            self.win_SaveWin.Notify('CloseRequest', True, self.CancelSaveImage)
+            self.win_SaveWin.Notify('Open', False, self.SaveImageFinalize)   
+            self.win_SaveWin.Notify('CloseRequest', True, self.win_SaveWin.Close)
             b_ok.Notify('Pressed', False, self.OkSaveImage)
-            b_cancel.Notify('Pressed', False, self.CancelSaveImage)
+            b_cancel.Notify('Pressed', False, self.SaveImageFinalize)
 
             self.AddWindow(self.win_SaveWin)
         else:
@@ -300,20 +304,21 @@ class Gribouillis(Application):
         if filename:
             self.last_saved_dir = os.path.dirname(filename)
             self.win_SaveWin.bt_group.Disabled = True
-            self.win_SaveWin.busy.ShowMe = True # cause window refresh
-            import time
-            start = time.time()
-            self.controler.SaveImage(filename)
-            self.win_SaveWin.bt_group.Disabled = False
-            self.win_SaveWin.busy.ShowMe = False # cause window refresh
-            print "[*DBG*]: Saved %s in" % filename, time.time() - start, "seconds"
+            self.win_SaveWin.busy.ShowMe = True
+            
+            thread.start_new_thread(toto, (time, filename))
 
-        self.win_SaveWin.Close()
+    def SaveImageFinalize(self):
+        self.win_SaveWin.bt_group.Disabled = False
+        self.win_SaveWin.busy.ShowMe = False
         self.win_Draw.Sleep = False
 
-    def CancelSaveImage(self):
-        self.win_SaveWin.Close()
-        self.win_Draw.Sleep = False
+    def SaveImageJob(self, time, filename):
+        pass
+        #start = time.time()
+        #self.controler.SaveImage(filename)
+        #print "[*DBG*]: Saved %s in" % filename, time.time() - start, "seconds"
+        #self._do(MUIM_Application_PushMethod, (self.win_SaveWin, 3, MUIM_Set, MUIA_Window_Open, False))
 
     def OnQuitRequest(self):
         self.Quit()

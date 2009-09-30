@@ -32,7 +32,7 @@ from surface import TiledSurface, T_SIZE, Tile
 from brush import Brush, DummyBrush
 from stroke import StrokeRecord
 import PIL.Image as Image
-from openraster import OpenRasterFile, IntegerBuffer
+from openraster import *
 import png, os
 
 class Model(object):

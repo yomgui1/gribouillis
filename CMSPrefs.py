@@ -46,12 +46,15 @@ class CMSPrefsWindow(Window):
         g.AddChild(o, LLabel("Activate Color Management"))
         top.AddChild(g)
 
-        g = ColGroup(2, GroupFrameT="Profiles")
+        g = ColGroup(2, Title="Profiles")
+        top.AddChild(g)
 
-        self._rgb_profiles_obj = Cycle([n for n, _ in self._rgb_profiles], CycleChain=True)
-        o.Notify('Active', MUIV_EveryTime, self.OnCycleProfile, MUIV_TriggerValue, 'RGB')
-        g.AddChild(Label("For RGB surfaces:"), o)
+        self.rgb_pnames = tuple(n for n, _ in self._rgb_profiles)
+        self._rgb_profiles_obj = Cycle(['test', 'toto'], CycleChain=True)
+        #self._rgb_profiles_obj.Notify('Active', MUIV_EveryTime, self.OnCycleProfile, MUIV_TriggerValue, 'RGB')
+        #g.AddChild(Label("For RGB surfaces:"), self._rgb_profiles_obj)
         
+        return
         im1 = Image(Spec=MUII_PopFile,
                     Frame=MUIV_Frame_PopUp,
                     InnerSpacing=(0,)*4,
@@ -80,8 +83,8 @@ class CMSPrefsWindow(Window):
         self._ok_cb.append((cb, a))
 
     def Open(self):
-        self._str_in.Contents = self._in_profile
-        self._str_out.Contents = self._out_profile
+        #self._str_in.Contents = self._in_profile
+        #self._str_out.Contents = self._out_profile
         super(CMSPrefsWindow, self).Open()
 
     def OnEnableCMS(self, status):

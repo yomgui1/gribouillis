@@ -360,3 +360,9 @@ class Gribouillis(Application):
 
     def ShowModelInfo(self):
         self.win_ModelInfo.ShowModel(self.controler.model)
+
+    def EnableCMS(self, state=True):
+        self.controler.view.EnableCMS(state)
+
+    def SetRGBProfile(self, name, profile):
+        pass

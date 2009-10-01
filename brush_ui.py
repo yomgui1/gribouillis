@@ -23,11 +23,14 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
+from languages import lang_dict
+lang = lang_dict['default']
+
 from pymui import *
 from pymui.mcc import laygroup
 from brush import DrawableBrush
 
-global lang
+import math
 
 __all__ = ('BrushSelectWindow', 'BrushEditorWindow')
 
@@ -89,11 +92,13 @@ class FloatValue(Group):
         self._cb = cb
         self._cb_args = cb_args
 
-        self._value = String(MaxLen=7, Accept="0123456789.", Format='r', FixWidthTxt="-#.###")
-        self._slider.Notify('Acknowledge', callback=self.OnStringValue, MUIV_TriggerValue)
+        self._value = String(MaxLen=7, Accept="0123456789.", Format='r', FixWidthTxt="-#.###", Background=None)
+        self._value.Notify('Acknowledge', MUIV_EveryTime, self.OnStringValue, MUIV_TriggerValue)
         self._slider = Slider(Min=0, Max=1000)
-        self._slider.Notify('Value', callback=self.OnSliderValue, MUIV_TriggerValue)
+        self._slider.Notify('Value', MUIV_EveryTime, self.OnSliderValue, MUIV_TriggerValue)
         self.AddChild(self._value, self._slider)
+
+        self.value = default
 
     def _as_float(self, value):
         return value*self._range + self._min
@@ -107,9 +112,9 @@ class FloatValue(Group):
     def __str__(self):
         return "%.3g" % float(self)
 
-    def OnSliderValue(self, value):
+    def OnSliderValue(self, value, *args):
         value = self._as_float(value)
-        self._value.NNset('Contents', self._as_str(value))
+        self._value.NNSet('Contents', self._as_str(value))
         if self._cb:
             self._cb(value, *self._cb_args)
             
@@ -117,7 +122,7 @@ class FloatValue(Group):
         self.value = value
 
     def SetValue(self, value):
-        self._slider.Value = min(1000, max(0, int((value-self._min)*1000)))
+        self._slider.Value = min(1000, max(0, int((value-self._min)/self._range)))
 
     def SetDefault(self):
         self.value = self._default
@@ -131,39 +136,46 @@ class BrushEditorWindow(Window):
         super(BrushEditorWindow, self).__init__(title, ID="BrushEditor", RootObject=ro)
 
         self._obj = {}
+        self._brush = None
 
         def Buttons(obj):
             b1 = SimpleButton("R")
+            b1.HorizWeight = 0; b1.CycleChain = True
             b1.Notify('Pressed', False, self.ResetValue, obj)
             b2 = SimpleButton("F(x)")
+            b2.HorizWeight = 0; b2.CycleChain = True
             b2.Notify('Pressed', False, self.OpenFxWin, obj)
             return b1, b2
 
-        o = self._obj['radius'] = FloatValue(min=0.1, max=128, default=2.0,
-                                              cb=self.OnFloatChange, cb_args='radius',
-                                              ShortHelp=lang.ShortHelp_BrushEditor_Radius)
-        ro.AddChild(Label('Radius:'), o, Buttons(o))
+        o = self._obj['radius'] = FloatValue(min=-2.0, max=5.0, default=0.91,
+                                             cb=self.OnFloatChange, cb_args=('radius',),
+                                             ShortHelp=lang.ShortHelp_BrushEditor_Radius)
+        ro.AddChild(Label('Radius:'), o, *Buttons(o))
 
-        o = self._obj['yratio'] = FloatValue(min=0.1, max=100, default=1.0,
-                                              ShortHelp=lang.ShortHelp_BrushEditor_YRatio)
-        ro.AddChild(Label('Radius Y-ratio:'), o, Buttons(o))
+        o = self._obj['yratio'] = FloatValue(min=-2.0, max=2.0, default=0.0,
+                                             cb=self.OnFloatChange, cb_args=('yratio',),
+                                             ShortHelp=lang.ShortHelp_BrushEditor_YRatio)
+        ro.AddChild(Label('Radius Y-ratio:'), o, *Buttons(o))
 
-        o = self._obj['hardness'] = FloatValue(min=0.0, max=1.0, default=0.5)
-        ro.AddChild(Label('Hardness:'), o) + Buttons(o))
+        o = self._obj['hardness'] = FloatValue(min=0.0, max=1.0, default=0.5,
+                                               cb=self.OnFloatChange, cb_args=('hardness',),)
+        ro.AddChild(Label('Hardness:'), o, *Buttons(o))
 
     def SetBrush(self, brush):
-        self.brush = brush
-        self._obj['radius'].value = brush.base_radius
-        self._obj['yratio'].value = brush.base_yratio
+        self._brush = brush
+        self._obj['radius'].value = math.log(brush.base_radius)
+        self._obj['yratio'].value = math.log(brush.base_yratio)
         self._obj['hardness'].value = brush.hardness
 
     def OnFloatChange(self, value, n):
+        if self._brush is None: return
+
         if n == 'radius':
-            brush.base_radius = value
+            self._brush.base_radius = math.exp(value)
         elif n == 'yratio':
-            brush.base_yratio = value
+            self._brush.base_yratio = math.exp(value)
         elif n == 'hardness':
-            brush.hardness = value
+            self._brush.hardness = value
 
     def OpenFxWin(self, obj):
         pass

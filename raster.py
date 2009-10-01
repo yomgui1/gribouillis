@@ -124,11 +124,12 @@ class Raster(pymui.Area):
             #
             rx2, ry2 = self.GetRasterPos(pos[0]+buf.Width, pos[1]+buf.Height)
             
+            assert buf.pixfmt == _pixarray.PIXFMT_RGB_8
             self._rp.ScaledBlit8(buf, buf.Width, buf.Height, rx, ry, rx2-rx, ry2-ry)
 
             if self.debug:
                 self._rp.Rect(3, rx, ry, rx2, ry2)
-                if not buf.ro:
+                if not buf.bg:
                     self._rp.Rect(4, rx+1, ry+1, rx2-1, ry2-1)
 
     def AddDamagedBuffer(self, buffer):

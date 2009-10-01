@@ -44,9 +44,7 @@ class Model(object):
 
     
     def __init__(self):
-        self._bg = Tile(nc=3, bpc=8) 
-        self._rsurface = TiledSurface(nc=3, bpc=8, bg=self._bg) # RGB 8-bits per component surface for display
-
+        self._rsurface = TiledSurface(mode='RGB8')
         self._brush = DummyBrush() # that gives a way to remove some 'if' sentences...
 
         # Some model data (Christoph... again you!)
@@ -131,8 +129,27 @@ class Model(object):
 
 
 class SimpleModel(Model):
-    def __init__(self):
-        self._surface = TiledSurface(nc=4, bpc=16) # ARGB surface
+    """
+    2 working color spaces supported: RGB and CMYK.
+    """
+
+    def __init__(self, colormodel='RGB'):
+        if colormodel == 'RGB':
+            mode = 'RGBA15X'
+
+            # TODO: pa shall detect that automatically
+            self._rcompose = _pixarray.compose_rgba15x_to_rgb8
+        elif colormodel == 'CMYK':
+            raise NotImplementedError("CMYK model are not supported yet")
+
+            mode = 'CMYK15X'
+            def render_cmyk(src, dst, tmp=Tile(_pixarray.PIXFMT_CMYK_8)):
+                _pixarray.compose_cmyk15x_to_cmyk8(src, tmp)
+                # TODO: CMS for transform a CMYK8 to RGB8 pa
+
+            self._rcompose = render_cmyk
+
+        self._surface = TiledSurface(mode)
 
         # Called in last because super call Clear() at end of its __init__()
         super(SimpleModel, self).__init__()
@@ -159,10 +176,11 @@ class SimpleModel(Model):
         rbuf = self._rsurface.GetBuffer(buf.x, buf.y, read=False, clear=False)
         
         # Copy the background buffer
-        rbuf.from_pixarray(self._bg)
+        if not rbuf.bg:
+            rbuf.from_pixarray(self._rsurface.background)
         
         # blit on the rendering surface modified buffers from the active surface
-        _pixarray.bltalpha_argb15x_to_rgb8(buf, rbuf)
+        self._rcompose(buf, rbuf)
         buf.Damaged = False
         return rbuf
 

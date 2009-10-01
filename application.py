@@ -26,6 +26,10 @@
 from __future__ import with_statement
 import os, sys, thread, time
 
+# TODO: dynamic selection
+from languages import lang_dict    
+lang = lang_dict['default']
+
 import pymui
 from pymui import *
 from pymui.mcc.busy import Busy
@@ -40,12 +44,6 @@ from raster import Raster
 from model import SimpleModel
 from controler import DrawControler
 
-from languages import lang_dict
-
-# TODO: dynamic selection
-global lang
-
-lang = lang_dict['default']
 
 class Gribouillis(Application):
     VERSION = 0.1
@@ -120,7 +118,8 @@ class Gribouillis(Application):
                     item.title = title
                 else:
                     item = Menuitem(t[0], t[1])
-                item.action(*t[2:])
+                if t[2]:
+                    item.action(*t[2:])
                 menu.AddTail(item)
  
         # Create Application object
@@ -220,7 +219,7 @@ class Gribouillis(Application):
 
         paths = (self.paths['user_brushes'], self.paths['builtins_brushes'])
         self.brushes = []
-        for name in self.brushes_names:
+        for name in self.brushes_names[:3]:
             b = Brush()
             b.load(paths, name)
             b.Notify(MUIA_Selected, MUIV_EveryTime, self.OnSelectBrush, b)

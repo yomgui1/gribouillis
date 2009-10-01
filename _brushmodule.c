@@ -199,7 +199,7 @@ drawdab_solid(PyBrush *self, /* In: */
 {
     LONG minx, miny, maxx, maxy, x, y;
     FLOAT radius_radius;
-    APTR color = NULL;
+    USHORT *color = NULL;
 #ifdef STAT_TIMING
     UQUAD t1, t2;
 #endif
@@ -279,7 +279,7 @@ drawdab_solid(PyBrush *self, /* In: */
             for (by=y-boy; by <= MIN(maxy-boy, pa->width-1); by++) {
                 for (bx=x-box; bx <= MIN(maxx-box, pa->height-1); bx++) {
                     FLOAT drx, dry;
-                    FLOAT rr;
+                    FLOAT rr, opa = opacity;
 
                     /* Compute the square of ellipse radius
                      * Note: Why +0.5 for each coordinate? because we put the center of
@@ -301,12 +301,13 @@ drawdab_solid(PyBrush *self, /* In: */
                          */
                         if (hardness < 1.0) {
                             if (rr < hardness)
-                                opacity *= rr + 1-(rr/hardness);
+                                opa *= rr + 1-(rr/hardness);
                             else
-                                opacity *= hardness/(hardness-1)*(rr-1);
+                                opa *= hardness/(hardness-1)*(rr-1);
                         }
 
-                        pa->writepixel(&buf[bx * 4], opacity * target_alpha, color);
+                        i = bx * 4; // BUG: change 4 to 5 for CMYK
+                        pa->writepixel(&buf[i], opa * target_alpha, color);
                     }
                 }
 
@@ -399,6 +400,7 @@ brush_new(PyTypeObject *type, PyObject *args)
         self->b_BaseYRatio = 1.0;
         self->b_Hardness = 0.5;
         self->b_Opacity = 1.0;
+        self->b_TargetAlpha = 1.0;
 
         /* the rest to 0 */
     }
@@ -507,7 +509,7 @@ brush_drawstroke(PyBrush *self, PyObject *args)
         return NULL;
 
     /* TODO: CHANGE ME (Test routine) */
-#define DABS_PER_RADIUS 5
+#define DABS_PER_RADIUS 10
 #define DABS_PER_SECONDS 0
 
     dx = sx - self->b_X;
@@ -524,15 +526,15 @@ brush_drawstroke(PyBrush *self, PyObject *args)
     d += time * DABS_PER_SECONDS;
 
     n = (ULONG)d;
-    n = MAX(1, n);
+    //n = MAX(1, n);
     for (i=0; i < n; i++) {
         PyObject *ret;
         LONG x, y;
 #ifdef STAT_TIMING
         UQUAD t1, t2;
 #endif
-        LONG v1 = (myrand1()*2-1)*1.6*1./pressure*self->b_BaseRadius;
-        LONG v2 = (myrand2()*2-1)*1.6*1./pressure*self->b_BaseRadius*self->b_BaseYRatio;
+        LONG v1 = 0;//(myrand1()*2-1)*1.7;
+        LONG v2 = 0;//(myrand2()*2-1)*1.7;
 
         /* Simple linear interpolation */
 
@@ -546,7 +548,7 @@ brush_drawstroke(PyBrush *self, PyObject *args)
 #endif
         ret = drawdab_solid(self, buflist, self->b_Surface,
                             x+v1, y+v2, self->b_BaseRadius, self->b_BaseYRatio,
-                            self->b_Hardness, self->b_TargetAlpha, self->b_Opacity);
+                            self->b_Hardness, self->b_TargetAlpha, pressure * self->b_Opacity);
 #ifdef STAT_TIMING
         ReadCPUClock(&t2);
         self->b_Times[0] += t2 - t1;
@@ -576,8 +578,8 @@ brush_invalid_cache(PyBrush *self, PyObject *args)
         self->b_CacheAccesses, self->b_CacheMiss, (ULONG)(((float)self->b_CacheMiss * 100 / self->b_CacheAccesses) + 0.5));
     
     for (i=0; i < sizeof(self->b_Times)/sizeof(*self->b_Times); i++) {
-        Printf("Time#%ld: %lu, %lu%-10lu\n", i,
-            self->b_TimesCount[i], (ULONG)(self->b_Times[i]>>32), (ULONG)(self->b_Times[i]&0xffffffff));
+        float t = (float)self->b_Times[i] / self->b_TimesCount[i] / 33.333333;
+        Printf("Time#%lu: %lu\n", i, (ULONG)t);
         self->b_Times[i] = 0;
         self->b_TimesCount[i] = 0;
     }
@@ -624,13 +626,33 @@ brush_set_surface(PyBrush *self, PyObject *value, void *closure)
     return 0;
 }
 //-
-//+ brush_get_normalized_float
+//+ brush_get_float
 static PyObject *
-brush_get_normalized_float(PyBrush *self, void *closure)
+brush_get_float(PyBrush *self, void *closure)
 {
     FLOAT *ptr = (APTR)self + (ULONG)closure;
 
     return PyFloat_FromDouble((double)*ptr);
+}
+//-
+//+ brush_set_float
+static int
+brush_set_float(PyBrush *self, PyObject *value, void *closure)
+{
+    FLOAT *ptr = (APTR)self + (ULONG)closure;
+    DOUBLE v;
+
+    if (NULL == value) {
+        *ptr = 0;
+        return 0;
+    }
+
+    v = PyFloat_AsDouble(value);
+    if (PyErr_Occurred())
+        return 1;
+
+    *ptr = v;
+    return 0;
 }
 //-
 //+ brush_set_normalized_float
@@ -684,18 +706,18 @@ brush_set_color(PyBrush *self, PyObject *value, void *closure)
 //-
 
 static PyGetSetDef brush_getseters[] = {
-    {"surface",  (getter)brush_get_surface, (setter)brush_set_surface, "Surface to use", NULL},
-    {"radius",   (getter)brush_get_normalized_float, (setter)brush_set_normalized_float, "Base radius",             (APTR)offsetof(PyBrush, b_BaseRadius)},
-    {"yratio",   (getter)brush_get_normalized_float, (setter)brush_set_normalized_float, "Base Y-ratio",            (APTR)offsetof(PyBrush, b_BaseYRatio)},
-    {"hardness", (getter)brush_get_normalized_float, (setter)brush_set_normalized_float, "Hardness",                (APTR)offsetof(PyBrush, b_Hardness)},
-    {"opacity",  (getter)brush_get_normalized_float, (setter)brush_set_normalized_float, "Opacity",                 (APTR)offsetof(PyBrush, b_Opacity)},
-    {"red",      (getter)brush_get_color,            (setter)brush_set_color,            "Color (Red channel)",     (APTR)(offsetof(PyBrush, b_RGBColor)+0)},
-    {"green",    (getter)brush_get_color,            (setter)brush_set_color,            "Color (Green channel)",   (APTR)(offsetof(PyBrush, b_RGBColor)+1)},
-    {"blue",     (getter)brush_get_color,            (setter)brush_set_color,            "Color (Blue channel)",    (APTR)(offsetof(PyBrush, b_RGBColor)+2)},
-    {"cyan",     (getter)brush_get_color,            (setter)brush_set_color,            "Color (Cyan channel)",    (APTR)(offsetof(PyBrush, b_CMYKColor)+0)},
-    {"magenta",  (getter)brush_get_color,            (setter)brush_set_color,            "Color (Magenta channel)", (APTR)(offsetof(PyBrush, b_CMYKColor)+1)},
-    {"yellow",   (getter)brush_get_color,            (setter)brush_set_color,            "Color (Yellow channel)",  (APTR)(offsetof(PyBrush, b_CMYKColor)+2)},
-    {"key",      (getter)brush_get_color,            (setter)brush_set_color,            "Color (Key channel)",     (APTR)(offsetof(PyBrush, b_CMYKColor)+3)},
+    {"surface",  (getter)brush_get_surface, (setter)brush_set_surface,          "Surface to use",          NULL},
+    {"radius",   (getter)brush_get_float,   (setter)brush_set_float,            "Base radius",             (APTR)offsetof(PyBrush, b_BaseRadius)},
+    {"yratio",   (getter)brush_get_float,   (setter)brush_set_float,            "Base Y-ratio",            (APTR)offsetof(PyBrush, b_BaseYRatio)},
+    {"hardness", (getter)brush_get_float,   (setter)brush_set_normalized_float, "Hardness",                (APTR)offsetof(PyBrush, b_Hardness)},
+    {"opacity",  (getter)brush_get_float,   (setter)brush_set_normalized_float, "Opacity",                 (APTR)offsetof(PyBrush, b_Opacity)},
+    {"red",      (getter)brush_get_color,   (setter)brush_set_color,            "Color (Red channel)",     (APTR)offsetof(PyBrush, b_RGBColor[0])},
+    {"green",    (getter)brush_get_color,   (setter)brush_set_color,            "Color (Green channel)",   (APTR)offsetof(PyBrush, b_RGBColor[1])},
+    {"blue",     (getter)brush_get_color,   (setter)brush_set_color,            "Color (Blue channel)",    (APTR)offsetof(PyBrush, b_RGBColor[2])},
+    {"cyan",     (getter)brush_get_color,   (setter)brush_set_color,            "Color (Cyan channel)",    (APTR)offsetof(PyBrush, b_CMYKColor[0])},
+    {"magenta",  (getter)brush_get_color,   (setter)brush_set_color,            "Color (Magenta channel)", (APTR)offsetof(PyBrush, b_CMYKColor[1])},
+    {"yellow",   (getter)brush_get_color,   (setter)brush_set_color,            "Color (Yellow channel)",  (APTR)offsetof(PyBrush, b_CMYKColor[2])},
+    {"key",      (getter)brush_get_color,   (setter)brush_set_color,            "Color (Key channel)",     (APTR)offsetof(PyBrush, b_CMYKColor[3])},
 
     {NULL} /* sentinel */
 };

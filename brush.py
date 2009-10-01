@@ -39,7 +39,7 @@ class Brush(Dtpic):
         super(Brush, self).__init__(InputMode=MUIV_InputMode_Toggle, Frame=MUIV_Frame_ImageButton)
         self._set(MUIA_Dtpic_Scale, self.BRUSH_SCALE, 'I')
         self.shortname = ''
-        self.base_radius = 2.01
+        self.base_radius = 8.0
         self.base_yratio = 1.0
         self.hardness = 0.5
         self.color = self.DEFAULT_COLOR
@@ -81,8 +81,8 @@ class DrawableBrush(Brush):
         super(DrawableBrush, self).__init__()
         
     def copy(self, brush):
-        self._brush.base_radius = brush.base_radius
-        self._brush.base_yratio = brush.base_yratio
+        self._brush.radius = brush.base_radius
+        self._brush.yratio = brush.base_yratio
         self._brush.hardness = brush.hardness
         super(DrawableBrush, self).copy(brush)
             
@@ -107,6 +107,19 @@ class DrawableBrush(Brush):
         self.set_color(self.DEFAULT_COLOR)
 
     color = property(fget=get_color, fset=set_color, fdel=del_color)
+
+    def set_baseradius(self, v):
+        self._brush.radius = v
+
+    def set_baseyratio(self, v):
+        self._brush.yratio = v
+ 
+    def set_hardness(self, v):
+        self._brush.hardness = v
+ 
+    base_radius = property(fget=lambda self: self._brush.radius, fset=set_baseradius)
+    base_yratio = property(fget=lambda self: self._brush.yratio, fset=set_baseyratio)
+    hardness = property(fget=lambda self: self._brush.hardness, fset=set_hardness)
 
 
 class DummyBrush:

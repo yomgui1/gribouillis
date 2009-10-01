@@ -18,8 +18,8 @@ static PyTypeObject PyPixelArray_Type;
 #define PyPixelArray_FLAG_CMYK        (1<<1)
 #define PyPixelArray_FLAG_15X         (1<<2)
 #define PyPixelArray_FLAG_8           (1<<3)
-#define PyPixelArray_FLAG_ALPHA_FIRST (1<<31)
-#define PyPixelArray_FLAG_ALPHA_LAST  (1<<30)
+#define PyPixelArray_FLAG_ALPHA_FIRST (1<<4)
+#define PyPixelArray_FLAG_ALPHA_LAST  (1<<5)
 
 /* Used for load/save */
 #define PyPixelArray_PIXFMT_RGB_8 (PyPixelArray_FLAG_RGB | PyPixelArray_FLAG_8)

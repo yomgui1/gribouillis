@@ -772,29 +772,6 @@ mod_argb8_to_argb15x(PyObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 //-
-//+ mod_bltalpha_argb15x_to_rgb8
-static PyObject *
-mod_bltalpha_argb15x_to_rgb8(PyObject *self, PyObject *args)
-{
-    PyPixelArray *src, *dst;
-
-    if (!PyArg_ParseTuple(args, "O!O!", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst))
-        return NULL;
-
-    if ((src->nc != 4) || (src->bpc != 16))
-        return PyErr_Format(PyExc_TypeError, "Incompatible source PixelArray object");
-
-    if ((dst->nc != 3) || (dst->bpc != 8))
-        return PyErr_Format(PyExc_TypeError, "Incompatible destination PixelArray object");
-
-    if ((src->width != dst->width) || (src->height != dst->height))
-        return PyErr_Format(PyExc_TypeError, "Incompatible dimensions between given PixelArray objects");
-
-    blit_overalpha_argb15x_to_rgb8(src->data, dst->data, dst->width, dst->height);
-
-    Py_RETURN_NONE;
-}
-//-
 //+ mod_argb15x_to_argb8
 static PyObject *
 mod_argb15x_to_argb8(PyObject *self, PyObject *args)
@@ -874,15 +851,39 @@ mod_argb15x_to_rgb8(PyObject *self, PyObject *args)
 }
 //-
 #endif
+//+ mod_compose_rgba15x_to_rgb8
+static PyObject *
+mod_compose_rgba15x_to_rgb8(PyObject *self, PyObject *args)
+{
+    PyPixelArray *src, *dst;
+
+    if (!PyArg_ParseTuple(args, "O!O!", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst))
+        return NULL;
+
+    if (src->pixfmt != PyPixelArray_PIXFMT_RGBA_15X)
+        return PyErr_Format(PyExc_TypeError, "Incompatible source PixelArray format");
+
+    if (dst->pixfmt != PyPixelArray_PIXFMT_RGB_8)
+        return PyErr_Format(PyExc_TypeError, "Incompatible destination PixelArray format");
+ 
+
+    if ((src->width != dst->width) || (src->height != dst->height))
+        return PyErr_Format(PyExc_TypeError, "Incompatible dimensions between given PixelArray objects");
+
+    compose_rgba15x_to_rgb8(src->data, dst->data, dst->width, dst->height);
+
+    Py_RETURN_NONE;
+}
+//-
 
 static PyMethodDef methods[] = {
-    /*{"rgb8_to_argb8",            (PyCFunction)mod_rgb8_to_argb8,            METH_VARARGS, NULL},
-    {"rgb8_to_argb15x",          (PyCFunction)mod_rgb8_to_argb15x,          METH_VARARGS, NULL},
-    {"argb8_to_argb15x",         (PyCFunction)mod_argb8_to_argb15x,         METH_VARARGS, NULL},
-    {"argb15x_to_argb8",         (PyCFunction)mod_argb15x_to_argb8,         METH_VARARGS, NULL},
-    {"argb15x_to_rgba8",         (PyCFunction)mod_argb15x_to_rgba8,         METH_VARARGS, NULL},
-    {"argb15x_to_rgb8",          (PyCFunction)mod_argb15x_to_rgb8,          METH_VARARGS, NULL},
-    {"bltalpha_argb15x_to_rgb8", (PyCFunction)mod_bltalpha_argb15x_to_rgb8, METH_VARARGS, NULL},*/
+    //{"rgb8_to_argb8",            (PyCFunction)mod_rgb8_to_argb8,            METH_VARARGS, NULL},
+    //{"rgb8_to_argb15x",          (PyCFunction)mod_rgb8_to_argb15x,          METH_VARARGS, NULL},
+    //{"argb8_to_argb15x",         (PyCFunction)mod_argb8_to_argb15x,         METH_VARARGS, NULL},
+    //{"argb15x_to_argb8",         (PyCFunction)mod_argb15x_to_argb8,         METH_VARARGS, NULL},
+    //{"argb15x_to_rgba8",         (PyCFunction)mod_argb15x_to_rgba8,         METH_VARARGS, NULL},
+    //{"argb15x_to_rgb8",          (PyCFunction)mod_argb15x_to_rgb8,          METH_VARARGS, NULL},
+    {"compose_rgba15x_to_rgb8", (PyCFunction)mod_compose_rgba15x_to_rgb8, METH_VARARGS, NULL},
     {0}
 };
 

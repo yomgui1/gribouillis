@@ -32,25 +32,40 @@ class Tile(_pixarray.PixelArray):
     # Saving memory, don't create a __dict__ object per instance
     #__slots__ = ('saved', 'clear')
     
-    def __new__(cl, nc=4, bpc=16, clear=True):
-        return _pixarray.PixelArray.__new__(cl, T_SIZE, T_SIZE, nc, bpc)
+    def __new__(cl, pixfmt, clear=True):
+        return _pixarray.PixelArray.__new__(cl, T_SIZE, T_SIZE, pixfmt)
 
-    def __init__(self, nc=4, bpc=16, clear=True):
+    def __init__(self, pixfmt, clear=True):
         self.clear = self.zero
-        self.ro = False
+        self.bg = False
 
         if clear:
             self.clear()
 
+    def GetMemoryUsed(self):
+        return self.BytesPerRow * self.Height
+
     def copy(self):
-        o = Tile(self.ComponentNumber, self.BitsPerComponent, clear=False)
+        o = Tile(self.pixfmt, clear=False)
         o.from_pixarray(self)
         o.clear = o.zero
-        o.ro = self.ro
+        o.bg = self.bg
         return o
 
 
 class Surface(object):
+    MODE2PIXFMT = {
+        'RGB8'   : _pixarray.PIXFMT_RGB_8,
+        'RGBA8'  : _pixarray.PIXFMT_RGBA_8,
+        'CMYK8'  : _pixarray.PIXFMT_CMYK_8,
+        'ARGB8'  : _pixarray.PIXFMT_ARGB_8,
+        'RGBA15X': _pixarray.PIXFMT_RGBA_15X,
+        'CMYK15X': _pixarray.PIXFMT_CMYKA_15X,
+    }
+
+    def __init__(self, mode):
+        self.pixfmt = Surface.MODE2PIXFMT[mode]
+
     def GetBuffer(self, x, y, read=True, bg=None):
         pass # subclass implemented
     
@@ -61,22 +76,27 @@ class Surface(object):
 
 
 class TiledSurface(Surface):
-    def __init__(self, nc=4, bpc=16, bg=None):
-        super(TiledSurface, self).__init__()
-        self._nc = nc
-        self._bpc = bpc
+    def __init__(self, mode, bg=None):
+        super(TiledSurface, self).__init__(mode)
         self.tiles = {}
         if bg:
             assert isinstance(bg, Tile)
-            assert bg.BitsPerComponent == bpc
-            assert bg.ComponentNumber == nc
-            self._ro_tile = bg
+            assert bg.pixfmt == self.pixfmt
+            self._bg = bg # XXX: copy() ?
         else:
-            self._ro_tile = Tile(nc, bpc)
-        self._ro_tile.ro = True       
+            self._bg = Tile(self.pixfmt, clear=True)
+        self._bg.bg = True
+
+    @property
+    def background(self):
+        "It's the background tile"
+        return self._bg
+
+    def __len__(self):
+        return len(self.tiles)
 
     def GetMemoryUsed(self):
-        return len(self.tiles) * self._nc * self._bpc * T_SIZE**2 / 8
+        return len(self) * self._ro_tile.GetMemoryUsed()
 
     def GetBuffer(self, x, y, read=True, clear=True):
         """GetBuffer(x, y, read=True, clear=True) -> pixel array
@@ -95,11 +115,11 @@ class TiledSurface(Surface):
         if tile:
             return tile
         elif read:
-            self._ro_tile.x = x*T_SIZE
-            self._ro_tile.y = y*T_SIZE
-            return self._ro_tile
+            self._bg.x = x*T_SIZE
+            self._bg.y = y*T_SIZE
+            return self._bg
         else:
-            tile = Tile(self._nc, self._bpc, clear=clear)
+            tile = Tile(self.pixfmt, clear=clear)
             tile.x = x*T_SIZE
             tile.y = y*T_SIZE
             self.tiles[k] = tile
@@ -137,14 +157,16 @@ class TiledSurface(Surface):
         return minx, miny, maxx-minx, maxy-miny
 
     def IterRenderedPixelArray(self, mode='RGBA'):
+        return
+
         if mode in ('RGBA', 'ARGB'):
-            pa = _pixarray.PixelArray(T_SIZE, T_SIZE, 4, 8)
+            pa = _pixarray.PixelArray(T_SIZE, T_SIZE, PIXFMT_RGBA_8)
             if mode == 'RGBA':
                 blit = _pixarray.argb15x_to_rgba8
             else:
                 blit = _pixarray.argb15x_to_argb8
         elif mode == 'RGB':
-            pa = _pixarray.PixelArray(T_SIZE, T_SIZE, 3, 8)
+            pa = _pixarray.PixelArray(T_SIZE, T_SIZE, PIXFMT_RGB_8)
             blit = _pixarray.argb15x_to_rgb8
         else:
             raise ValueError("Unsupported mode '%s'" % mode)
@@ -156,6 +178,8 @@ class TiledSurface(Surface):
             yield pa
 
     def RenderAsPixelArray(self, mode='RGBA'):
+        return
+
         minx, miny, w, h = self.bbox
         if mode in ('RGBA', 'ARGB'):
             pa = _pixarray.PixelArray(w, h, 4, 8)
@@ -177,10 +201,14 @@ class TiledSurface(Surface):
         return pa
 
     def ExportAsPILImage(self, mode='RGBA'):
+        return
+
         pa = self.RenderAsPixelArray(mode)
         return Image.frombuffer(mode, (pa.Width, pa.Height), pa, 'raw', mode, 0, 1)
     
     def ImportFromPILImage(self, im, w, h):
+        return
+
         im = im.convert('RGB') # TODO: need support of RGBA
         src = _pixarray.PixelArray(T_SIZE, T_SIZE, 3, 8)
         for ty in xrange(0, h, T_SIZE):

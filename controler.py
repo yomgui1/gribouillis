@@ -57,7 +57,7 @@ class DrawControler(object):
     MODE_IDLE = 0
     MODE_DRAW = 1
     MODE_DRAG = 2
-    SCALE_VALUES = [0.2, 0.25, 0.3, 0.5, 1.0, 1.5, 2.0, 3.0, 5.0, 8.0]
+    SCALE_VALUES = [0.2, 0.25, 0.3, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0]
     
     def __init__(self, view, model):
         self.view = view

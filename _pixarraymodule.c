@@ -334,7 +334,7 @@ rgba8_to_rgba15x(UBYTE *src, USHORT *dst, UWORD w, UWORD h)
     ULONG i, n = w * h;
 
     for (i=0; i < n; i++) {
-        USHORT alpha = ((ULONG)src[3] << 15) / 255;
+        ULONG alpha = ((ULONG)src[3] << 15) / 255;
         
         dst[0] = (ULONG)src[0] * alpha / 255;
         dst[1] = (ULONG)src[1] * alpha / 255;
@@ -749,29 +749,6 @@ mod_rgb8_to_argb15x(PyObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 //-
-//+ mod_argb8_to_argb15x
-static PyObject *
-mod_argb8_to_argb15x(PyObject *self, PyObject *args)
-{
-    PyPixelArray *src, *dst;
-
-    if (!PyArg_ParseTuple(args, "O!O!", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst))
-        return NULL;
-
-    if ((src->nc != 4) || (src->bpc != 8))
-        return PyErr_Format(PyExc_TypeError, "Incompatible source PixelArray object");
-
-    if ((dst->nc != 4) || (dst->bpc != 16))
-        return PyErr_Format(PyExc_TypeError, "Incompatible destination PixelArray object");
-
-    if ((src->width != dst->width) || (src->height != dst->height))
-        return PyErr_Format(PyExc_TypeError, "Incompatible dimensions between given PixelArray objects");
-
-    argb8_to_argb15x(src->data, dst->data, dst->width, dst->height);
-
-    Py_RETURN_NONE;
-}
-//-
 //+ mod_argb15x_to_argb8
 static PyObject *
 mod_argb15x_to_argb8(PyObject *self, PyObject *args)
@@ -797,9 +774,60 @@ mod_argb15x_to_argb8(PyObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 //-
-//+ mod_argb15x_to_rgba8
+#endif
+//+ mod_rgba8_to_rgba15x
 static PyObject *
-mod_argb15x_to_rgba8(PyObject *self, PyObject *args)
+mod_rgba8_to_rgba15x(PyObject *self, PyObject *args)
+{
+    PyPixelArray *src, *dst;
+
+    if (!PyArg_ParseTuple(args, "O!O!", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst))
+        return NULL;
+
+    if (src->pixfmt != PyPixelArray_PIXFMT_RGBA_8)
+        return PyErr_Format(PyExc_TypeError, "Incompatible source PixelArray format");
+
+    if (dst->pixfmt != PyPixelArray_PIXFMT_RGBA_15X)
+        return PyErr_Format(PyExc_TypeError, "Incompatible destination PixelArray format");
+
+    if ((src->width != dst->width) || (src->height != dst->height))
+        return PyErr_Format(PyExc_TypeError, "Incompatible dimensions between given PixelArray objects");
+
+    rgba8_to_rgba15x(src->data, dst->data, dst->width, dst->height);
+
+    Py_RETURN_NONE;
+}
+//-
+//+ mod_rgba15x_to_rgb8
+static PyObject *
+mod_rgba15x_to_rgb8(PyObject *self, PyObject *args)
+{
+    PyPixelArray *src, *dst;
+    ULONG dst_x=0, dst_y=0;
+    APTR ptr;      
+    
+    if (!PyArg_ParseTuple(args, "O!O!|II", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst, &dst_x, &dst_y))
+        return NULL;
+
+    if (src->pixfmt != PyPixelArray_PIXFMT_RGBA_15X)
+        return PyErr_Format(PyExc_TypeError, "Incompatible source PixelArray format");
+
+    if (dst->pixfmt != PyPixelArray_PIXFMT_RGB_8)
+        return PyErr_Format(PyExc_TypeError, "Incompatible destination PixelArray format");
+ 
+    /* No clipping */
+    if ((src->width > dst->width) || (src->height > dst->height))
+        return PyErr_Format(PyExc_TypeError, "Incompatible dimensions between given PixelArray objects");
+
+    ptr = dst->data+(dst->bpr*dst_y)+dst_x*3;
+    rgba15x_to_rgb8(src->data, ptr, src->width, src->height, dst->bpr);
+
+    Py_RETURN_NONE;
+}
+//-
+//+ mod_rgba15x_to_argb8
+static PyObject *
+mod_rgba15x_to_argb8(PyObject *self, PyObject *args)
 {
     PyPixelArray *src, *dst;
     ULONG dst_x=0, dst_y=0;
@@ -808,49 +836,49 @@ mod_argb15x_to_rgba8(PyObject *self, PyObject *args)
     if (!PyArg_ParseTuple(args, "O!O!|II", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst, &dst_x, &dst_y))
         return NULL;
 
-    if ((src->nc != 4) || (src->bpc != 16))
-        return PyErr_Format(PyExc_TypeError, "Incompatible source PixelArray object");
+    if (src->pixfmt != PyPixelArray_PIXFMT_RGBA_15X)
+        return PyErr_Format(PyExc_TypeError, "Incompatible source PixelArray format");
 
-    if ((dst->nc != 4) || (dst->bpc != 8))
-        return PyErr_Format(PyExc_TypeError, "Incompatible destination PixelArray object");
+    if (dst->pixfmt != PyPixelArray_PIXFMT_ARGB_8)
+        return PyErr_Format(PyExc_TypeError, "Incompatible destination PixelArray format");
 
     /* No clipping */
     if ((src->width > dst->width) || (src->height > dst->height))
         return PyErr_Format(PyExc_TypeError, "Incompatible dimensions between given PixelArray objects");
 
-    ptr = dst->data+(dst->bpr*dst_y)+dst_x*4; 
-    //Printf("data=%p, ptr=%p, %ld (%lu), x=%ld, y=%ld\n", dst->data, ptr, ptr-dst->data, dst->height*dst->bpr, dst_x, dst_y);
-    argb15x_to_rgba8(src->data, ptr, src->width, src->height, dst->bpr);
+    ptr = dst->data+(dst->bpr*dst_y)+dst_x*4;
+    rgba15x_to_argb8(src->data, ptr, src->width, src->height, dst->bpr);
 
     Py_RETURN_NONE;
 }
 //-
-//+ mod_argb15x_to_rgb8
+//+ mod_rgba15x_to_rgba8
 static PyObject *
-mod_argb15x_to_rgb8(PyObject *self, PyObject *args)
+mod_rgba15x_to_rgba8(PyObject *self, PyObject *args)
 {
     PyPixelArray *src, *dst;
     ULONG dst_x=0, dst_y=0;
+    APTR ptr;
 
     if (!PyArg_ParseTuple(args, "O!O!|II", &PyPixelArray_Type, &src, &PyPixelArray_Type, &dst, &dst_x, &dst_y))
         return NULL;
 
-    if ((src->nc != 4) || (src->bpc != 16))
-        return PyErr_Format(PyExc_TypeError, "Incompatible source PixelArray object");
+    if (src->pixfmt != PyPixelArray_PIXFMT_RGBA_15X)
+        return PyErr_Format(PyExc_TypeError, "Incompatible source PixelArray format");
 
-    if ((dst->nc != 3) || (dst->bpc != 8))
-        return PyErr_Format(PyExc_TypeError, "Incompatible destination PixelArray object");
+    if (dst->pixfmt != PyPixelArray_PIXFMT_RGBA_8)
+        return PyErr_Format(PyExc_TypeError, "Incompatible destination PixelArray format");
 
     /* No clipping */
     if ((src->width > dst->width) || (src->height > dst->height))
         return PyErr_Format(PyExc_TypeError, "Incompatible dimensions between given PixelArray objects");
 
-    //argb15x_to_rgb8(src->data, dst->data+(dst->bpr*dst_y)+dst_x*3, src->width, src->height, dst->bpr);
+    ptr = dst->data+(dst->bpr*dst_y)+dst_x*4;
+    rgba15x_to_rgba8(src->data, ptr, src->width, src->height, dst->bpr);
 
     Py_RETURN_NONE;
 }
 //-
-#endif
 //+ mod_compose_rgba15x_to_rgb8
 static PyObject *
 mod_compose_rgba15x_to_rgb8(PyObject *self, PyObject *args)
@@ -865,7 +893,6 @@ mod_compose_rgba15x_to_rgb8(PyObject *self, PyObject *args)
 
     if (dst->pixfmt != PyPixelArray_PIXFMT_RGB_8)
         return PyErr_Format(PyExc_TypeError, "Incompatible destination PixelArray format");
- 
 
     if ((src->width != dst->width) || (src->height != dst->height))
         return PyErr_Format(PyExc_TypeError, "Incompatible dimensions between given PixelArray objects");
@@ -879,10 +906,10 @@ mod_compose_rgba15x_to_rgb8(PyObject *self, PyObject *args)
 static PyMethodDef methods[] = {
     //{"rgb8_to_argb8",            (PyCFunction)mod_rgb8_to_argb8,            METH_VARARGS, NULL},
     //{"rgb8_to_argb15x",          (PyCFunction)mod_rgb8_to_argb15x,          METH_VARARGS, NULL},
-    //{"argb8_to_argb15x",         (PyCFunction)mod_argb8_to_argb15x,         METH_VARARGS, NULL},
-    //{"argb15x_to_argb8",         (PyCFunction)mod_argb15x_to_argb8,         METH_VARARGS, NULL},
-    //{"argb15x_to_rgba8",         (PyCFunction)mod_argb15x_to_rgba8,         METH_VARARGS, NULL},
-    //{"argb15x_to_rgb8",          (PyCFunction)mod_argb15x_to_rgb8,          METH_VARARGS, NULL},
+    {"rgba8_to_rgba15x",        (PyCFunction)mod_rgba8_to_rgba15x,        METH_VARARGS, NULL},
+    {"rgba15x_to_argb8",        (PyCFunction)mod_rgba15x_to_argb8,        METH_VARARGS, NULL},
+    {"rgba15x_to_rgba8",        (PyCFunction)mod_rgba15x_to_rgba8,        METH_VARARGS, NULL},
+    {"rgba15x_to_rgb8",         (PyCFunction)mod_rgba15x_to_rgb8,         METH_VARARGS, NULL},
     {"compose_rgba15x_to_rgb8", (PyCFunction)mod_compose_rgba15x_to_rgb8, METH_VARARGS, NULL},
     {0}
 };

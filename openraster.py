@@ -51,7 +51,7 @@ class OpenRasterFileReader:
         a = self.image.attrib
         self.ix = int(a.get('x', 0))
         self.iy = int(a.get('y', 0))
-        self.top_stack = image.find('stack')
+        self.top_stack = self.image.find('stack')
 
     def GetImageAttributes(self):
         return self.image.attrib
@@ -68,13 +68,13 @@ class OpenRasterFileReader:
             sx = int(a.get('x', 0)) + self.ix
             sy = int(a.get('y', 0)) + self.iy
             for layer in item:
-                if item.tag != 'layer':
-                    print "[*DBG*] Warning: ignoring item %s in stack %s" % (item.tag, name)
+                if layer.tag != 'layer':
+                    print "[*DBG*] Warning: ignoring item %s in stack %s" % (layer.tag, name)
                     continue
                 
-                a = item.attrib
-                src = a.get(src, '')
-                if not src.lowers().endswith('.png'):
+                a = layer.attrib
+                src = a.get('src', '')
+                if not src.lower().endswith('.png'):
                     print "[*DBG*] Warning: ignoring layer src %s" % src
                     continue
 
@@ -82,12 +82,12 @@ class OpenRasterFileReader:
                 y = int(a.get('y', 0)) + sy
 
                 # return string of PNG data
-                reader = png.Reader(bytes=z.read(src))
+                reader = png.Reader(bytes=self.z.read(src))
                 w, h, pixels, meta = reader.asRGBA8()
                 if w != waited_width or h != waited_height:
                     print "[*DBG*] Warning: ignoring unwanted tile size (%lux%lu)" % (w, h)
                     continue
-                yield x, y, (chr(v) for v in pixels)
+                yield x, y, ''.join(chr(v) for row in pixels for v in row)
 
     def close(self):
         self.z.close()

@@ -241,7 +241,7 @@ class DrawControler(object):
             elif ext == '.ora':
                 self.model.SaveAsOpenRaster(tmp)
             else:
-                im = self.model.AsPILImage('RGBA') 
+                im = self.model.AsPILImage('RGBA')
                 im.save(tmp)
         except:
             if os.path.isfile(tmp):
@@ -262,10 +262,10 @@ class DrawControler(object):
         else:
             raise TypeError('Unsupported extension %s' % ext)
 
-        print "[*DBG*] Loaded image bbox", box
+        print "[*DBG*] Loaded image bbox", bbox
         rx, ry = self.view.GetRasterPos(bbox[0], bbox[1])
-        self.viey.osx += rx
-        self.viey.osx += ry
+        self.view.osx += rx
+        self.view.osx += ry
         self.view.RedrawFull()
 
     def LoadBackground(self, filename):

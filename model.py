@@ -208,7 +208,7 @@ class SimpleModel(Model):
             ora.AddSurface("Main", self._surface)
 
     def SaveAsPNG(self, filename, compression=6):
-        pa = self._surface.RenderAsPixelArray(mode='RGBA')
+        pa = self._surface.RenderAsPixelArray(mode='RGBA8')
         writer = png.Writer(width=pa.Width, height=pa.Height, alpha=True, bitdepth=8, compression=compression)
         with open(filename, 'wb') as outfile:
             writer.write_array(outfile, IntegerBuffer(pa))
@@ -220,16 +220,19 @@ class SimpleModel(Model):
     def LoadFromOpenRaster(self, filename):
         self.Clear()
         with OpenRasterFileReader(filename) as ora:
-            a = ora.GetImageAttributes
+            a = ora.GetImageAttributes()
             self.info = a.copy()
             w = int(self.info.pop('w'))
             h = int(self.info.pop('h'))
             y = int(self.info.pop('x'))
             x = int(self.info.pop('y'))
             self.info.pop('name')
-            for x, y, pixels in ora.GetSurface("Main", T_SIZE, T_SIZE):
-                buf = self._surface.GetBuffer(x, y)
-                buf.from_string(pixels)
+            tmpbuf = _pixarray.PixelArray(T_SIZE, T_SIZE, self._surface.MODE2PIXFMT['RGBA8'])
+            for x, y, pixels in ora.GetSurfacePixels("Main", T_SIZE, T_SIZE):
+                buf = self._surface.GetBuffer(x, y, read=False, clear=False)
+                tmpbuf.from_string(pixels)
+                _pixarray.rgba8_to_rgba15x(tmpbuf, buf)
+                self.RenderBuffer(buf)
             return x, y, w, h
 
     def GetMemoryUsed(self):

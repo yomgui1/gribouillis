@@ -96,6 +96,7 @@ class TiledSurface(Surface):
         return len(self.tiles)
 
     def GetMemoryUsed(self):
+        print len(self.tiles), self._bg.GetMemoryUsed()
         return len(self) * self._bg.GetMemoryUsed()
 
     def GetBuffer(self, x, y, read=True, clear=True):
@@ -156,18 +157,18 @@ class TiledSurface(Surface):
             maxy = max(buf.y+buf.Height, maxy)
         return minx, miny, maxx-minx, maxy-miny
 
-    def IterRenderedPixelArray(self, mode='RGBA'):
-        return
-
-        if mode in ('RGBA', 'ARGB'):
-            pa = _pixarray.PixelArray(T_SIZE, T_SIZE, PIXFMT_RGBA_8)
-            if mode == 'RGBA':
-                blit = _pixarray.argb15x_to_rgba8
+    def IterRenderedPixelArray(self, mode='RGBA8'):
+        fmt = Surface.MODE2PIXFMT[mode] 
+        pa = _pixarray.PixelArray(T_SIZE, T_SIZE, fmt)
+        pa.zero() 
+        
+        if mode in ('RGBA8', 'ARGB8'):
+            if mode == 'RGBA8':
+                blit = _pixarray.rgba15x_to_rgba8
             else:
-                blit = _pixarray.argb15x_to_argb8
-        elif mode == 'RGB':
-            pa = _pixarray.PixelArray(T_SIZE, T_SIZE, PIXFMT_RGB_8)
-            blit = _pixarray.argb15x_to_rgb8
+                blit = _pixarray.rgba15x_to_argb8
+        elif mode == 'RGB8':
+            blit = _pixarray.rgb15ax_to_rgb8
         else:
             raise ValueError("Unsupported mode '%s'" % mode)
   
@@ -177,23 +178,21 @@ class TiledSurface(Surface):
             pa.y = buf.y
             yield pa
 
-    def RenderAsPixelArray(self, mode='RGBA'):
-        return
-
+    def RenderAsPixelArray(self, mode='RGBA8'):
         minx, miny, w, h = self.bbox
-        if mode in ('RGBA', 'ARGB'):
-            pa = _pixarray.PixelArray(w, h, 4, 8)
-            if mode == 'RGBA':
-                blit = _pixarray.argb15x_to_rgba8
+        fmt = Surface.MODE2PIXFMT[mode]
+        pa = _pixarray.PixelArray(w, h, fmt)
+        pa.zero() 
+        
+        if mode in ('RGBA8', 'ARGB8'):
+            if mode == 'RGBA8':
+                blit = _pixarray.rgba15x_to_rgba8
             else:
-                blit = _pixarray.argb15x_to_argb8
-        elif mode == 'RGB':
-            pa = _pixarray.PixelArray(w, h, 3, 8)
-            blit = _pixarray.argb15x_to_rgb8
+                blit = _pixarray.rgba15x_to_argb8
+        elif mode == 'RGB8':
+            blit = _pixarray.rgba15x_to_rgb8
         else:
             raise ValueError("Unsupported mode '%s'" % mode)
-
-        pa.zero()
 
         for buf in self.IterPixelArray():
             blit(buf, pa, buf.x-minx, buf.y-miny)

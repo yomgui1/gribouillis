@@ -30,29 +30,31 @@ from PIL.Image import open as OpenImage
 __all__ = ('CMSPrefsWindow',)
 
 class CMSPreview(Area):
+    SIZE = 196
+
     def __init__(self):
         im = OpenImage("MOSSYS:Prefs/Gfx/Monitors/Photo.png")
         im = im.convert('RGB')
         _, _, w, h = im.getbbox()
-        self._buf = _pixarray.PixelArray(w, h, PIXFMT_RGB_8)
-        self._buf.from_string(im.tostring())
+        self._bufsrc = _pixarray.PixelArray(w, h, _pixarray.PIXFMT_RGB_8)
+        self._bufsrc.from_string(im.tostring())
+        self._bufdst = self._bufsrc.copy()
 
         super(CMSPreview, self).__init__(MCC=True, FillArea=False)
 
-    def MCC_AskMinMax(self, minx, defx, maxx, minh, defh, maxh):
-        w = minx+96
-        h = miny+96
+    def MCC_AskMinMax(self, minw, defw, maxw, minh, defh, maxh):
+        w = minw+self.SIZE
+        h = minh+self.SIZE
         return w, w, w, h, h, h
 
     def MCC_Draw(self, flags):
-        if flags != MADF_DRAWOBJECT: return
-        self._rp.ScaledBlit8(self._buf, self._buf.Width, self._buf.Height,
-                             self.MLeft, self.MTop, 96, 96)
+        if flags & MADF_DRAWOBJECT == 0: return
+        self._rp.ScaledBlit8(self._bufdst, self._bufdst.Width, self._bufdst.Height,
+                             self.MLeft, self.MTop, self.SIZE, self.SIZE)
 
     def Tranform(self, in_p, out_p, intent, flags):
-        trans = lcms.Tranform(in_p, lcms.TYPE_RGB_8, out_p, lcms.TYPE_RGB_8, intent, flags)
-        tmpbuf = self._buf.copy()
-        self._buf.from_pixarray(trans(self._buf, tmpbuf, self._buf.Width * self._buf.Height))
+        trans = lcms.Transform(in_p, lcms.TYPE_RGB_8, out_p, lcms.TYPE_RGB_8, intent, flags)
+        trans(self._bufsrc, self._bufdst, self._bufdst.Width * self._bufdst.Height)
 
 
 class CMSPrefsWindow(Window):
@@ -131,7 +133,7 @@ class CMSPrefsWindow(Window):
 
         g = HGroup()
         rg.AddChild(g)
-        o = CheckMark(Selected=self._options['bpcomp'])
+        o = CheckMark(selected=self._options['bpcomp'])
         o.Notify('Selected', MUIV_EveryTime,
                  self.OnOptionChanged,
                  'bpcomp', MUIV_TriggerValue)
@@ -148,7 +150,7 @@ class CMSPrefsWindow(Window):
 
     def OnEnableCMS(self, state):
         self._groups['cms'].Disabled = not state
-        self.ApplicationObject.EnableCMS(state)
+        #self.ApplicationObject.EnableCMS(state)
 
     def OnCycleProfile(self, active, name):
         plist = self._profiles[name]

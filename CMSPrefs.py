@@ -73,9 +73,11 @@ class CMSPrefsWindow(Window):
             g.AddChild(Label("%s:" % name), self._groups[name])
             self._create_choices(name, (n for n, _ in self._profiles[name]))
 
-        g = ColGroup(2, Title="Rendering")
-        cms.AddChild(g)
+        rg = VGroup(Title="Rendering")
+        cms.AddChild(rg)
 
+        g = ColGroup(2)
+        rg.AddChild(g)
         self._groups['mon'] = Group()
         g.AddChild(Label("Monitor profile:"), self._groups['mon'])
         self._create_choices('mon', (n for n, _ in self._profiles['mon']))
@@ -83,6 +85,11 @@ class CMSPrefsWindow(Window):
         l = sorted(self._intents.keys())
         o = Cycle(l, CycleChain=True, Active=l.index('Perceptual'))
         g.AddChild(Label("Intent:"), o)
+
+        g = HGroup()
+        rg.AddChild(g)
+        o = CheckMark()
+        g.AddChild(HSpace(0), o, LLabel("Black Point Compensation"))
 
         self.OnEnableCMS(False) 
 

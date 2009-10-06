@@ -24,63 +24,74 @@
 ###############################################################################
 
 from pymui import *
-import os.path
+import os.path, lcms
 
 class CMSPrefsWindow(Window):
     def __init__(self, title):
         super(CMSPrefsWindow, self).__init__(title, ID=0, LeftEdge='centered', TopEdge='centered')
 
+        self.last_load_dir = None   
         self._ok_cb = []
-        self._rgb_profiles = [["sRGB (built-in)", None],
-                              ["From file...", None]]
+        self._groups = {}
+        self._cycles = {}
+        self._profiles = { 'RGB': [["sRGB (built-in)", None],
+                                   ["From file...", None]],
+                           'CMYK': [["None", None],
+                                    ["From file...", None]],
+                           'mon': [["sRGB (built-in)", None],
+                                   ["From file...", None]],
+                         }
+        self._intents = {'Perceptual': lcms.INTENT_PERCEPTUAL,
+                         'Relative colorimetric': lcms.INTENT_RELATIVE_COLORIMETRIC,
+                         'Absolute colorimetric': lcms.INTENT_ABSOLUTE_COLORIMETRIC,
+                         'Saturation': lcms.INTENT_SATURATION,
+                        }
 
         self.Notify('CloseRequest', True, self.Close)
         
+        g = HGroup()
+        self.RootObject = g
+
         top = VGroup()
-        self.RootObject = top
+        g.AddChild(Dtpic("MOSSYS:Prefs/Gfx/Monitors/Photo.png"), top)
 
-        o = CheckMark()
-        o.CycleChain = True
-        o.Notify('Pressed', False, self.OnEnableCMS, MUIV_TriggerValue)
-        g = HGroup(InnerBottom=8)
-        g.AddChild(o, LLabel("Activate Color Management"))
+        enable = CheckMark()
+        enable.CycleChain = True
+        enable.Notify('Selected', MUIV_EveryTime, self.OnEnableCMS, MUIV_TriggerValue)
+        g = HGroup()
+        g.AddChild(enable, LLabel("Activate Color Management"), HSpace(0))
         top.AddChild(g)
 
-        g = ColGroup(2, Title="Profiles")
-        top.AddChild(g)
+        self._groups['cms'] = cms = VGroup()
+        top.AddChild(cms)
 
-        self.rgb_pnames = tuple(n for n, _ in self._rgb_profiles)
-        self._rgb_profiles_obj = Cycle(['test', 'toto'], CycleChain=True)
-        #self._rgb_profiles_obj.Notify('Active', MUIV_EveryTime, self.OnCycleProfile, MUIV_TriggerValue, 'RGB')
-        #g.AddChild(Label("For RGB surfaces:"), self._rgb_profiles_obj)
-        
-        return
-        im1 = Image(Spec=MUII_PopFile,
-                    Frame=MUIV_Frame_PopUp,
-                    InnerSpacing=(0,)*4,
-                    InputMode=MUIV_InputMode_RelVerify)
-        im1.Notify('Selected', False, self.OnSelectInputFile)
-        im2 = Image(Spec=MUII_PopFile,
-                    Frame=MUIV_Frame_PopUp,
-                    InnerSpacing=(0,)*4, 
-                    InputMode=MUIV_InputMode_RelVerify)
-        im2.Notify('Selected', False, self.OnSelectOutputFile)
+        g = ColGroup(2, Title="Working Surfaces Profiles")
+        cms.AddChild(g)
 
-        top.AddChild(HGroup(Child=(Text(MUIX_R+"Input Profile:", Weight=0),
-                                         self._str_in, im1)))
-        top.AddChild(HGroup(Child=(Text(MUIX_R+"Output Profile:", Weight=0),
-                                         self._str_out, im2)))
+        for name in ('RGB', 'CMYK'):
+            self._groups[name] = Group()
+            g.AddChild(Label("%s:" % name), self._groups[name])
+            self._create_choices(name, (n for n, _ in self._profiles[name]))
 
-        top.AddChild(Rectangle(HBar=True, Weight=0, FixHeight=8))
-        bt_ok = SimpleButton("Ok")
-        bt_cancel = SimpleButton("Cancel")
-        top.AddChild(HGroup(Child=(bt_ok, bt_cancel)))
+        g = ColGroup(2, Title="Rendering")
+        cms.AddChild(g)
 
-        bt_ok.Notify('Selected', False, self.OnConfirm)
-        bt_cancel.Notify('Selected', False, self.Close)
+        self._groups['mon'] = Group()
+        g.AddChild(Label("Monitor profile:"), self._groups['mon'])
+        self._create_choices('mon', (n for n, _ in self._profiles['mon']))
 
-    def AddOkCallback(self, cb, *a):
-        self._ok_cb.append((cb, a))
+        l = sorted(self._intents.keys())
+        o = Cycle(l, CycleChain=True, Active=l.index('Perceptual'))
+        g.AddChild(Label("Intent:"), o)
+
+        self.OnEnableCMS(False) 
+
+    def _create_choices(self, name, entries, active=0):
+        if name in self._cycles:
+            self._groups[name].RemChild(self._cycles[name])
+        o = self._cycles[name] = Cycle(entries, CycleChain=True, Active=active)
+        o.Notify('Active', MUIV_EveryTime, self.OnCycleProfile, MUIV_TriggerValue, name)
+        self._groups[name].AddChild(o, lock=True)
 
     def Open(self):
         #self._str_in.Contents = self._in_profile
@@ -88,33 +99,25 @@ class CMSPrefsWindow(Window):
         super(CMSPrefsWindow, self).Open()
 
     def OnEnableCMS(self, status):
-        self.ApplicationObject.EnableCMS(status)
+        self._groups['cms'].Disabled = not status
+        #self.ApplicationObject.EnableCMS(status)
 
     def OnCycleProfile(self, active, name):
+        plist = self._profiles[name]
         # From file?
-        if active == len(self._rgb_profiles)-1:
-            getfilename(self, "Choose %s color profile" % name,
-                        self.last_load_dir, "#?.icc",
-                        False)
-        else:
-            _, p = self._rgb_profiles[active]
-
-        self.ApplicationObject.SetProfile(name, p)
+        if active == len(plist)-1:
+            fn = getfilename(self, "Choose %s color profile" % name,
+                             self.last_load_dir, "#?.icc",
+                             False)
+            if fn is not None and os.path.isfile(fn):
+                self.last_load_dir = os.path.dirname(fn)
+                plist.insert(active, [os.path.splitext(os.path.basename(fn))[0], None])
+                self._create_choices(name, (n for n, _ in plist), active)
+            else:
+                return
         
-    def OnConfirm(self):
-        self.Close()
-        if os.path.isfile(self._str_in.Contents):
-            self._in_profile = self._str_in.Contents
-        if os.path.isfile(self._str_out.Contents):
-            self._out_profile = self._str_out.Contents
-        for cb, a in self._ok_cb:
-            cb(self, *a)
+        _, p = plist[active]
+        print "[*DBG*] profile for %s:" % name, p
 
-    def OnSelectInputFile(self):
-        self._str_in.Contents = getfilename(self, "Select Input Profile", os.path.dirname(self._str_in.Contents))
-
-    def OnSelectOutputFile(self):
-        self._str_out.Contents = getfilename(self, "Select Output Profile", os.path.dirname(self._str_out.Contents))
-
-    in_profile = property(fget=lambda self: self._in_profile)
-    out_profile = property(fget=lambda self: self._out_profile)
+        #self.ApplicationObject.SetProfile(name, p)
+        

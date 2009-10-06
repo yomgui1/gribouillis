@@ -35,7 +35,7 @@ class BaseLanguage:
     DrawWinTitle           = "Draw Area"
     ColorChooserWinTitle   = "Color Selection"
     BrushSelectWinTitle    = "Brush Selection"
-    CMSWinTitle            = "Color Management Preferences"
+    CMSWinTitle            = "Color Management Setup"
     ModelInfoWinTitle      = "Model Information"
     MenuProject            = "Project"
     MenuProjectLoadImage   = "Load Image..."

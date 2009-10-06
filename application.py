@@ -70,8 +70,6 @@ class Gribouillis(Application):
         self.win_CMSPrefs = CMSPrefsWindow(lang.CMSWinTitle)
         self.win_ModelInfo = ModelInfoWindow(lang.ModelInfoWinTitle)
 
-        self.win_CMSPrefs.AddOkCallback(self.OnChangedCMSProfiles)
-
         # Create Menus
         menu_def = { lang.MenuProject: ((lang.MenuProjectLoadImage,   'L', self.OnLoadImage),
                                         (lang.MenuProjectSaveImage,   'S', self.OnSaveImage),

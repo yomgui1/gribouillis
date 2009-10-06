@@ -96,7 +96,6 @@ class TiledSurface(Surface):
         return len(self.tiles)
 
     def GetMemoryUsed(self):
-        print len(self.tiles), self._bg.GetMemoryUsed()
         return len(self) * self._bg.GetMemoryUsed()
 
     def GetBuffer(self, x, y, read=True, clear=True):

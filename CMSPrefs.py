@@ -24,7 +24,39 @@
 ###############################################################################
 
 from pymui import *
-import os.path, lcms
+import os.path, lcms, _pixarray
+from PIL.Image import open as OpenImage
+
+__all__ = ('CMSPrefsWindow',)
+
+class CMSPreview(Area):
+    def __init__(self):
+        im = OpenImage("MOSSYS:Prefs/Gfx/Monitors/Photo.png")
+        im = im.convert('RGB')
+        _, _, w, h = im.getbbox()
+        self._buf = _pixarray.PixelArray(w, h, PIXFMT_RGB_8)
+        self._buf.from_string(im.tostring())
+
+        super(CMSPreview, self).__init__(MCC=True, FillArea=False)
+
+    def MCC_AskMinMax(self, minx, defx, maxx, minh, defh, maxh):
+        w = minx+self._buf.Width
+        h = miny+self._buf.Height
+        return w, w, w, h, h, h
+
+    def MCC_Draw(self, flags):
+        if flags != MADF_DRAWOBJECT:
+            return
+
+        w = self._buf.Width
+        h = self._buf.Height
+        self._rp.ScaledBlit8(self._buf, w, h, self.MLeft, self.MTop, w, h)
+
+    def Tranform(self, in_p, out_p, intent, flags):
+        trans = lcms.Tranform(in_p, lcms.TYPE_RGB_8, out_p, lcms.TYPE_RGB_8, intent, flags)
+        tmpbuf = self._buf.copy()
+        self._buf.from_pixarray(trans(self._buf, tmpbuf, self._buf.Width * self._buf.Height))
+
 
 class CMSPrefsWindow(Window):
     def __init__(self, title):
@@ -34,11 +66,12 @@ class CMSPrefsWindow(Window):
         self._ok_cb = []
         self._groups = {}
         self._cycles = {}
-        self._profiles = { 'RGB': [["sRGB (built-in)", None],
+        sRGBProfile = lcms.CreateBuiltinProfile('sRGB')
+        self._profiles = { 'RGB': [["sRGB (built-in)", sRGBProfile],
                                    ["From file...", None]],
                            'CMYK': [["None", None],
                                     ["From file...", None]],
-                           'mon': [["sRGB (built-in)", None],
+                           'mon': [["sRGB (built-in)", sRGBProfile],
                                    ["From file...", None]],
                          }
         self._intents = {'Perceptual': lcms.INTENT_PERCEPTUAL,
@@ -47,13 +80,25 @@ class CMSPrefsWindow(Window):
                          'Saturation': lcms.INTENT_SATURATION,
                         }
 
+        self._options = {'RGB': 0, 'CMYK': 0, 'mon': 0,
+                         'intent': 'Perceptual',
+                         'bpcomp': False}
+
         self.Notify('CloseRequest', True, self.Close)
-        
-        g = HGroup()
-        self.RootObject = g
 
         top = VGroup()
-        g.AddChild(Dtpic("MOSSYS:Prefs/Gfx/Monitors/Photo.png"), top)
+        g = HGroup()
+        bt_g = HGroup()
+        top.AddChild(g, HBar(0), bt_g)
+        self.RootObject = top
+
+        o = SimpleButton("Close"); o.CycleChain = True
+        o.Notify('Pressed', False, self.Close)
+        bt_g.AddChild(o)
+        
+        top = VGroup()
+        self._preview = CMSPreview()
+        g.AddChild(self._preview, top)
 
         enable = CheckMark()
         enable.CycleChain = True
@@ -82,16 +127,20 @@ class CMSPrefsWindow(Window):
         g.AddChild(Label("Monitor profile:"), self._groups['mon'])
         self._create_choices('mon', (n for n, _ in self._profiles['mon']))
 
-        l = sorted(self._intents.keys())
-        o = Cycle(l, CycleChain=True, Active=l.index('Perceptual'))
+        l = self._intents_entries = sorted(self._intents.keys())
+        o = Cycle(l, CycleChain=True, Active=l.index(self._options['intent']))
+        o.Notify('Active', MUIV_EveryTime, self.OnIntentChanged, MUIV_TriggerValue)
         g.AddChild(Label("Intent:"), o)
 
         g = HGroup()
         rg.AddChild(g)
-        o = CheckMark()
+        o = CheckMark(Selected=self._options['bpcomp'])
+        o.Notify('Selected', MUIV_EveryTime,
+                 self.OnOptionChanged,
+                 'bpcomp', MUIV_TriggerValue)
         g.AddChild(HSpace(0), o, LLabel("Black Point Compensation"))
 
-        self.OnEnableCMS(False) 
+        self.OnEnableCMS(False)
 
     def _create_choices(self, name, entries, active=0):
         if name in self._cycles:
@@ -100,14 +149,9 @@ class CMSPrefsWindow(Window):
         o.Notify('Active', MUIV_EveryTime, self.OnCycleProfile, MUIV_TriggerValue, name)
         self._groups[name].AddChild(o, lock=True)
 
-    def Open(self):
-        #self._str_in.Contents = self._in_profile
-        #self._str_out.Contents = self._out_profile
-        super(CMSPrefsWindow, self).Open()
-
-    def OnEnableCMS(self, status):
-        self._groups['cms'].Disabled = not status
-        #self.ApplicationObject.EnableCMS(status)
+    def OnEnableCMS(self, state):
+        self._groups['cms'].Disabled = not state
+        self.ApplicationObject.EnableCMS(state)
 
     def OnCycleProfile(self, active, name):
         plist = self._profiles[name]
@@ -117,14 +161,33 @@ class CMSPrefsWindow(Window):
                              self.last_load_dir, "#?.icc",
                              False)
             if fn is not None and os.path.isfile(fn):
+                profile = lcms.Profile(fn)
                 self.last_load_dir = os.path.dirname(fn)
-                plist.insert(active, [os.path.splitext(os.path.basename(fn))[0], None])
+                plist.insert(active, [os.path.splitext(os.path.basename(fn))[0], profile])
                 self._create_choices(name, (n for n, _ in plist), active)
             else:
                 return
+            
+        print "[*DBG*] profile set for %s" % name
+        self._options[name] = active
         
-        _, p = plist[active]
-        print "[*DBG*] profile for %s:" % name, p
+        if name in ('mon', 'RGB'):
+            self._do_preview()
 
-        #self.ApplicationObject.SetProfile(name, p)
-        
+    def OnIntentChanged(self, active):
+        self._options['intent'] = self._intents_entries[active]
+        self._do_preview()
+
+    def OnOptionChanged(self, name, value):
+        self._options[name] = value
+        self._do_preview()
+
+    def _do_preview(self):
+        in_p = self._profiles['RGB'][self._options['RGB']][1]
+        out_p = self._profiles['mon'][self._options['mon']][1]
+        flags = (lcms.FLAGS_BLACKPOINTCOMPENSATION if self._options['bpcomp'] else 0)
+        self._preview.Tranform(in_p, out_p, self._intents[self._options['intent']], flags)
+
+    @property
+    def options(self):
+        return self._options

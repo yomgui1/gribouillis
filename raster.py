@@ -226,7 +226,7 @@ class Raster(pymui.Area):
     ## Color Management Methods ##
 
     def EnableCMS(self, enabled=True):
-        self.cms_transform = self._cms_th if enabled else self._DummyCMSTransform
+        self.cms_transform = (self._cms_th if enabled else self._DummyCMSTransform)
 
     def _DummyCMSTransform(self, buf, *a):
         return buf
@@ -237,10 +237,10 @@ class Raster(pymui.Area):
     def CMS_SetOutputProfile(self, profile):
         self.cms_op = profile
 
-    def CMS_InitTransform(self):
-        self._cms_th = lcms.TransformHandler(self.cms_ip, lcms.TYPE_RGB_8,
-                                             self.cms_op, lcms.TYPE_RGB_8,
-                                             lcms.INTENT_PERCEPTUAL)
+    def CMS_InitTransform(self, intent=lcms.INTENT_PERCEPTUAL):
+        self._cms_th = lcms.Transform(self.cms_ip, lcms.TYPE_RGB_8,
+                                      self.cms_op, lcms.TYPE_RGB_8,
+                                      intent)
 
     def CMS_ApplyTransform(self, buf):
         if self._tmpbuf is None:

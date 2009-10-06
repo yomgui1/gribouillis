@@ -40,17 +40,14 @@ class CMSPreview(Area):
         super(CMSPreview, self).__init__(MCC=True, FillArea=False)
 
     def MCC_AskMinMax(self, minx, defx, maxx, minh, defh, maxh):
-        w = minx+self._buf.Width
-        h = miny+self._buf.Height
+        w = minx+96
+        h = miny+96
         return w, w, w, h, h, h
 
     def MCC_Draw(self, flags):
-        if flags != MADF_DRAWOBJECT:
-            return
-
-        w = self._buf.Width
-        h = self._buf.Height
-        self._rp.ScaledBlit8(self._buf, w, h, self.MLeft, self.MTop, w, h)
+        if flags != MADF_DRAWOBJECT: return
+        self._rp.ScaledBlit8(self._buf, self._buf.Width, self._buf.Height,
+                             self.MLeft, self.MTop, 96, 96)
 
     def Tranform(self, in_p, out_p, intent, flags):
         trans = lcms.Tranform(in_p, lcms.TYPE_RGB_8, out_p, lcms.TYPE_RGB_8, intent, flags)
@@ -187,6 +184,7 @@ class CMSPrefsWindow(Window):
         out_p = self._profiles['mon'][self._options['mon']][1]
         flags = (lcms.FLAGS_BLACKPOINTCOMPENSATION if self._options['bpcomp'] else 0)
         self._preview.Tranform(in_p, out_p, self._intents[self._options['intent']], flags)
+        self._preview.Redraw()
 
     @property
     def options(self):

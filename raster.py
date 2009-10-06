@@ -75,7 +75,7 @@ class Raster(pymui.Area):
         self.Redraw(pymui.MADF_DRAWUPDATE)
 
     def MCC_AskMinMax(self, minw, defw, maxw, minh, defh, maxh):
-        return minw, defw+320, maxw+10000, minh, defh+320, maxh+10000
+        return minw, defw+320, 10000, minh, defh+320, 10000
 
     def MCC_Setup(self):
         self._ev.install(self, pymui.IDCMP_RAWKEY | pymui.IDCMP_MOUSEBUTTONS)

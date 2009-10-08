@@ -101,7 +101,7 @@ class Model(object):
     def LoadBackground(self, filename):
         im = Image.open(filename).convert('RGB')
         im = im.crop((0, 0, T_SIZE, T_SIZE))
-        self._bg.from_string(im.tostring())
+        self._rsurface.background.from_string(im.tostring())
         del im
         self._rsurface.Clear()
         self.RenderFull()

@@ -27,6 +27,7 @@ __all__ = ('DrawControler', )
 
 from pymui import TABLETA_Pressure, MUI_EventHandlerRC_Eat
 import os
+import PIL.Image as Image
 
 IECODE_UP_PREFIX = 0x80
 IECODE_LBUTTON   = 0x68
@@ -260,12 +261,14 @@ class DrawControler(object):
         if ext == '.ora':
             bbox = self.model.LoadFromOpenRaster(filename)
         else:
-            raise TypeError('Unsupported extension %s' % ext)
+            im = Image.open(filename)
+            bbox = self.model.LoadFromPIL(im)
+            del im
 
         print "[*DBG*] Loaded image bbox", bbox
         rx, ry = self.view.GetRasterPos(bbox[0], bbox[1])
-        self.view.osx += rx
-        self.view.osx += ry
+        self.view.osx -= rx
+        self.view.osx -= ry
         self.view.RedrawFull()
 
     def LoadBackground(self, filename):

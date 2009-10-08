@@ -203,17 +203,4 @@ class TiledSurface(Surface):
 
         pa = self.RenderAsPixelArray(mode)
         return Image.frombuffer(mode, (pa.Width, pa.Height), pa, 'raw', mode, 0, 1)
-    
-    def ImportFromPILImage(self, im, w, h):
-        return
-
-        im = im.convert('RGB') # TODO: need support of RGBA
-        src = _pixarray.PixelArray(T_SIZE, T_SIZE, 3, 8)
-        for ty in xrange(0, h, T_SIZE):
-            for tx in xrange(0, w, T_SIZE):
-                buf = self.GetBuffer(tx, ty, read=False)
-                sx = min(w, tx+T_SIZE)
-                sy = min(h, ty+T_SIZE)
-                src.from_string(im.crop((tx, ty, sx, sy)).tostring())
-                _pixarray.rgb8_to_argb8(src, buf)
 

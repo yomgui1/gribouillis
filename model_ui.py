@@ -86,17 +86,19 @@ class ModelInfoWindow(Window):
         self.Close()
         info = model.info
         self._ImageSize.Contents = "%lu x %lu" % model.bbox[2:]
-        mem = model.GetMemoryUsed()
-        if mem < 1024:
-            mem = "%lu Byte(s)" % mem
-        elif mem < 1024**2:
-            mem = "%lu KBytes" % (mem/1024)
-        elif mem < 1024**3:
-            mem = "%lu MBytes" % (mem/(1024**2))
-        else:
-            mem = "%lu GBytes" % (mem/(1024**3))
+        mem, datamem = model.GetMemoryUsed()
+        def mem2str(mem):
+            if mem < 1024:
+                mem = "%lu bytes" % mem
+            elif mem < 1024**2:
+                mem = "%lu Kbytes" % (mem/1024)
+            elif mem < 1024**3:
+                mem = "%lu Mbytes" % (mem/(1024**2))
+            else:
+                mem = "%lu Gbytes" % (mem/(1024**3))
+            return mem
   
-        self._MemoryUsed.Contents = mem
+        self._MemoryUsed.Contents = "%s (%s of data)" % (mem2str(mem), mem2str(datamem))
         self._Author.Contents = info.get('Author', '')
         self._Comments.Contents = info.get('Comments', '')
         unit = info.get('ResolutionUnit', 'in')

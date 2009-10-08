@@ -22,8 +22,7 @@ setup(name='Gribouillis',
                       ],
       py_modules=modules,
       scripts=['Gribouillis'],
-      data_files=[('', ['libs:python.library']),
-                  ('brushes', glob.glob('brushes/*.myb')
+      data_files=[('brushes', glob.glob('brushes/*.myb')
                    + glob.glob('brushes/*.png')
                    + glob.glob('brushes/*.conf')),
                   ('backgrounds', glob.glob('backgrounds/*.conf')

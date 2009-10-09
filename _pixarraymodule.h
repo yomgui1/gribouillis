@@ -33,7 +33,7 @@ static PyTypeObject PyPixelArray_Type;
 #define PyPixelArray_PIXFMT_RGBA_15X (PyPixelArray_FLAG_RGB | PyPixelArray_FLAG_15X | PyPixelArray_FLAG_ALPHA_LAST)
 #define PyPixelArray_PIXFMT_CMYKA_15X (PyPixelArray_FLAG_CMYK | PyPixelArray_FLAG_15X | PyPixelArray_FLAG_ALPHA_LAST)
 
-typedef void (*writefunc)(APTR pixel, FLOAT opacity, APTR color);
+typedef void (*writefunc)(APTR pixel, FLOAT opacity, FLOAT erase, USHORT *color);
 typedef void (*colfloat2natif)(FLOAT from, APTR *to);
 typedef FLOAT (*colnatif2float)(APTR from);
 

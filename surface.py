@@ -75,6 +75,24 @@ class Surface(object):
     bbox = property() # subclass implemented
 
 
+class BoundedSurface(Surface):
+    def __init__(self, width, height, mode):
+        super(BoundedSurface, self).__init__(mode) 
+        self.width = width
+        self.height = height
+        self._buf = _pixarray.PixelArray(width, height, self.pixfmt)
+
+    def GetBuffer(self, x, y, read=True, bg=None):
+        return self._buf
+
+    def Clear(self):
+        self._buf.zero()
+
+    @property
+    def bbox(self):
+        return 0, 0, self.width, self.height
+
+
 class TiledSurface(Surface):
     def __init__(self, mode, bg=None):
         super(TiledSurface, self).__init__(mode)
@@ -84,7 +102,7 @@ class TiledSurface(Surface):
             assert bg.pixfmt == self.pixfmt
             self._bg = bg # XXX: copy() ?
         else:
-            self._bg = Tile(self.pixfmt, clear=True)
+            self._bg = Tile(self.pixfmt)
         self._bg.bg = True
 
     @property

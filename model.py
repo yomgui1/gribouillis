@@ -43,7 +43,21 @@ class Model(object):
     """
 
     
-    def __init__(self):
+    def __init__(self, colormodel='RGB'):
+        if colormodel == 'RGB':
+            self._colormodel = 'RGBA15X'
+
+            # TODO: pa shall detect that automatically
+            self._rcompose = _pixarray.compose_rgba15x_to_rgb8
+        elif colormodel == 'CMYK':
+            raise NotImplementedError("CMYK model are not supported yet")
+
+            self._colormodel = 'CMYK15X'
+            def render_cmyk(src, dst, tmp=Tile(_pixarray.PIXFMT_CMYK_8)):
+                # TODO: CMS for transform a CMYK8 to RGB8 pa
+                pass
+            self._rcompose = render_cmyk
+        
         self._rsurface = TiledSurface(mode='RGB8')
         self._brush = DummyBrush() # that gives a way to remove some 'if' sentences...
 
@@ -54,8 +68,6 @@ class Model(object):
         self.info['ResolutionUnit'] = 'in'
         self.info['XResolution'] = dpi[0] # Number of pixels per ResolutionUnit on the X-axis
         self.info['YResolution'] = dpi[1] # Number of pixels per ResolutionUnit on the Y-axis
-        
-        self.Clear()
         
     def Clear(self):
         self._rsurface.Clear()
@@ -118,12 +130,6 @@ class Model(object):
     def AsPILImage(self):
         pass # Must be implemented by subclasses
 
-    def InitWriteContext(self):
-        pass # Must be implemented by subclasses
-
-    def TermWriteContext(self, ok):
-        pass # Must be implemented by subclasses
-
     def SaveAsOpenRaster(self, filename):
         pass # Must be implemented by subclasses
 
@@ -133,26 +139,9 @@ class SimpleModel(Model):
     2 working color spaces supported: RGB and CMYK.
     """
 
-    def __init__(self, colormodel='RGB'):
-        if colormodel == 'RGB':
-            mode = 'RGBA15X'
-
-            # TODO: pa shall detect that automatically
-            self._rcompose = _pixarray.compose_rgba15x_to_rgb8
-        elif colormodel == 'CMYK':
-            raise NotImplementedError("CMYK model are not supported yet")
-
-            mode = 'CMYK15X'
-            def render_cmyk(src, dst, tmp=Tile(_pixarray.PIXFMT_CMYK_8)):
-                _pixarray.compose_cmyk15x_to_cmyk8(src, tmp)
-                # TODO: CMS for transform a CMYK8 to RGB8 pa
-
-            self._rcompose = render_cmyk
-
-        self._surface = TiledSurface(mode)
-
-        # Called in last because super call Clear() at end of its __init__()
-        super(SimpleModel, self).__init__()
+    def __init__(self, *args, **kwds):
+        super(SimpleModel, self).__init__(*args, **kwds)
+        self._surface = TiledSurface(self._colormodel)
 
     def Clear(self):
         super(SimpleModel, self).Clear() # clear the render surface

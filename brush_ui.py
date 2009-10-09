@@ -29,8 +29,7 @@ lang = lang_dict['default']
 from pymui import *
 from pymui.mcc import laygroup
 from brush import DrawableBrush
-
-import math
+import math, surface, _pixarray
 
 __all__ = ('BrushSelectWindow', 'BrushEditorWindow')
 
@@ -41,6 +40,9 @@ class BrushSelectWindow(Window):
                                                 Width=6*DrawableBrush.BRUSH_SCALE,
                                                 Height=12*DrawableBrush.BRUSH_SCALE)
 
+        top = VGroup()
+        self.RootObject = top 
+
         self.brush = DrawableBrush()
         self.brush.Notify('Name', MUIV_EveryTime, self.OnBrushChange)
 
@@ -50,14 +52,11 @@ class BrushSelectWindow(Window):
 
         self.obj_BName = Text(Frame=MUIV_Frame_Text, SetMin=False)
         info_group = VGroup(Child=(self.obj_BName, VSpace(0)))
-
-        ro = VGroup()
-        ro.AddChild(HGroup(Title="Current brush", Child=(brush_group, info_group)))
-        ro.AddChild(Rectangle(HBar=True, FixHeight=8))
+        
+        top.AddChild(HGroup(Title="Current brush", Child=(brush_group, info_group)))
+        top.AddChild(Rectangle(HBar=True, FixHeight=8))
         self._bgroup = laygroup.LayGroup(SameSize=True, TopOffset=0, Spacing=0)
-        ro.AddChild(self._bgroup)
-
-        self.RootObject = ro
+        top.AddChild(self._bgroup)
 
     def OnBrushChange(self):
         self.obj_BName.Contents = self.brush.shortname
@@ -74,6 +73,48 @@ class BrushSelectWindow(Window):
             self._editor.Notify('CloseRequest', True, self._editor.Close)
         self._editor.SetBrush(self.brush)
         self._editor.Open()
+
+
+class BrushPreview(Area):
+    WIDTH = 200
+    HEIGHT = 96
+
+    def __init__(self):
+        super(BrushPreview, self).__init__(MCC=True, FillArea=False)
+        self._rsurface = surface.BoundedSurface(self.WIDTH, self.HEIGHT, 'RGB8')
+        self._rbuf = self._rsurface.GetBuffer(0, 0, read=False)
+        self._rbuf.one()
+        self._brush = DrawableBrush()
+
+    def MCC_AskMinMax(self, minw, defw, maxw, minh, defh, maxh):
+        w = minw + self.WIDTH
+        h = minh + self.HEIGHT
+        return w, w, w, h, h, h
+
+    def MCC_Draw(self, flags):
+        if flags & MADF_DRAWOBJECT == 0: return
+        self._rp.Blit8(self._rbuf, self.MLeft, self.MTop, self.WIDTH, self.HEIGHT)
+
+    def DrawBrush(self, brush):
+        self._rbuf.one()
+        b = self._brush
+        b.copy(brush)
+        b.color = (0.0, )*3
+
+        w = int(self.WIDTH * 3.0 / 4)
+        h = self.HEIGHT / 2
+        stroke = dict(time=0.0)
+        b.InitDraw(self._rsurface, (self.WIDTH/8, h))
+
+        for i in xrange(w+1):
+            fx = float(i)/w
+            x = i + self.WIDTH/8
+            y = int(h + (h/2)*math.sin(fx*math.pi*2))
+            stroke['pos'] = (x, y)
+            stroke['pressure'] = (fx**2-fx**3)*6.75
+            b.DrawStroke(stroke)
+        
+        self.Redraw()
 
 
 class FloatValue(Group):
@@ -132,11 +173,17 @@ class FloatValue(Group):
     
 class BrushEditorWindow(Window):
     def __init__(self, title):
-        ro = ColGroup(4)
+        ro = VGroup()
         super(BrushEditorWindow, self).__init__(title, ID="BrushEditor", RootObject=ro)
 
         self._obj = {}
         self._brush = None
+
+        self._prev = BrushPreview()
+        ro.AddChild(HCenter(self._prev), HBar(4))
+
+        top = ColGroup(4)
+        ro.AddChild(top)
 
         def Buttons(obj):
             b1 = SimpleButton("R")
@@ -147,35 +194,59 @@ class BrushEditorWindow(Window):
             b2.Notify('Pressed', False, self.OpenFxWin, obj)
             return b1, b2
 
-        o = self._obj['radius'] = FloatValue(min=-2.0, max=5.0, default=0.91,
+        o = self._obj['radius'] = FloatValue(min=-2.0, max=4.0, default=0.91,
                                              cb=self.OnFloatChange, cb_args=('radius',),
                                              ShortHelp=lang.ShortHelp_BrushEditor_Radius)
-        ro.AddChild(Label('Radius:'), o, *Buttons(o))
+        top.AddChild(Label('Radius:'), o, *Buttons(o))
 
         o = self._obj['yratio'] = FloatValue(min=-2.0, max=2.0, default=0.0,
                                              cb=self.OnFloatChange, cb_args=('yratio',),
                                              ShortHelp=lang.ShortHelp_BrushEditor_YRatio)
-        ro.AddChild(Label('Radius Y-ratio:'), o, *Buttons(o))
+        top.AddChild(Label('Radius Y-ratio:'), o, *Buttons(o))
 
         o = self._obj['hardness'] = FloatValue(min=0.0, max=1.0, default=0.5,
                                                cb=self.OnFloatChange, cb_args=('hardness',),)
-        ro.AddChild(Label('Hardness:'), o, *Buttons(o))
+        top.AddChild(Label('Hardness:'), o, *Buttons(o))
+
+        o = self._obj['opacity'] = FloatValue(min=0.0, max=1.0, default=1.0,
+                                              cb=self.OnFloatChange, cb_args=('opacity',),)
+        top.AddChild(Label('Opacity:'), o, *Buttons(o))
+
+        o = self._obj['erase'] = FloatValue(min=0.0, max=1.0, default=1.0,
+                                            cb=self.OnFloatChange, cb_args=('erase',),)
+        top.AddChild(Label('Erase:'), o, *Buttons(o))
+
+        o = self._obj['rad_rand'] = FloatValue(min=0.0, max=10.0, default=0.0,
+                                               cb=self.OnFloatChange, cb_args=('rad_rand',),)
+        top.AddChild(Label('Radius Randomize:'), o, *Buttons(o))
+ 
 
     def SetBrush(self, brush):
         self._brush = brush
-        self._obj['radius'].value = math.log(brush.base_radius)
-        self._obj['yratio'].value = math.log(brush.base_yratio)
+        self._obj['radius'].value = math.log(brush.radius)
+        self._obj['yratio'].value = math.log(brush.yratio)
         self._obj['hardness'].value = brush.hardness
+        self._obj['opacity'].value = brush.opacity
+        self._obj['erase'].value = brush.erase
+        self._obj['rad_rand'].value = brush.radius_random
 
     def OnFloatChange(self, value, n):
         if self._brush is None: return
 
         if n == 'radius':
-            self._brush.base_radius = math.exp(value)
+            self._brush.radius = math.exp(value)
         elif n == 'yratio':
-            self._brush.base_yratio = math.exp(value)
+            self._brush.yratio = math.exp(value)
         elif n == 'hardness':
             self._brush.hardness = value
+        elif n == 'opacity':
+            self._brush.opacity = value
+        elif n == 'erase':
+            self._brush.erase = value
+        elif n == 'rad_rand':
+            self._brush.radius_random = value
+   
+        self._prev.DrawBrush(self._brush)
 
     def OpenFxWin(self, obj):
         pass

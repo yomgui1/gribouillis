@@ -52,12 +52,12 @@ typedef struct PA_InitValue
     writefunc      writepixel;
 } PA_InitValue;
 
-static void rgb8_writepixel(APTR, FLOAT, APTR);
-static void argb8_writepixel(APTR, FLOAT, APTR);
-static void rgba8_writepixel(APTR, FLOAT, APTR);
-static void rgba15x_writepixel(APTR, FLOAT, APTR);
-static void cmyk8_writepixel(APTR, FLOAT, APTR);
-static void cmyka15x_writepixel(APTR, FLOAT, APTR);
+static void rgb8_writepixel(APTR, FLOAT, FLOAT, USHORT *);
+static void argb8_writepixel(APTR, FLOAT, FLOAT, USHORT *);
+static void rgba8_writepixel(APTR, FLOAT, FLOAT, USHORT *);
+static void rgba15x_writepixel(APTR, FLOAT, FLOAT, USHORT *);
+static void cmyk8_writepixel(APTR, FLOAT, FLOAT, USHORT *);
+static void cmyka15x_writepixel(APTR, FLOAT, FLOAT, USHORT *);
 
 static void rgb8_fromfloat(FLOAT, APTR *);
 static void rgba15x_fromfloat(FLOAT, APTR *);
@@ -102,92 +102,98 @@ get_init_values(ULONG pixfmt)
 
 //+ rgb8_writepixel
 static void
-rgb8_writepixel(APTR data, FLOAT opacity, APTR color)
+rgb8_writepixel(APTR data, FLOAT opacity, FLOAT erase, USHORT *color)
 {
     UBYTE *pixel = data;
     ULONG alpha = (ULONG)(opacity * 255);
     ULONG one_minus_alpha = 255 - alpha;
-    UBYTE *col = (APTR)color;
 
-    /* R */ pixel[0] = (alpha*col[0] + one_minus_alpha*pixel[0]) / 255;
-    /* G */ pixel[1] = (alpha*col[1] + one_minus_alpha*pixel[1]) / 255;
-    /* B */ pixel[2] = (alpha*col[2] + one_minus_alpha*pixel[2]) / 255;
+    alpha *= erase;  
+
+    /* R */ pixel[0] = (((alpha*color[0]*255)>>15) + one_minus_alpha*pixel[0]) / 255;
+    /* G */ pixel[1] = (((alpha*color[1]*255)>>15) + one_minus_alpha*pixel[1]) / 255;
+    /* B */ pixel[2] = (((alpha*color[2]*255)>>15) + one_minus_alpha*pixel[2]) / 255;
 }
 //-
 //+ rgba8_writepixel
 static void
-rgba8_writepixel(APTR data, FLOAT opacity, APTR color)
+rgba8_writepixel(APTR data, FLOAT opacity, FLOAT erase, USHORT *color)
 {
     UBYTE *pixel = data;
     ULONG alpha = (ULONG)(opacity * 255);
     ULONG one_minus_alpha = 255 - alpha;
-    UBYTE *col = (APTR)color;
 
-    /* R */ pixel[0] = (alpha*col[0] + one_minus_alpha*pixel[0]) / 255;
-    /* G */ pixel[1] = (alpha*col[1] + one_minus_alpha*pixel[1]) / 255;
-    /* B */ pixel[2] = (alpha*col[2] + one_minus_alpha*pixel[2]) / 255;
-    /* A */ pixel[3] =  alpha        + one_minus_alpha*pixel[3]  / 255;
+    alpha *= erase;
+
+    /* R */ pixel[0] = (((alpha*color[0]*255)>>15) + one_minus_alpha*pixel[0]) / 255;
+    /* G */ pixel[1] = (((alpha*color[1]*255)>>15) + one_minus_alpha*pixel[1]) / 255;
+    /* B */ pixel[2] = (((alpha*color[2]*255)>>15) + one_minus_alpha*pixel[2]) / 255;
+    /* A */ pixel[3] =    alpha                    + one_minus_alpha*pixel[3]  / 255;
 }
 //-
-//+ rgb8_writepixel
+//+ argb8_writepixel
 static void
-argb8_writepixel(APTR data, FLOAT opacity, APTR color)
+argb8_writepixel(APTR data, FLOAT opacity, FLOAT erase, USHORT *color)
 {
     UBYTE *pixel = data;
     ULONG alpha = (ULONG)(opacity * 255);
     ULONG one_minus_alpha = 255 - alpha;
-    UBYTE *col = (APTR)color;
 
-    /* A */ pixel[0] =  alpha        + one_minus_alpha*pixel[0]  / 255;
-    /* R */ pixel[1] = (alpha*col[0] + one_minus_alpha*pixel[1]) / 255;
-    /* G */ pixel[2] = (alpha*col[1] + one_minus_alpha*pixel[2]) / 255;
-    /* B */ pixel[3] = (alpha*col[2] + one_minus_alpha*pixel[3]) / 255;
+    alpha *= erase; 
+
+    /* A */ pixel[0] =    alpha                    + one_minus_alpha*pixel[0]  / 255;
+    /* R */ pixel[1] = (((alpha*color[0]*255)>>15) + one_minus_alpha*pixel[1]) / 255;
+    /* G */ pixel[2] = (((alpha*color[1]*255)>>15) + one_minus_alpha*pixel[2]) / 255;
+    /* B */ pixel[3] = (((alpha*color[2]*255)>>15) + one_minus_alpha*pixel[3]) / 255;
 }
 //-
 //+ cmyk8_writepixel
 static void
-cmyk8_writepixel(APTR data, FLOAT opacity, APTR color)
+cmyk8_writepixel(APTR data, FLOAT opacity, FLOAT erase, USHORT *color)
 {
     UBYTE *pixel = data;
     ULONG alpha = (ULONG)(opacity * 255);
     ULONG one_minus_alpha = 255 - alpha;
-    UBYTE *col = (APTR)color;
 
-    /* C */ pixel[0] = (alpha*col[0] + one_minus_alpha*pixel[0]) / 255;
-    /* M */ pixel[1] = (alpha*col[1] + one_minus_alpha*pixel[1]) / 255;
-    /* Y */ pixel[2] = (alpha*col[2] + one_minus_alpha*pixel[2]) / 255;
-    /* K */ pixel[3] = (alpha*col[3] + one_minus_alpha*pixel[3]) / 255;
+    alpha *= erase; 
+
+    /* C */ pixel[0] = (((alpha*color[0]*255)>>15) + one_minus_alpha*pixel[0]) / 255;
+    /* M */ pixel[1] = (((alpha*color[1]*255)>>15) + one_minus_alpha*pixel[1]) / 255;
+    /* Y */ pixel[2] = (((alpha*color[2]*255)>>15) + one_minus_alpha*pixel[2]) / 255;
+    /* K */ pixel[3] = (((alpha*color[3]*255)>>15) + one_minus_alpha*pixel[3]) / 255;
 }
 //-
 //+ rgba15x_writepixel
 static void
-rgba15x_writepixel(APTR data, FLOAT opacity, APTR color)
+rgba15x_writepixel(APTR data, FLOAT opacity, FLOAT erase, USHORT *color)
 {
     USHORT *pixel = data;
     ULONG alpha = (ULONG)(opacity * (1<<15));
     ULONG one_minus_alpha = (1<<15) - alpha;
-    USHORT *col = (APTR)color;
 
-    /* R */ pixel[0] = (alpha*col[0] + one_minus_alpha*pixel[0]) / (1<<15);
-    /* G */ pixel[1] = (alpha*col[1] + one_minus_alpha*pixel[1]) / (1<<15);
-    /* B */ pixel[2] = (alpha*col[2] + one_minus_alpha*pixel[2]) / (1<<15);
-    /* A */ pixel[3] =  alpha        + one_minus_alpha*pixel[3]  / (1<<15);
+    alpha *= erase;
+
+    /* R */ pixel[0] = (alpha*color[0] + one_minus_alpha*pixel[0]) / (1<<15);
+    /* G */ pixel[1] = (alpha*color[1] + one_minus_alpha*pixel[1]) / (1<<15);
+    /* B */ pixel[2] = (alpha*color[2] + one_minus_alpha*pixel[2]) / (1<<15);
+    /* A */ pixel[3] =  alpha          + one_minus_alpha*pixel[3]  / (1<<15);
 }
 //-
 //+ cmyka15x_writepixel
 static void
-cmyka15x_writepixel(APTR data, FLOAT opacity, APTR color)
+cmyka15x_writepixel(APTR data, FLOAT opacity, FLOAT erase, USHORT *color)
 {
     USHORT *pixel = data;
     ULONG alpha = (ULONG)(opacity * (1<<15));
     ULONG one_minus_alpha = (1<<15) - alpha;
-    USHORT *col = (APTR)color;
 
-    /* C */ pixel[0] = (alpha*col[0] + one_minus_alpha*pixel[0]) / (1<<15);
-    /* M */ pixel[1] = (alpha*col[1] + one_minus_alpha*pixel[1]) / (1<<15);
-    /* Y */ pixel[2] = (alpha*col[2] + one_minus_alpha*pixel[2]) / (1<<15);
-    /* K */ pixel[3] = (alpha*col[3] + one_minus_alpha*pixel[3]) / (1<<15);
-    /* A */ pixel[4] =  alpha        + one_minus_alpha*pixel[4]  / (1<<15);
+    alpha *= erase; 
+
+    /* C */ pixel[0] = (alpha*color[0] + one_minus_alpha*pixel[0]) / (1<<15);
+    /* M */ pixel[1] = (alpha*color[1] + one_minus_alpha*pixel[1]) / (1<<15);
+    /* Y */ pixel[2] = (alpha*color[2] + one_minus_alpha*pixel[2]) / (1<<15);
+    /* K */ pixel[3] = (alpha*color[3] + one_minus_alpha*pixel[3]) / (1<<15);
+    /* A */ pixel[4] =  alpha          + one_minus_alpha*pixel[4]  / (1<<15);
 }
 //-
 

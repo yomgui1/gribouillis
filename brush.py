@@ -25,7 +25,7 @@
 
 __all__ = ('Brush', 'DummyBrush')
 
-import os
+import os, array
 from pymui import MUIV_InputMode_Toggle, MUIV_Frame_ImageButton, Dtpic
 import _brush, functools
 
@@ -39,9 +39,13 @@ class Brush(Dtpic):
         super(Brush, self).__init__(InputMode=MUIV_InputMode_Toggle, Frame=MUIV_Frame_ImageButton)
         self._set(MUIA_Dtpic_Scale, self.BRUSH_SCALE)
         self.shortname = ''
-        self.base_radius = 8.0
-        self.base_yratio = 1.0
+        self._states = array.array('f', (0.0, )*_brush.BASIC_VALUES_MAX)
+        self.radius = 2.0
+        self.yratio = 1.0
         self.hardness = 0.5
+        self.opacity = 1.0
+        self.erase = 1.0
+        self.radius_random = 0.0
         self.color = self.DEFAULT_COLOR
 
     def load(self, search_paths, name):
@@ -57,7 +61,16 @@ class Brush(Dtpic):
         
         raise RuntimeError('brush "' + name + '" not found')
 
+    def _get_states(self):
+        return self._states.tostring()
+
+    def _copy_states(self, brush):
+        self._states = array.array('f')
+        self._states.fromstring(brush._get_states())
+
     def copy(self, brush):
+        self._copy_states(brush)
+
         self.shortname = brush.shortname
         self.color = brush.color
         self.Name = brush.Name # in last because can trig some notification callbacks
@@ -73,6 +86,19 @@ class Brush(Dtpic):
 
     color = property(fget=get_color, fset=set_color, fdel=functools.partial(set_color, DEFAULT_COLOR))
 
+    def get_state(self, i):
+        return self._states[i]
+
+    def set_state(self, i, state):
+        self._states[i] = state
+
+    radius = property(fget=lambda self: self.get_state(_brush.BV_RADIUS), fset=lambda self, v: self.set_state(_brush.BV_RADIUS, v))
+    yratio = property(fget=lambda self: self.get_state(_brush.BV_YRATIO), fset=lambda self, v: self.set_state(_brush.BV_YRATIO, v))
+    hardness = property(fget=lambda self: self.get_state(_brush.BV_HARDNESS), fset=lambda self, v: self.set_state(_brush.BV_HARDNESS, v))
+    opacity = property(fget=lambda self: self.get_state(_brush.BV_OPACITY), fset=lambda self, v: self.set_state(_brush.BV_OPACITY, v))
+    erase = property(fget=lambda self: self.get_state(_brush.BV_ERASE), fset=lambda self, v: self.set_state(_brush.BV_ERASE, v))
+    radius_random = property(fget=lambda self: self.get_state(_brush.BV_RADIUS_RANDOM), fset=lambda self, v: self.set_state(_brush.BV_RADIUS_RANDOM, v))
+
 
 class DrawableBrush(Brush):
     def __init__(self):
@@ -80,12 +106,6 @@ class DrawableBrush(Brush):
         self._brush = _brush.Brush()
         super(DrawableBrush, self).__init__()
         
-    def copy(self, brush):
-        self._brush.radius = brush.base_radius
-        self._brush.yratio = brush.base_yratio
-        self._brush.hardness = brush.hardness
-        super(DrawableBrush, self).copy(brush)
-            
     def InitDraw(self, sf, pos):
         self._brush.invalid_cache()
         self._brush.surface = sf
@@ -96,6 +116,12 @@ class DrawableBrush(Brush):
 
     def DrawSolidDab(self, pos, pressure=0.5):
         return self._brush.drawdab_solid(pos, pressure, 0.6)
+
+    def _get_states(self):
+        return self._brush.get_states()
+
+    def _copy_states(self, brush):
+        self._brush.get_states()[:] = brush._get_states()
 
     def get_color(self):
         return self._brush.red, self._brush.green, self._brush.blue
@@ -108,18 +134,11 @@ class DrawableBrush(Brush):
 
     color = property(fget=get_color, fset=set_color, fdel=del_color)
 
-    def set_baseradius(self, v):
-        self._brush.radius = v
+    def get_state(self, i):
+        return self._brush.get_state(i)
 
-    def set_baseyratio(self, v):
-        self._brush.yratio = v
- 
-    def set_hardness(self, v):
-        self._brush.hardness = v
- 
-    base_radius = property(fget=lambda self: self._brush.radius, fset=set_baseradius)
-    base_yratio = property(fget=lambda self: self._brush.yratio, fset=set_baseyratio)
-    hardness = property(fget=lambda self: self._brush.hardness, fset=set_hardness)
+    def set_state(self, i, state):
+        self._brush.set_state(i, state)
 
 
 class DummyBrush:

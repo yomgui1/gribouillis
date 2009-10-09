@@ -55,6 +55,10 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 //#define STAT_TIMING
 
+#ifdef STAT_TIMING
+#include <exec/system.h>
+#endif
+
 enum {
     BV_RADIUS=0,
     BV_YRATIO,
@@ -600,11 +604,16 @@ brush_invalid_cache(PyBrush *self)
     ULONG i;
 
 #ifdef STAT_TIMING
+    ULONG tbclockfreq=0;
+
     Printf("Cache states: cache accesses = %lu, cache miss = %lu (%lu%%)\n",
         self->b_CacheAccesses, self->b_CacheMiss, (ULONG)(((float)self->b_CacheMiss * 100 / self->b_CacheAccesses) + 0.5));
     
+    if (!NewGetSystemAttrs(&tbclockfreq,sizeof(tbclockfreq),SYSTEMINFOTYPE_TBCLOCKFREQUENCY,TAG_DONE))
+        tbclockfreq = 33333333;
+
     for (i=0; i < sizeof(self->b_Times)/sizeof(*self->b_Times); i++) {
-        float t = (float)self->b_Times[i] / self->b_TimesCount[i] / 33.333333;
+        float t = ((float)self->b_Times[i] / self->b_TimesCount[i] / tbclockfreq) * 10e6;
         Printf("Time#%lu: %lu\n", i, (ULONG)t);
         self->b_Times[i] = 0;
         self->b_TimesCount[i] = 0;

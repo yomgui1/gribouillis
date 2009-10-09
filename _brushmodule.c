@@ -227,7 +227,8 @@ drawdab_solid(PyBrush *self, /* In: */
             UBYTE *buf;
             ULONG bx_left, bx_right, by_top, by_bottom;
             ULONG bx, by; /* x, y in buffer space */
-            int n, i = -1; /* >=0 when some pixels have been written */
+            LONG n, i = -1; /* >=0 when some pixels have been written */
+            FLOAT cx, cy;
 
             /* Try to obtain the surface pixels buffer for the point (x, y).
              * Search in internal cache for it, then ask directly to the surface object.
@@ -279,40 +280,47 @@ drawdab_solid(PyBrush *self, /* In: */
             DPRINT("BDraw: area = (%ld, %ld, %ld, %ld) size=(%lu, %lu) (%ld)\n",
                 bx_left, by_top, bx_right, by_bottom, bx_right-bx_left, by_bottom-by_top);
 
-            /* Filling one pixel buffer (inner loop)
-            ** OPTIMIZATION: using a kind of bresenham algo and remove all float computations ?
-            */
+            /* Filling one pixel buffer (inner loop) */
 #ifdef STAT_TIMING
             ReadCPUClock(&t1);
 #endif
+
+            /* Compute the square of ellipse radius: rr^2 = rx^2 + ry^2
+             * Note: Why +0.5 for each coordinate? because we put the center of
+             * ellipse in the center of the pixel (pixel positions are integers).
+             */
+
+            /* Ellipse center in buffer coordinates */
+            cx = sx - (pa->x + 0.5);
+            cy = sy - (pa->y + 0.5);
+
             for (by=by_top; by <= by_bottom; by++) {
+                FLOAT ry2 = ((LONG)by - cy) / yratio;
+
+                ry2 *= ry2;
+
                 for (bx=bx_left; bx <= bx_right; bx++) {
-                    FLOAT drx, dry;
-                    FLOAT rr, opa = opacity;
+                    FLOAT rx, rr;
+                    FLOAT opa;
 
-                    /* Compute the square of ellipse radius
-                     * Note: Why +0.5 for each coordinate? because we put the center of
-                     * ellipse in the center of the pixel (pixel positions are integers).
-                     */
-                    drx = (LONG)bx + pa->x - sx + 0.5;
-                    dry = ((LONG)by + pa->y - sy + 0.5) / yratio;
-                    rr = (drx*drx + dry*dry) / radius_radius;
+                    rx = (LONG)bx - cx;
+                    rr = (rx*rx + ry2) / radius_radius;
 
-                    /* P=(x, y) in the Ellipse ? */
+                    /* (x, y) in the Ellipse ? */
                     if (rr <= 1.0) {
-                        /* opacity = p * f(r), where:
+                        /* opacity = opacity_base * f(r), where:
                          *   - f is a falloff function
                          *   - r the radius (we using the square radius (rr) in fact)
-                         *   - p the pressure
                          *
                          * hardness is the first zero of f (f(hardness)=0.0).
                          * hardness can't be zero (or density = -infinity, clamped to zero)
                          */
+                        opa = opacity;
                         if (hardness < 1.0) {
                             if (rr < hardness)
-                                opa *= rr + 1-(rr/hardness);
+                                opa *= (rr + 1-(rr/hardness));
                             else
-                                opa *= hardness/(hardness-1)*(rr-1);
+                                opa *= (hardness/(hardness-1)*(rr-1));
                         }
 
                         i = bx * n;
@@ -329,7 +337,7 @@ drawdab_solid(PyBrush *self, /* In: */
             self->b_TimesCount[1]++;
 #endif
 
-            /* Written buffer ? */
+            /* Pixel(s) written ? */
             if (i >= 0) {
                 /* put in the damaged list if not damaged yet */
                 if (!pa->damaged) {

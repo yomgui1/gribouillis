@@ -25,9 +25,9 @@
 
 __all__ = ('DrawControler', )
 
-from pymui import TABLETA_Pressure, MUI_EventHandlerRC_Eat
 import os
 import PIL.Image as Image
+from pymui import *      
 
 IECODE_UP_PREFIX = 0x80
 IECODE_LBUTTON   = 0x68
@@ -38,6 +38,7 @@ NM_WHEEL_UP      = 0x7a
 NM_WHEEL_DOWN    = 0x7b
 
 PRESSURE_MAX     = 0x7ffff800
+ANGLE_MAX        = 4294967280.0
 
 class Recorder:
     def __init__(self):
@@ -174,8 +175,12 @@ class DrawControler(object):
             #    self.tbx = evt.td_NormTabletX
             #    self.tby = evt.td_NormTabletY
             p = float(evt.td_Tags.get(TABLETA_Pressure, PRESSURE_MAX/2)) / PRESSURE_MAX
+            tx = 2.0 * float(evt.td_Tags.get(TABLETA_AngleX, 0)) / ANGLE_MAX - 1.0
+            ty = 1.0 - 2.0 * float(evt.td_Tags.get(TABLETA_AngleY, 0)) / ANGLE_MAX
         else:
             p = 0.5
+            tx = 0.0
+            ty = 0.0
 
         pos = self.view.GetSurfacePos(evt.MouseX, evt.MouseY)
         
@@ -183,7 +188,7 @@ class DrawControler(object):
         # TODO: for now, a stroke is just a dict object.
         # we need to use a custom object later for optimizations.
         time = (evt.Seconds+evt.Micros*1e-6) - (self.secs+self.mics*1e-6)
-        stroke = dict(pos=pos, pressure=p, time=time)
+        stroke = dict(pos=pos, pressure=p, time=time, tiltx=tx, tilty=ty)
         self.model.RecordStroke(stroke)
         self.view.AddDamagedBuffer(self.model.RenderStroke(stroke))
         self.view.RedrawDamaged()

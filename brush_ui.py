@@ -170,7 +170,43 @@ class FloatValue(Group):
 
     value = property(fget=lambda self: float(self), fset=SetValue, fdel=SetDefault)
 
+
+class PercentSlider(Slider):
+    def __init__(self, min, max, default=None, cb=None, cb_args=(), **kwds):
+        super(PercentSlider, self).__init__(Min=0, Max=100, **kwds)
+  
+        if default is None:
+            default = min
+        
+        assert min < max and min <= default and max >= default
+
+        self._min = min
+        self._range = (max - min)/100.
+        self._default = default
+
+        self._cb = cb
+        self._cb_args = cb_args
+
+        self.Notify('Value', MUIV_EveryTime, self.OnValue)
+
+        self.value = default   
+
+    def __float__(self):
+        return self.Value*self._range + self._min
+
+    def OnValue(self, *args):
+        if self._cb:
+            self._cb(float(self), *self._cb_args)
+
+    def SetValue(self, value):
+        self.Value = min(100, max(0, int((value-self._min)/self._range)))
+
+    def SetDefault(self):
+        self.value = self._default
+
+    value = property(fget=lambda self: float(self), fset=SetValue, fdel=SetDefault)
     
+
 class BrushEditorWindow(Window):
     def __init__(self, title):
         ro = VGroup()
@@ -199,27 +235,27 @@ class BrushEditorWindow(Window):
                                              ShortHelp=lang.ShortHelp_BrushEditor_Radius)
         top.AddChild(Label('Radius:'), o, *Buttons(o))
 
-        o = self._obj['yratio'] = FloatValue(min=-2.0, max=2.0, default=0.0,
+        o = self._obj['yratio'] = FloatValue(min=0.0, max=2.0, default=0.0,
                                              cb=self.OnFloatChange, cb_args=('yratio',),
                                              ShortHelp=lang.ShortHelp_BrushEditor_YRatio)
         top.AddChild(Label('Radius Y-ratio:'), o, *Buttons(o))
 
-        o = self._obj['hardness'] = FloatValue(min=0.0, max=1.0, default=0.5,
-                                               cb=self.OnFloatChange, cb_args=('hardness',),)
+        o = self._obj['hardness'] = PercentSlider(min=0.0, max=1.0, default=0.5,
+                                                  cb=self.OnFloatChange, cb_args=('hardness',))
         top.AddChild(Label('Hardness:'), o, *Buttons(o))
 
-        o = self._obj['opacity'] = FloatValue(min=0.0, max=1.0, default=1.0,
-                                              cb=self.OnFloatChange, cb_args=('opacity',),)
+        o = self._obj['opacity'] = PercentSlider(min=0.0, max=1.0, default=1.0,
+                                                 cb=self.OnFloatChange, cb_args=('opacity',))
         top.AddChild(Label('Opacity:'), o, *Buttons(o))
 
-        o = self._obj['erase'] = FloatValue(min=0.0, max=1.0, default=1.0,
-                                            cb=self.OnFloatChange, cb_args=('erase',),)
+        o = self._obj['erase'] = PercentSlider(min=0.0, max=1.0, default=1.0,
+                                              cb=self.OnFloatChange, cb_args=('erase',),)
         top.AddChild(Label('Erase:'), o, *Buttons(o))
 
-        o = self._obj['rad_rand'] = FloatValue(min=0.0, max=10.0, default=0.0,
-                                               cb=self.OnFloatChange, cb_args=('rad_rand',),)
+        o = self._obj['rad_rand'] = PercentSlider(min=0.0, max=10.0, default=0.0,
+                                                  cb=self.OnFloatChange, cb_args=('rad_rand',))
         top.AddChild(Label('Radius Randomize:'), o, *Buttons(o))
- 
+
 
     def SetBrush(self, brush):
         self._brush = brush

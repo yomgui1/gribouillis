@@ -662,6 +662,18 @@ pixarray_copy(PyPixelArray *self)
     return (PyObject *)copy;
 }
 //-
+//+ pixarray_nonzero
+static int
+pixarray_nonzero(PyPixelArray *self)
+{
+    Py_ssize_t i, n = self->height * self->bpr / sizeof(ULONG);
+    ULONG *ptr = self->data;
+
+    for (i=0; i < n; i++, ptr++) if (*ptr) return TRUE;
+    return FALSE;
+}
+//-
+
 
 static struct PyMethodDef pixarray_methods[] = {
     {"zero", (PyCFunction)pixarray_zero, METH_VARARGS, NULL},
@@ -692,6 +704,10 @@ static PyBufferProcs pixarray_as_buffer = {
     bf_getsegcount    : (getsegcountproc)pixarray_getsegcount,
 };
 
+static PyNumberMethods pixarray_as_number = {
+    nb_nonzero : (inquiry)pixarray_nonzero,
+};
+
 static PyTypeObject PyPixelArray_Type = {
     PyObject_HEAD_INIT(NULL)
 
@@ -705,6 +721,7 @@ static PyTypeObject PyPixelArray_Type = {
     tp_methods      : pixarray_methods,
     tp_members      : pixarray_members,
     tp_as_buffer    : &pixarray_as_buffer,
+    tp_as_number    : &pixarray_as_number,
 };
 
 

@@ -161,6 +161,12 @@ class TiledSurface(Surface):
     def Clear(self): # Destructive operation, destroy the undo historic
         self.tiles.clear()
 
+    def Cleanup(self): # Destructive operation, destroy the undo historic
+        dead = [ k for k,v in self.tiles.iteritems() if not v ]
+        for k in dead:
+            del self.tiles[k]
+        print len(self.tiles)
+
     @property
     def bbox(self):
         if not self.tiles:

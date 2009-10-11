@@ -215,14 +215,19 @@ class Gribouillis(Application):
 
         self.brushes_names = unsorted_brushes + sorted_brushes
 
-        paths = (self.paths['user_brushes'], self.paths['builtins_brushes'])
+        self._all_paths = (self.paths['user_brushes'], self.paths['builtins_brushes'])
         self.brushes = []
         for name in self.brushes_names[:3]:
-            b = Brush()
-            b.load(paths, name)
-            b.Notify(MUIA_Selected, MUIV_EveryTime, self.OnSelectBrush, b)
-            self.brushes.append(b)
+            self._add_brush(name)
+            
         self.win_BSel.SetBrushes(self.brushes)
+
+    def _add_brush(self, name):
+        b = Brush()
+        b.load(self._all_paths, name)
+        b.Notify(MUIA_Selected, MUIV_EveryTime, self.OnSelectBrush, b)
+        self.brushes.append(b)
+        return b
 
     def set_color(self, *rgb):
         self.win_Color.color = rgb # Coloradjust object will call OnColorChanged method
@@ -344,6 +349,9 @@ class Gribouillis(Application):
     def ClearAll(self):
         self.controler.Clear()
 
+    def Cleanup(self, model=None):
+        self.controler.Cleanup()
+
     def Undo(self):
         self.controler.Undo()
         
@@ -364,3 +372,10 @@ class Gribouillis(Application):
 
     def SetRGBProfile(self, name, profile):
         pass
+
+    def CopyBrush(self, brush):
+        b = self._add_brush(brush.Name)
+        b.copy(brush)
+        self.win_BSel.AddBrush(b)
+        self.brush = b
+        return b

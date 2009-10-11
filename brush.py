@@ -40,16 +40,16 @@ class Brush(Dtpic):
         self._set(MUIA_Dtpic_Scale, self.BRUSH_SCALE)
         self.shortname = ''
         self._states = array.array('f', (0.0, )*_brush.BASIC_VALUES_MAX)
-        self.radius = 2.0
-        self.yratio = 1.0
-        self.hardness = 0.5
-        self.opacity = 1.0
-        self.erase = 1.0
-        self.radius_random = 0.0
         self.color = self.DEFAULT_COLOR
+        
+        del self.states
 
     def load(self, search_paths, name):
-        fullname = name + '_prev.png'
+        if name.endswith('.png'):
+            fullname = name
+            name = os.path.splitext(os.path.basename(name))[0]
+        else:
+            fullname = name + '_prev.png'
         
         for path in search_paths:
             filename = os.path.join(path, fullname)
@@ -61,18 +61,31 @@ class Brush(Dtpic):
         
         raise RuntimeError('brush "' + name + '" not found')
 
+
     def _get_states(self):
         return self._states.tostring()
 
-    def _copy_states(self, brush):
-        self._states = array.array('f')
-        self._states.fromstring(brush._get_states())
+    def _set_states(self, states):
+        assert len(states) == len(self._states.tostring())
+        self._states = array.array('f', states)
+
+    def _set_default_states(self):
+        self.radius = 2.0
+        self.yratio = 1.0
+        self.hardness = 0.5
+        self.opacity = 1.0
+        self.erase = 1.0
+        self.radius_random = 0.0
+        self.dabs_per_radius = 10.0
+
+    states = property(fget=lambda self: self._get_states(),
+                      fset=lambda self, s: self._set_states(s),
+                      fdel=lambda self: self._set_default_states())
 
     def copy(self, brush):
-        self._copy_states(brush)
-
+        self.states = brush.states
         self.shortname = brush.shortname
-        self.color = brush.color
+        # color is not copied
         self.Name = brush.Name # in last because can trig some notification callbacks
 
     def get_color(self):
@@ -98,6 +111,7 @@ class Brush(Dtpic):
     opacity = property(fget=lambda self: self.get_state(_brush.BV_OPACITY), fset=lambda self, v: self.set_state(_brush.BV_OPACITY, v))
     erase = property(fget=lambda self: self.get_state(_brush.BV_ERASE), fset=lambda self, v: self.set_state(_brush.BV_ERASE, v))
     radius_random = property(fget=lambda self: self.get_state(_brush.BV_RADIUS_RANDOM), fset=lambda self, v: self.set_state(_brush.BV_RADIUS_RANDOM, v))
+    dabs_per_radius = property(fget=lambda self: self.get_state(_brush.BV_DABS_PER_RADIUS), fset=lambda self, v: self.set_state(_brush.BV_DABS_PER_RADIUS, v))
 
 
 class DrawableBrush(Brush):
@@ -118,10 +132,10 @@ class DrawableBrush(Brush):
         return self._brush.drawdab_solid(pos, pressure, 0.6)
 
     def _get_states(self):
-        return self._brush.get_states()
+        return str(self._brush.get_states())
 
-    def _copy_states(self, brush):
-        self._brush.get_states()[:] = brush._get_states()
+    def _set_states(self, states):
+        self._brush.get_states()[:] = states
 
     def get_color(self):
         return self._brush.red, self._brush.green, self._brush.blue

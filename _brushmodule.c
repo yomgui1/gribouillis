@@ -66,6 +66,7 @@ enum {
     BV_OPACITY,
     BV_ERASE,
     BV_RADIUS_RANDOM,
+    BV_DABS_PER_RADIUS,
     BASIC_VALUES_MAX
 };
 
@@ -85,8 +86,8 @@ typedef struct PyBrush_STRUCT {
     PANode *        b_FirstInvalid;
 
     /* Brush Model */
-    LONG            b_X;
-    LONG            b_Y;
+    LONG            b_X, b_dX;
+    LONG            b_Y, b_dY;
     FLOAT           b_Time;
     FLOAT           b_cs, b_sn;
 
@@ -511,7 +512,7 @@ brush_drawstroke(PyBrush *self, PyObject *args)
     PyObject *stroke, *o, *buflist;
     LONG sx, sy;
     LONG dx, dy;
-    FLOAT radius, yratio, pressure, time, tiltx, tilty, d;
+    FLOAT radius, yratio, pressure, time, tiltx, tilty, d, speed;
     ULONG i, n;
     
     if (NULL == self->b_Surface)
@@ -559,28 +560,36 @@ brush_drawstroke(PyBrush *self, PyObject *args)
     if (NULL == buflist)
         return NULL;
 
-    /* TODO: CHANGE ME (Test routine) */
-#define DABS_PER_RADIUS 25
 #define DABS_PER_SECONDS 0
 
-    if ((tiltx != 0.0) && (tilty != 0.0)) {
-        d = sqrtf(tiltx*tiltx + tilty*tilty);
-        self->b_sn = tiltx/d;
-        self->b_cs = tilty/d;
-    }
+    radius = self->b_BasicValues[BV_RADIUS];
+    yratio = CLAMP(self->b_BasicValues[BV_YRATIO], 1.0, 100.0);
 
+    /* Compute movement vector */
     dx = sx - self->b_X;
     dy = sy - self->b_Y;
 
-    //if ((0 == dx) && (0 == dy))
-    //    return buflist;
+    if ((dx == 0) && (dy == 0))
+        return buflist;
 
-    radius = self->b_BasicValues[BV_RADIUS];
-    radius = CLAMP(radius, 0.01, 128.0);
-    
-    yratio = CLAMP(self->b_BasicValues[BV_YRATIO], 1.0, 100.0);
+    /* Limit the movement speed */
+    /* TODO */
+    //speed = sqrtf(dx*dx+dy*dy) / (time-self->b_Time);
+    //radius *= speed/1000;
 
-    d = sqrt(dx*dx+dy*dy) * DABS_PER_RADIUS / radius;
+    radius = CLAMP(radius, 0.01, 128.0);  
+
+    /* Use this movement vector to compute the brush direction (cos/sin rotation) */
+    d = sqrtf(dx*dx + dy*dy);
+    self->b_cs = -dy/d;
+    self->b_sn = dx/d;
+   
+    /* TODO: how to use tilt? */
+    if ((tiltx != 0.0) && (tilty != 0.0)) {
+    }
+
+    /* number of dabs to draw */
+    d *= self->b_BasicValues[BV_DABS_PER_RADIUS] / radius;
     d += time * DABS_PER_SECONDS;
 
     n = (ULONG)d;
@@ -595,7 +604,6 @@ brush_drawstroke(PyBrush *self, PyObject *args)
         LONG v2 = (myrand2()*2-1)*self->b_BasicValues[BV_RADIUS_RANDOM]*radius;
 
         /* Simple linear interpolation */
-
         x = self->b_X + (LONG)((float)dx*i/n);
         y = self->b_Y + (LONG)((float)dy*i/n);
 
@@ -616,14 +624,15 @@ brush_drawstroke(PyBrush *self, PyObject *args)
         
         if (NULL == ret) {
             Py_CLEAR(buflist); /* BUG: let pa damaged ! */
-            goto end;
+            break;
         }
     }
 
     self->b_X = sx;
     self->b_Y = sy;
-
-end:
+    self->b_dX = dx;
+    self->b_dY = dy;
+    self->b_Time = time;
     return buflist;
 }
 //-
@@ -813,13 +822,14 @@ brush_set_color(PyBrush *self, PyObject *value, void *closure)
 
 static PyGetSetDef brush_getseters[] = {
     {"surface",  (getter)brush_get_surface, (setter)brush_set_surface,          "Surface to use", NULL},
-    
-    {"radius",        (getter)brush_get_float,   (setter)brush_set_float,            "Radius",   (APTR)BV_RADIUS},
-    {"yratio",        (getter)brush_get_float,   (setter)brush_set_float,            "Y-ratio",  (APTR)BV_YRATIO},
-    {"hardness",      (getter)brush_get_float,   (setter)brush_set_normalized_float, "Hardness", (APTR)BV_HARDNESS},
-    {"opacity",       (getter)brush_get_float,   (setter)brush_set_normalized_float, "Opacity",  (APTR)BV_OPACITY},
-    {"erase",         (getter)brush_get_float,   (setter)brush_set_normalized_float, "Erase",    (APTR)BV_ERASE},
-    {"radius_random", (getter)brush_get_float,   (setter)brush_set_float,            "Radius Randomize", (APTR)BV_RADIUS_RANDOM},
+
+    {"radius",          (getter)brush_get_float, (setter)brush_set_float,            "Radius",   (APTR)BV_RADIUS},
+    {"yratio",          (getter)brush_get_float, (setter)brush_set_float,            "Y-ratio",  (APTR)BV_YRATIO},
+    {"hardness",        (getter)brush_get_float, (setter)brush_set_normalized_float, "Hardness", (APTR)BV_HARDNESS},
+    {"opacity",         (getter)brush_get_float, (setter)brush_set_normalized_float, "Opacity",  (APTR)BV_OPACITY},
+    {"erase",           (getter)brush_get_float, (setter)brush_set_normalized_float, "Erase",    (APTR)BV_ERASE},
+    {"radius_random",   (getter)brush_get_float, (setter)brush_set_float,            "Radius Randomize", (APTR)BV_RADIUS_RANDOM},
+    {"dabs_per_radius", (getter)brush_get_float, (setter)brush_set_float,            "Dabs per radius", (APTR)BV_DABS_PER_RADIUS},
     
     {"red",      (getter)brush_get_color,   (setter)brush_set_color,            "Color (Red channel)",     (APTR)offsetof(PyBrush, b_RGBColor[0])},
     {"green",    (getter)brush_get_color,   (setter)brush_set_color,            "Color (Green channel)",   (APTR)offsetof(PyBrush, b_RGBColor[1])},
@@ -885,6 +895,7 @@ static int add_constants(PyObject *m)
     INSI(m, "BV_OPACITY", BV_OPACITY);
     INSI(m, "BV_ERASE", BV_ERASE);
     INSI(m, "BV_RADIUS_RANDOM", BV_RADIUS_RANDOM);
+    INSI(m, "BV_DABS_PER_RADIUS", BV_DABS_PER_RADIUS);
     INSI(m, "BASIC_VALUES_MAX", BASIC_VALUES_MAX);
 
     return 0;

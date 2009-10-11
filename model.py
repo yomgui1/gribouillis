@@ -73,6 +73,9 @@ class Model(object):
         self._rsurface.Clear()
         self._strokes = []
 
+    def Cleanup(self):
+        pass # nothing to do by default
+
     def GetRenderBuffers(self, *args):
         xmin, ymin, xmax, ymax = [ int(x) for x in args ]
         for ty in xrange(ymin, ymax+T_SIZE-1, T_SIZE):
@@ -146,6 +149,10 @@ class SimpleModel(Model):
     def Clear(self):
         super(SimpleModel, self).Clear() # clear the render surface
         self._surface.Clear() # clear the draw surface
+
+    def Cleanup(self):
+        self._rsurface.Cleanup()
+        self._surface.Cleanup()
 
     def InitWriteContext(self):
         self._surface.InitWrite()

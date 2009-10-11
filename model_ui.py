@@ -50,7 +50,9 @@ class ModelInfoWindow(Window):
         gp.AddChild(Label("Image area:"), self._ImageSize)
         
         self._MemoryUsed = Text(PreParse=MUIX_R)
-        gp.AddChild(Label("Memory used:"), self._MemoryUsed)
+        o = SimpleButton("Cleanup")
+        o.Notify('Pressed', False, self.Cleanup)
+        gp.AddChild(Label("Memory used:"), HGroup(Child=(self._MemoryUsed, o)))
 
         self._ResUnit = Cycle(self.__res_units_keys, CycleChain=True)
         self._ResUnit.Active = self.__res_units_keys.index('in')
@@ -108,6 +110,10 @@ class ModelInfoWindow(Window):
             self._res[i] = (res, unit)
             self._ResObj[i].Integer = res
         self.Open()
+
+    def Cleanup(self):
+        self.ApplicationObject.Cleanup(self.model)
+        self.ShowModel(self.model)
 
     def OnContentsChanged(self, obj, attr):
         self.model.info[attr] = obj.Contents

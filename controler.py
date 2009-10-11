@@ -105,8 +105,6 @@ class DrawControler(object):
         self._on_motion(evt)
         self.mx = evt.MouseX
         self.my = evt.MouseY
-        self.secs = evt.Seconds
-        self.mics = evt.Micros
         
     def OnKey(self, evt):
         if evt.Up:
@@ -216,6 +214,10 @@ class DrawControler(object):
     def Clear(self):
         self.model.Clear()
         self.view.RedrawFull()
+
+    def Cleanup(self):
+        self.model.Cleanup()
+        self.view.RedrawFull()   
 
     KEYMAPS_UP = { }
 

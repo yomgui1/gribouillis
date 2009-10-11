@@ -46,14 +46,21 @@ class BrushSelectWindow(Window):
         self.brush = DrawableBrush()
         self.brush.Notify('Name', MUIV_EveryTime, self.OnBrushChange)
 
+        g = VGroup()
+        
+        self.obj_BName = Text(Frame=MUIV_Frame_Text, SetMin=False) 
+        g.AddChild(self.obj_BName)
+        
         o = SimpleButton("Edit")
         o.Notify('Pressed', False, self.EditBrush)
-        brush_group = VGroup(Child=(self.brush, o))
+        g.AddChild(o)
 
-        self.obj_BName = Text(Frame=MUIV_Frame_Text, SetMin=False)
-        info_group = VGroup(Child=(self.obj_BName, VSpace(0)))
-        
-        top.AddChild(HGroup(Title="Current brush", Child=(brush_group, info_group)))
+        o = SimpleButton("Delete")
+        o.Notify('Pressed', False, self.DeleteBrush)
+        o.Disabled = True
+        g.AddChild(o)
+ 
+        top.AddChild(HGroup(Title="Current brush", Child=(self.brush, g)))
         top.AddChild(Rectangle(HBar=True, FixHeight=8))
         self._bgroup = laygroup.LayGroup(SameSize=True, TopOffset=0, Spacing=0)
         top.AddChild(self._bgroup)
@@ -63,8 +70,12 @@ class BrushSelectWindow(Window):
 
     def SetBrushes(self, brushes):
         self._bgroup.DoMethod(MUIM_Group_InitChange)
-        self._bgroup.AddChild(lock=True, *brushes)
+        self._bgroup.AddChild(*brushes)
         self._bgroup.DoMethod(MUIM_Group_ExitChange)
+
+    def AddBrush(self, brush):
+        self._bgroup.AddChild(brush, lock=True)
+        #self._bgroup.ShowMe = True
 
     def EditBrush(self):
         if not hasattr(self, '_editor'):
@@ -73,6 +84,9 @@ class BrushSelectWindow(Window):
             self._editor.Notify('CloseRequest', True, self._editor.Close)
         self._editor.SetBrush(self.brush)
         self._editor.Open()
+
+    def DeleteBrush(self):
+        pass
 
 
 class BrushPreview(Area):
@@ -133,8 +147,8 @@ class FloatValue(Group):
         self._cb = cb
         self._cb_args = cb_args
 
-        self._value = String(MaxLen=7, Accept="0123456789.", Format='r', FixWidthTxt="-#.###", Background=None)
-        self._value.Notify('Acknowledge', MUIV_EveryTime, self.OnStringValue, MUIV_TriggerValue)
+        self._value = String(MaxLen=7, Accept="0123456789.", Format='r', FixWidthTxt="-#.###", Frame='String', Background=None)
+        self._value.Notify('Acknowledge', MUIV_EveryTime, self.OnStringValue)
         self._slider = Slider(Min=0, Max=1000)
         self._slider.Notify('Value', MUIV_EveryTime, self.OnSliderValue, MUIV_TriggerValue)
         self.AddChild(self._value, self._slider)
@@ -159,8 +173,8 @@ class FloatValue(Group):
         if self._cb:
             self._cb(value, *self._cb_args)
             
-    def OnStringValue(self, value):
-        self.value = value
+    def OnStringValue(self):
+        self.value = float(self._value.Contents)
 
     def SetValue(self, value):
         self._slider.Value = min(1000, max(0, int((value-self._min)/self._range)))
@@ -173,7 +187,7 @@ class FloatValue(Group):
 
 class PercentSlider(Slider):
     def __init__(self, min, max, default=None, cb=None, cb_args=(), **kwds):
-        super(PercentSlider, self).__init__(Min=0, Max=100, **kwds)
+        super(PercentSlider, self).__init__(Min=0, Max=100, Format='%lu%%', **kwds)
   
         if default is None:
             default = min
@@ -216,7 +230,23 @@ class BrushEditorWindow(Window):
         self._brush = None
 
         self._prev = BrushPreview()
-        ro.AddChild(HCenter(self._prev), HBar(4))
+
+        g = VGroup()
+        o = SimpleButton("Set as default")
+        o.Notify('Pressed', False, self.Default)
+        g.AddChild(o)
+ 
+        o = SimpleButton("Return to saved")
+        o.Notify('Pressed', False, self.Saved)
+        g.AddChild(o)
+
+        o = SimpleButton("Make a copy")
+        o.Notify('Pressed', False, self.Copy)
+        g.AddChild(o)
+
+        g.AddChild(VSpace(0))
+
+        ro.AddChild(HGroup(Child=(self._prev, g)), HBar(4))
 
         top = ColGroup(4)
         ro.AddChild(top)
@@ -234,6 +264,10 @@ class BrushEditorWindow(Window):
                                              cb=self.OnFloatChange, cb_args=('radius',),
                                              ShortHelp=lang.ShortHelp_BrushEditor_Radius)
         top.AddChild(Label('Radius:'), o, *Buttons(o))
+
+        o = self._obj['dabs_per_radius'] = PercentSlider(min=0, max=50, default=10,
+                                                         cb=self.OnFloatChange, cb_args=('dabs_per_radius',))
+        top.AddChild(Label('Dabs per radius:'), o, *Buttons(o))
 
         o = self._obj['yratio'] = FloatValue(min=0.0, max=2.0, default=0.0,
                                              cb=self.OnFloatChange, cb_args=('yratio',),
@@ -257,14 +291,20 @@ class BrushEditorWindow(Window):
         top.AddChild(Label('Radius Randomize:'), o, *Buttons(o))
 
 
+    def _refresh(self):
+        self._obj['radius'].value = math.log(self._brush.radius)
+        self._obj['yratio'].value = math.log(self._brush.yratio)
+        self._obj['hardness'].value = self._brush.hardness
+        self._obj['opacity'].value = self._brush.opacity
+        self._obj['erase'].value = self._brush.erase
+        self._obj['rad_rand'].value = self._brush.radius_random
+        self._obj['dabs_per_radius'].value = self._brush.dabs_per_radius
+        self._prev.DrawBrush(self._brush) 
+ 
     def SetBrush(self, brush):
-        self._brush = brush
-        self._obj['radius'].value = math.log(brush.radius)
-        self._obj['yratio'].value = math.log(brush.yratio)
-        self._obj['hardness'].value = brush.hardness
-        self._obj['opacity'].value = brush.opacity
-        self._obj['erase'].value = brush.erase
-        self._obj['rad_rand'].value = brush.radius_random
+        self._brush = brush 
+        self._saved_states = brush.states
+        self._refresh()
 
     def OnFloatChange(self, value, n):
         if self._brush is None: return
@@ -281,7 +321,8 @@ class BrushEditorWindow(Window):
             self._brush.erase = value
         elif n == 'rad_rand':
             self._brush.radius_random = value
-   
+        elif n == 'dabs_per_radius':
+            self._brush.dabs_per_radius = value
         self._prev.DrawBrush(self._brush)
 
     def OpenFxWin(self, obj):
@@ -289,3 +330,15 @@ class BrushEditorWindow(Window):
 
     def ResetValue(self, obj):
         del obj.value
+
+    def Default(self):
+        del self._brush.states
+        self._refresh()
+
+    def Copy(self):
+        brush = self.ApplicationObject.CopyBrush(self._brush)
+        self.SetBrush(brush)
+
+    def Saved(self):
+        self._brush.states = self._saved_states
+        self._refresh()

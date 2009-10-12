@@ -112,6 +112,7 @@ class Brush(Dtpic):
     erase = property(fget=lambda self: self.get_state(_brush.BV_ERASE), fset=lambda self, v: self.set_state(_brush.BV_ERASE, v))
     radius_random = property(fget=lambda self: self.get_state(_brush.BV_RADIUS_RANDOM), fset=lambda self, v: self.set_state(_brush.BV_RADIUS_RANDOM, v))
     dabs_per_radius = property(fget=lambda self: self.get_state(_brush.BV_DABS_PER_RADIUS), fset=lambda self, v: self.set_state(_brush.BV_DABS_PER_RADIUS, v))
+    move_smooth_fac = property(fget=lambda self: self.get_state(_brush.BV_MOVE_SMOOTH_FAC), fset=lambda self, v: self.set_state(_brush.BV_MOVE_SMOOTH_FAC, v))
 
 
 class DrawableBrush(Brush):

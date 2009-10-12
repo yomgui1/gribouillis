@@ -67,6 +67,7 @@ enum {
     BV_ERASE,
     BV_RADIUS_RANDOM,
     BV_DABS_PER_RADIUS,
+    BV_MOVE_SMOOTH_FAC,
     BASIC_VALUES_MAX
 };
 
@@ -385,21 +386,21 @@ error:
 }
 //-
 //+ myrand1
-double myrand1(void)
+FLOAT myrand1(void)
 {
     static ULONG seed=0;
 
     seed = FastRand(seed);
-    return ((double)seed) / (double)0xffffffff;
+    return (FLOAT)seed / 0xffffffff;
 }
 //-
 //+ myrand2
-double myrand2(void)
+FLOAT myrand2(void)
 {
     static ULONG seed=0x1fa9b36;
 
     seed = FastRand(seed);
-    return ((double)seed) / (double)0xffffffff;
+    return (FLOAT)seed / 0xffffffff;
 }
 //-
   
@@ -512,7 +513,7 @@ brush_drawstroke(PyBrush *self, PyObject *args)
     PyObject *stroke, *o, *buflist;
     LONG sx, sy;
     LONG dx, dy;
-    FLOAT radius, yratio, pressure, time, tiltx, tilty, d, speed;
+    FLOAT radius, yratio, pressure, time, tiltx, tilty, d;
     ULONG i, n;
     
     if (NULL == self->b_Surface)
@@ -569,26 +570,24 @@ brush_drawstroke(PyBrush *self, PyObject *args)
     dx = sx - self->b_X;
     dy = sy - self->b_Y;
 
-    if ((dx == 0) && (dy == 0))
-        return buflist;
+    /* Apply a discret low-pass filter on it */
+    d = self->b_BasicValues[BV_MOVE_SMOOTH_FAC];
+    dx = d*dx + (1.-d)*self->b_dX;
+    dy = d*dy + (1.-d)*self->b_dY;
 
-    /* Limit the movement speed */
-    /* TODO */
-    //speed = sqrtf(dx*dx+dy*dy) / (time-self->b_Time);
-    //radius *= speed/1000;
-
-    radius = CLAMP(radius, 0.01, 128.0);  
-
-    /* Use this movement vector to compute the brush direction (cos/sin rotation) */
-    d = sqrtf(dx*dx + dy*dy);
-    self->b_cs = -dy/d;
-    self->b_sn = dx/d;
+    if ((dx != 0) || (dy != 0)) {
+        /* Use the final movement vector to compute the brush direction (cos/sin rotation) */
+        d = sqrtf(dx*dx + dy*dy);
+        self->b_cs = -dy/d;
+        self->b_sn = dx/d;
+    }
    
     /* TODO: how to use tilt? */
-    if ((tiltx != 0.0) && (tilty != 0.0)) {
-    }
 
-    /* number of dabs to draw */
+    /* Compute final radius */
+    radius = CLAMP(radius, 0.01, 128.0);
+
+    /* Number of dabs to draw */
     d *= self->b_BasicValues[BV_DABS_PER_RADIUS] / radius;
     d += time * DABS_PER_SECONDS;
 
@@ -604,8 +603,8 @@ brush_drawstroke(PyBrush *self, PyObject *args)
         LONG v2 = (myrand2()*2-1)*self->b_BasicValues[BV_RADIUS_RANDOM]*radius;
 
         /* Simple linear interpolation */
-        x = self->b_X + (LONG)((float)dx*i/n);
-        y = self->b_Y + (LONG)((float)dy*i/n);
+        x = self->b_X + (LONG)((float)dx*i/n) + v1;
+        y = self->b_Y + (LONG)((float)dy*i/n) + v2;
 
         DPRINT("BRUSH: old: (%ld, %ld), new: (%ld, %ld), int: (%ld, %ld)\n", self->b_X, self->b_Y, sx, sy, x, y);
 
@@ -613,7 +612,7 @@ brush_drawstroke(PyBrush *self, PyObject *args)
         ReadCPUClock(&t1);
 #endif
         ret = drawdab_solid(self, buflist, self->b_Surface,
-                            x+v1, y+v2, radius, yratio,
+                            x, y, radius, yratio,
                             self->b_BasicValues[BV_HARDNESS], self->b_BasicValues[BV_ERASE],
                             pressure * self->b_BasicValues[BV_OPACITY], self->b_cs, self->b_sn);
 #ifdef STAT_TIMING
@@ -632,7 +631,8 @@ brush_drawstroke(PyBrush *self, PyObject *args)
     self->b_Y = sy;
     self->b_dX = dx;
     self->b_dY = dy;
-    self->b_Time = time;
+    self->b_Time = time; /* TODO: use it somewhere... */
+    
     return buflist;
 }
 //-
@@ -830,7 +830,8 @@ static PyGetSetDef brush_getseters[] = {
     {"erase",           (getter)brush_get_float, (setter)brush_set_normalized_float, "Erase",    (APTR)BV_ERASE},
     {"radius_random",   (getter)brush_get_float, (setter)brush_set_float,            "Radius Randomize", (APTR)BV_RADIUS_RANDOM},
     {"dabs_per_radius", (getter)brush_get_float, (setter)brush_set_float,            "Dabs per radius", (APTR)BV_DABS_PER_RADIUS},
-    
+    {"move_smooth_fac", (getter)brush_get_float, (setter)brush_set_normalized_float, "Movement smoothing factor", (APTR)BV_MOVE_SMOOTH_FAC},
+
     {"red",      (getter)brush_get_color,   (setter)brush_set_color,            "Color (Red channel)",     (APTR)offsetof(PyBrush, b_RGBColor[0])},
     {"green",    (getter)brush_get_color,   (setter)brush_set_color,            "Color (Green channel)",   (APTR)offsetof(PyBrush, b_RGBColor[1])},
     {"blue",     (getter)brush_get_color,   (setter)brush_set_color,            "Color (Blue channel)",    (APTR)offsetof(PyBrush, b_RGBColor[2])},

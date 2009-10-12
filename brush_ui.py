@@ -290,8 +290,8 @@ class BrushEditorWindow(Window):
                                                   cb=self.OnFloatChange, cb_args=('rad_rand',))
         top.AddChild(Label('Radius Randomize:'), o, *Buttons(o))
 
-        o = self._obj['move_smooth_fact'] = PercentSlider(min=0.0, max=1.0, default=0.0,
-                                                  cb=self.OnFloatChange, cb_args=('move_smooth_fact',))
+        o = self._obj['move_smooth_fac'] = PercentSlider(min=0.0, max=1.0, default=0.0,
+                                                  cb=self.OnFloatChange, cb_args=('move_smooth_fac',))
         top.AddChild(Label('Movement Smoothing Factor:'), o, *Buttons(o))
 
 
@@ -303,7 +303,7 @@ class BrushEditorWindow(Window):
         self._obj['erase'].value = self._brush.erase
         self._obj['rad_rand'].value = self._brush.radius_random
         self._obj['dabs_per_radius'].value = self._brush.dabs_per_radius
-        self._obj['move_smooth_fact'].value = self._brush.move_smooth_fact
+        self._obj['move_smooth_fac'].value = self._brush.move_smooth_fac
         self._prev.DrawBrush(self._brush) 
  
     def SetBrush(self, brush):
@@ -328,8 +328,8 @@ class BrushEditorWindow(Window):
             self._brush.radius_random = value
         elif n == 'dabs_per_radius':
             self._brush.dabs_per_radius = value
-        elif n == 'move_smooth_fact':
-            self._brush.move_smooth_fact = value
+        elif n == 'move_smooth_fac':
+            self._brush.move_smooth_fac = value
         self._prev.DrawBrush(self._brush)
 
     def OpenFxWin(self, obj):

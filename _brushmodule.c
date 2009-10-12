@@ -582,15 +582,17 @@ brush_drawstroke(PyBrush *self, PyObject *args)
     dy = sy - self->b_Y;
 
     /* Apply a discret low-pass filter on it */
-    d = self->b_BasicValues[BV_MOVE_SMOOTH_FAC];
-    dx = d*dx + (1.-d)*self->b_dX;
-    dy = d*dy + (1.-d)*self->b_dY;
+    //d = self->b_BasicValues[BV_MOVE_SMOOTH_FAC];
+    //dx = d*dx + (1.-d)*self->b_dX;
+    //dy = d*dy + (1.-d)*self->b_dY;
 
     if ((dx != 0) || (dy != 0)) {
         /* Use the final movement vector to compute the brush direction (cos/sin rotation) */
         d = sqrtf(dx*dx + dy*dy);
         self->b_cs = -dy/d;
         self->b_sn = dx/d;
+    } else {
+        d = 0.0;
     }
    
     /* TODO: how to use tilt? */
@@ -614,8 +616,9 @@ brush_drawstroke(PyBrush *self, PyObject *args)
         LONG v2 = (myrand2()*2-1)*self->b_BasicValues[BV_RADIUS_RANDOM]*radius;
 
         /* Simple linear interpolation */
-        x = self->b_X + (LONG)((float)dx*i/n) + v1;
-        y = self->b_Y + (LONG)((float)dy*i/n) + v2;
+        d = (float)i/n;
+        x = self->b_X + (LONG)((float)dx*d) + v1;
+        y = self->b_Y + (LONG)((float)dy*d) + v2;
 
         DPRINT("BRUSH: old: (%ld, %ld), new: (%ld, %ld), int: (%ld, %ld)\n", self->b_X, self->b_Y, sx, sy, x, y);
 
@@ -624,8 +627,10 @@ brush_drawstroke(PyBrush *self, PyObject *args)
 #endif
         ret = drawdab_solid(self, buflist, self->b_Surface,
                             x, y, radius, yratio,
-                            self->b_BasicValues[BV_HARDNESS], self->b_BasicValues[BV_ERASE],
-                            pressure * self->b_BasicValues[BV_OPACITY], self->b_cs, self->b_sn);
+                            self->b_BasicValues[BV_HARDNESS],
+                            self->b_BasicValues[BV_ERASE],
+                            pressure * self->b_BasicValues[BV_OPACITY],
+                            self->b_cs, self->b_sn);
 #ifdef STAT_TIMING
         ReadCPUClock(&t2);
         self->b_Times[0] += t2 - t1;
@@ -908,6 +913,7 @@ static int add_constants(PyObject *m)
     INSI(m, "BV_ERASE", BV_ERASE);
     INSI(m, "BV_RADIUS_RANDOM", BV_RADIUS_RANDOM);
     INSI(m, "BV_DABS_PER_RADIUS", BV_DABS_PER_RADIUS);
+    INSI(m, "BV_MOVE_SMOOTH_FAC", BV_MOVE_SMOOTH_FAC);
     INSI(m, "BASIC_VALUES_MAX", BASIC_VALUES_MAX);
 
     return 0;

@@ -403,6 +403,17 @@ FLOAT myrand2(void)
     return (FLOAT)seed / 0xffffffff;
 }
 //-
+//+ decay
+/* Inspired from http://en.wikipedia.org/wiki/Exponential_decay */
+FLOAT decay(FLOAT t, FLOAT tau)
+{
+    t = -t / tau;
+    if (t >= -87.) /* limits says, FLOAT_MIN = 1.17549435E-38 => ~= exp(-87) */
+        return expf(-t/tau);
+    else
+        return 0.0;
+}
+//-
   
 
 /*******************************************************************************************

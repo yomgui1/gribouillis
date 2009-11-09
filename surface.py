@@ -228,3 +228,6 @@ class TiledSurface(Surface):
         pa = self.RenderAsPixelArray(mode)
         return Image.frombuffer(mode, (pa.Width, pa.Height), pa, 'raw', mode, 0, 1)
 
+    def PickColor(self, x, y):
+        buf = self.GetBuffer(x, y)
+        return buf.pick_color(x - buf.x, y - buf.y)

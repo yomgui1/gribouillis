@@ -46,7 +46,10 @@ class ColorChooser(Window):
         g = ColGroup(2)
         g.AddChild(Text("Hex value:", Weight=0), self._colstr)
 
-        g = HGroup(Child=(g, HSpace(0)))
+        bt = SimpleButton("Pick")
+        bt.Notify('Pressed', False, self.OnPick)
+
+        g = HGroup(Child=(g, bt, HSpace(0)))
 
         self.coladj = Coloradjust()
         bar = Rectangle(Weight=0, HBar=True)
@@ -109,3 +112,5 @@ class ColorChooser(Window):
     def rem_watcher(self, cb):
         self.watchers.remove(cb)
 
+    def OnPick(self):
+        self.ApplicationObject.EnterPickMode()

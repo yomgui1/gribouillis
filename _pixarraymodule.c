@@ -168,10 +168,8 @@ static void
 rgba15x_writepixel(APTR data, FLOAT opacity, FLOAT erase, USHORT *color)
 {
     USHORT *pixel = data;
-    ULONG alpha = (ULONG)(opacity * (1<<15));
-    ULONG one_minus_alpha = (1<<15) - alpha;
-
-    alpha *= erase;
+    ULONG alpha = (ULONG)(opacity*erase * (1<<15));
+    ULONG one_minus_alpha = (1<<15) - (ULONG)(opacity * (1<<15));
 
     /* R */ pixel[0] = (alpha*color[0] + one_minus_alpha*pixel[0]) / (1<<15);
     /* G */ pixel[1] = (alpha*color[1] + one_minus_alpha*pixel[1]) / (1<<15);
@@ -513,7 +511,7 @@ initialize_pixarray(PyPixelArray *self, UWORD width, UWORD height, ULONG pixfmt)
 
     self->bpc = init_values->bpc;
     self->nc = init_values->nc;
-    self->bpr = width * ((self->bpc * self->nc) >> 3);
+   self->bpr = width * ((self->bpc * self->nc) >> 3);
 
     self->data = PyMem_Malloc(self->bpr * height);
     if (NULL != self->data) {
@@ -673,6 +671,49 @@ pixarray_nonzero(PyPixelArray *self)
     return FALSE;
 }
 //-
+//+ pixarray_pick_color
+static PyObject *
+pixarray_pick_color(PyPixelArray *self, PyObject *args)
+{
+    LONG x, y;
+    APTR ptr;
+    FLOAT r,g,b;
+
+    if (!PyArg_ParseTuple(args, "kk", &x, &y))
+        return NULL;
+
+    ptr = &((UBYTE *)self->data)[y*self->bpr + x*((self->bpc*self->nc) >> 3)];
+    if (self->pixfmt & PyPixelArray_FLAG_RGB) {
+        if (self->pixfmt & PyPixelArray_FLAG_ALPHA_FIRST) {
+            if (self->pixfmt & PyPixelArray_FLAG_8) {
+                r = *(++(UBYTE *)ptr) / 255.;
+                g = *(++(UBYTE *)ptr) / 255.;
+                b = *(++(UBYTE *)ptr) / 255.;
+            } else {
+                r = *(++(USHORT *)ptr) / (float)(1<<15);
+                g = *(++(USHORT *)ptr) / (float)(1<<15);
+                b = *(++(USHORT *)ptr) / (float)(1<<15);
+            }
+        } else {
+            if (self->pixfmt & PyPixelArray_FLAG_8) {
+                r = *(((UBYTE *)ptr)++) / 255.;
+                g = *(((UBYTE *)ptr)++) / 255.;
+                b = *((UBYTE *)ptr)     / 255.;
+            } else {
+                r = *(((USHORT *)ptr)++) / (float)(1<<15);
+                g = *(((USHORT *)ptr)++) / (float)(1<<15);
+                b = *((USHORT *)ptr)     / (float)(1<<15);
+            }
+        }
+    } else {
+        /* TODO */
+        /* need to return a converted color to RGB ? */
+        r = g = b = 0.0;
+    }
+
+    return Py_BuildValue("fff", r, g, b);
+}
+//-
 
 
 static struct PyMethodDef pixarray_methods[] = {
@@ -681,6 +722,7 @@ static struct PyMethodDef pixarray_methods[] = {
     {"from_string", (PyCFunction)pixarray_from_string, METH_O, NULL},
     {"from_pixarray", (PyCFunction)pixarray_from_pixarray, METH_O, NULL},
     {"copy", (PyCFunction)pixarray_copy, METH_NOARGS, NULL},
+    {"pick_color", (PyCFunction)pixarray_pick_color, METH_VARARGS, NULL},
     {NULL} /* sentinel */
 };
 

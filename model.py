@@ -234,18 +234,21 @@ class SimpleModel(Model):
     def LoadFromPIL(self, im):
         self.Clear()
         im = im.convert('RGBA')
-        x, y, w, h = im.getbbox()
+        w, h = im.size
         tmpbuf = _pixarray.PixelArray(T_SIZE, T_SIZE, self._surface.MODE2PIXFMT['RGBA8'])
-        for sx in xrange(x, x+w, T_SIZE):
-            for sy in xrange(y, y+h, T_SIZE):
+        for sy in xrange(0, h, T_SIZE):
+            for sx in xrange(0, w, T_SIZE):
                 tile = im.crop((sx, sy, sx+T_SIZE, sy+T_SIZE))
                 tmpbuf.from_string(tile.tostring())
                 buf = self._surface.GetBuffer(sx, sy, read=False, clear=False)
                 _pixarray.rgba8_to_rgba15x(tmpbuf, buf)
                 self.RenderBuffer(buf)
-        return x, y, w, h
+        return 0, 0, w, h
 
 
     def GetMemoryUsed(self):
         x = self._surface.GetMemoryUsed()
         return x + self._rsurface.GetMemoryUsed(), x
+
+    def PickColor(self, x, y):
+        return self._surface.PickColor(x, y)

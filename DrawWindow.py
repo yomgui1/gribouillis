@@ -57,10 +57,7 @@ class DrawWindow(Window):
         self.Notify('Activate', MUIV_EveryTime, self.OnActivate, MUIV_TriggerValue)
 
     def OnActivate(self, state):
-        try:
-            if state:
-                self.pointer = POINTERTYPE_AIMING
-            else:
-                self.pointer = POINTERTYPE_NORMAL
-        except:
-            print 'error'
+        if state:
+            self.pointer = POINTERTYPE_AIMING
+        else:
+            self.pointer = POINTERTYPE_NORMAL

@@ -64,9 +64,9 @@ class MiniBackgroundSelect(Window):
         bg.CycleChain = True
         bg.Notify('Selected', True, self.OnSelection, bg)
         ro = self.RootObject
-        ro.DoMethod(MUIM_Group_InitChange)
+        #ro.DoMethod(MUIM_Group_InitChange)
         ro.AddChild(bg)
-        ro.DoMethod(MUIM_Group_ExitChange)
+        #ro.DoMethod(MUIM_Group_ExitChange)
         if not self.selection:
             self.selection = bg
 

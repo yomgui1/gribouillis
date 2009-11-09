@@ -68,6 +68,7 @@ enum {
     BV_RADIUS_RANDOM,
     BV_DABS_PER_RADIUS,
     BV_MOVE_SMOOTH_FAC,
+    BV_GRAIN_FAC,
     BASIC_VALUES_MAX
 };
 
@@ -90,6 +91,7 @@ typedef struct PyBrush_STRUCT {
     LONG            b_X, b_dX;
     LONG            b_Y, b_dY;
     FLOAT           b_Time;
+    FLOAT           b_Pressure;
     FLOAT           b_cs, b_sn;
 
     FLOAT           b_BasicValues[BASIC_VALUES_MAX];
@@ -134,6 +136,33 @@ loop:
 //-
 #endif
 
+//+ myrand1
+FLOAT myrand1(void)
+{
+    static ULONG seed=0;
+
+    seed = FastRand(seed);
+    return (FLOAT)seed / 0xffffffff;
+}
+//-
+//+ myrand2
+FLOAT myrand2(void)
+{
+    static ULONG seed=0x1fa9b36;
+
+    seed = FastRand(seed);
+    return (FLOAT)seed / 0xffffffff;
+}
+//-
+//+ myrand3
+FLOAT myrand3(void)
+{
+    static ULONG seed=0x78fb69a1;
+
+    seed = FastRand(seed);
+    return (FLOAT)seed / 0xffffffff;
+}
+//-
 //+ obtain_pixarray
 static PyPixelArray *
 obtain_pixarray(PyBrush *self, PyObject *surface, LONG x, LONG y)
@@ -211,7 +240,7 @@ drawdab_solid(PyBrush *self, /* In: */
               FLOAT sn)
 {
     LONG minx, miny, maxx, maxy, x, y;
-    FLOAT radius_radius;
+    FLOAT radius_radius, grain;
     USHORT *color = NULL;
 #ifdef STAT_TIMING
     UQUAD t1, t2;
@@ -228,6 +257,7 @@ drawdab_solid(PyBrush *self, /* In: */
         return buflist;
     
     radius_radius = radius * radius;
+    grain = self->b_BasicValues[BV_GRAIN_FAC];
 
     /* Loop on all pixels inside a bbox centered on (sx, sy) */
     for (y=miny; y <= maxy;) {
@@ -337,8 +367,10 @@ drawdab_solid(PyBrush *self, /* In: */
                                 opa *= (hardness/(hardness-1)*(rr-1));
                         }
 
-                        i = bx * n;
-                        pa->writepixel(&buf[i], opa, erase, color);
+                        if (myrand3()*grain <= opacity) {
+                            i = bx * n;
+                            pa->writepixel(&buf[i], opa, erase, color);
+                        }
                     }
                 }
 
@@ -383,24 +415,6 @@ end:
 
 error:
     return NULL;
-}
-//-
-//+ myrand1
-FLOAT myrand1(void)
-{
-    static ULONG seed=0;
-
-    seed = FastRand(seed);
-    return (FLOAT)seed / 0xffffffff;
-}
-//-
-//+ myrand2
-FLOAT myrand2(void)
-{
-    static ULONG seed=0x1fa9b36;
-
-    seed = FastRand(seed);
-    return (FLOAT)seed / 0xffffffff;
 }
 //-
 //+ decay
@@ -607,16 +621,24 @@ brush_drawstroke(PyBrush *self, PyObject *args)
     n = (ULONG)d;
     n = MIN(n, 100);
     for (i=0; i < n; i++) {
+        FLOAT r;
         PyObject *ret;
         LONG x, y;
 #ifdef STAT_TIMING
         UQUAD t1, t2;
 #endif
-        LONG v1 = (myrand1()*2-1)*self->b_BasicValues[BV_RADIUS_RANDOM]*radius;
-        LONG v2 = (myrand2()*2-1)*self->b_BasicValues[BV_RADIUS_RANDOM]*radius;
+        LONG v1;
+        LONG v2;
+
+        d = (float)i/n;
+
+        /* Radius per dabs */
+        r = radius*(self->b_Pressure*(1. - d) + pressure*d);
+
+        v1 = (myrand1()*2-1)*self->b_BasicValues[BV_RADIUS_RANDOM]*r;
+        v2 = (myrand2()*2-1)*self->b_BasicValues[BV_RADIUS_RANDOM]*r;
 
         /* Simple linear interpolation */
-        d = (float)i/n;
         x = self->b_X + (LONG)((float)dx*d) + v1;
         y = self->b_Y + (LONG)((float)dy*d) + v2;
 
@@ -626,7 +648,7 @@ brush_drawstroke(PyBrush *self, PyObject *args)
         ReadCPUClock(&t1);
 #endif
         ret = drawdab_solid(self, buflist, self->b_Surface,
-                            x, y, radius, yratio,
+                            x, y, r, yratio,
                             self->b_BasicValues[BV_HARDNESS],
                             self->b_BasicValues[BV_ERASE],
                             pressure * self->b_BasicValues[BV_OPACITY],
@@ -648,6 +670,7 @@ brush_drawstroke(PyBrush *self, PyObject *args)
     self->b_dX = dx;
     self->b_dY = dy;
     self->b_Time = time; /* TODO: use it somewhere... */
+    self->b_Pressure = pressure;
     
     return buflist;
 }
@@ -847,6 +870,7 @@ static PyGetSetDef brush_getseters[] = {
     {"radius_random",   (getter)brush_get_float, (setter)brush_set_float,            "Radius Randomize", (APTR)BV_RADIUS_RANDOM},
     {"dabs_per_radius", (getter)brush_get_float, (setter)brush_set_float,            "Dabs per radius", (APTR)BV_DABS_PER_RADIUS},
     {"move_smooth_fac", (getter)brush_get_float, (setter)brush_set_normalized_float, "Movement smoothing factor", (APTR)BV_MOVE_SMOOTH_FAC},
+    {"grain",           (getter)brush_get_float, (setter)brush_set_normalized_float, "Grain factor", (APTR)BV_GRAIN_FAC},
 
     {"red",      (getter)brush_get_color,   (setter)brush_set_color,            "Color (Red channel)",     (APTR)offsetof(PyBrush, b_RGBColor[0])},
     {"green",    (getter)brush_get_color,   (setter)brush_set_color,            "Color (Green channel)",   (APTR)offsetof(PyBrush, b_RGBColor[1])},
@@ -872,6 +896,7 @@ static struct PyMethodDef brush_methods[] = {
 static PyMemberDef brush_members[] = {
     {"x",            T_LONG,   offsetof(PyBrush, b_X), 0, NULL},
     {"y",            T_LONG,   offsetof(PyBrush, b_Y), 0, NULL},
+    {"pressure",     T_FLOAT,  offsetof(PyBrush, b_Pressure), 0, NULL},
     {NULL}
 };
 
@@ -914,6 +939,7 @@ static int add_constants(PyObject *m)
     INSI(m, "BV_RADIUS_RANDOM", BV_RADIUS_RANDOM);
     INSI(m, "BV_DABS_PER_RADIUS", BV_DABS_PER_RADIUS);
     INSI(m, "BV_MOVE_SMOOTH_FAC", BV_MOVE_SMOOTH_FAC);
+    INSI(m, "BV_GRAIN_FAC", BV_GRAIN_FAC);
     INSI(m, "BASIC_VALUES_MAX", BASIC_VALUES_MAX);
 
     return 0;

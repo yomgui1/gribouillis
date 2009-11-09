@@ -60,7 +60,7 @@ class Gribouillis(Application):
         # Create the MVC object
         model = SimpleModel()
         view = Raster()
-        self.controler = DrawControler(view, model)
+        self.controler = DrawControler(view, model, self)
 
         # Create Windows
         self.win_Draw = None
@@ -157,8 +157,11 @@ class Gribouillis(Application):
 
         # Init backgrounds selection window
         self.win_MiniBGSel.add_watcher(self.LoadBackground)
-        for name in sorted(os.listdir("backgrounds")):
-            self.win_MiniBGSel.AddImage(os.path.join("backgrounds", name))
+        bg_dir ="backgrounds"
+        if os.path.isdir(bg_dir):
+            for name in sorted(os.listdir(bg_dir)):
+                if name.endswith('.png'):
+                    self.win_MiniBGSel.AddImage(os.path.join(bg_dir, name))
 
         # Open windows now
         self.win_BSel.Open()
@@ -379,3 +382,6 @@ class Gribouillis(Application):
         self.win_BSel.AddBrush(b)
         self.brush = b
         return b
+
+    def EnterPickMode(self):
+        self.controler.EnterPickMode()

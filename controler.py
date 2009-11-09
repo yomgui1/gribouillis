@@ -26,7 +26,7 @@
 __all__ = ('DrawControler', )
 
 import os
-import PIL.Image as Image
+import PIL.Image as PIL_Image
 from pymui import *      
 
 IECODE_UP_PREFIX = 0x80
@@ -59,9 +59,11 @@ class DrawControler(object):
     MODE_IDLE = 0
     MODE_DRAW = 1
     MODE_DRAG = 2
+    MODE_PICK = 3
     SCALE_VALUES = [0.2, 0.25, 0.3, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0]
     
-    def __init__(self, view, model):
+    def __init__(self, view, model, app):
+        self.app = app
         self.view = view
         self.model = model
         self.scale_idx = self.SCALE_VALUES.index(1.0)
@@ -100,9 +102,19 @@ class DrawControler(object):
                 if not evt.Up:
                     self.CancelMode(DrawControler.MODE_IDLE, evt)
                     return MUI_EventHandlerRC_Eat
+        elif self._mode == DrawControler.MODE_PICK:
+            if evt.Key == IECODE_LBUTTON:
+                if evt.Up:
+                    self.ConfirmAction(DrawControler.MODE_IDLE, evt)
+                    return MUI_EventHandlerRC_Eat
+            elif evt.Key == IECODE_RBUTTON:
+                if evt.Up:
+                    self.CancelMode(DrawControler.MODE_IDLE, evt)
+                    return MUI_EventHandlerRC_Eat
 
     def OnMouseMotion(self, evt):
-        self._on_motion(evt)
+        if self._on_motion:
+            self._on_motion(evt)
         self.mx = evt.MouseX
         self.my = evt.MouseY
         
@@ -124,7 +136,7 @@ class DrawControler(object):
             else:
                 self._on_motion = None # Guard
 
-            self.view.EnableMouseMoveEvents(mode != DrawControler.MODE_IDLE)
+            self.view.EnableMouseMoveEvents(self._on_motion)
             self._mode = mode
         
     mode = property(fget=lambda self: self._mode, fset=SetMode)
@@ -157,6 +169,8 @@ class DrawControler(object):
     def ConfirmAction(self, mode, evt):
         if self._mode == DrawControler.MODE_DRAW:
             self.model.FinalizeDrawAction(True)
+        elif self._mode == DrawControler.MODE_PICK:
+            self.app.set_color(*self.model.PickColor(*self.view.GetSurfacePos(evt.MouseX, evt.MouseY)))
         self.mode = mode
 
     def DragOnMotion(self, evt):
@@ -268,14 +282,15 @@ class DrawControler(object):
         if ext == '.ora':
             bbox = self.model.LoadFromOpenRaster(filename)
         else:
-            im = Image.open(filename)
+            im = PIL_Image.open(filename)
             bbox = self.model.LoadFromPIL(im)
             del im
 
         print "[*DBG*] Loaded image bbox", bbox
-        rx, ry = self.view.GetRasterPos(bbox[0], bbox[1])
-        self.view.osx -= rx
-        self.view.osx -= ry
+        # BUG: PIL returns strange bbox, and my GetRasterPos also...
+        #rx, ry = self.view.GetRasterPos(bbox[0], bbox[1])
+        #self.view.osx -= rx
+        #self.view.osx -= ry
         self.view.RedrawFull()
 
     def LoadBackground(self, filename):
@@ -298,3 +313,6 @@ class DrawControler(object):
         x, y, w, h = self.model.bbox
         self.view.CenterOnSurfacePoint(x+w/2, y+h/2)
         self.view.RedrawFull()
+
+    def EnterPickMode(self):
+        self.mode = self.MODE_PICK

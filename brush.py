@@ -75,6 +75,7 @@ class Brush(Dtpic):
         self.hardness = 0.5
         self.opacity = 1.0
         self.erase = 1.0
+        self.grain = 0.0
         self.radius_random = 0.0
         self.dabs_per_radius = 10.0
 
@@ -113,6 +114,7 @@ class Brush(Dtpic):
     radius_random = property(fget=lambda self: self.get_state(_brush.BV_RADIUS_RANDOM), fset=lambda self, v: self.set_state(_brush.BV_RADIUS_RANDOM, v))
     dabs_per_radius = property(fget=lambda self: self.get_state(_brush.BV_DABS_PER_RADIUS), fset=lambda self, v: self.set_state(_brush.BV_DABS_PER_RADIUS, v))
     move_smooth_fac = property(fget=lambda self: self.get_state(_brush.BV_MOVE_SMOOTH_FAC), fset=lambda self, v: self.set_state(_brush.BV_MOVE_SMOOTH_FAC, v))
+    grain = property(fget=lambda self: self.get_state(_brush.BV_GRAIN_FAC), fset=lambda self, v: self.set_state(_brush.BV_GRAIN_FAC, v))
 
 
 class DrawableBrush(Brush):
@@ -125,6 +127,7 @@ class DrawableBrush(Brush):
         self._brush.invalid_cache()
         self._brush.surface = sf
         self._brush.x, self._brush.y = pos
+        self._brush.pressure = 0.0
 
     def DrawStroke(self, stroke):
         return self._brush.draw_stroke(stroke)

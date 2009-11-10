@@ -95,7 +95,7 @@ class BrushPreview(Area):
 
     def __init__(self):
         super(BrushPreview, self).__init__(MCC=True, FillArea=False)
-        self._rsurface = surface.BoundedSurface(self.WIDTH, self.HEIGHT, 'RGB8')
+        self._rsurface = surface.BoundedSurface(self.WIDTH, self.HEIGHT, 'RGB8') # change me by a model
         self._rbuf = self._rsurface.GetBuffer(0, 0, read=False)
         self._rbuf.one()
         self._brush = DrawableBrush()

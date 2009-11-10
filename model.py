@@ -25,7 +25,7 @@
 
 from __future__ import with_statement
 
-__all__ = ('Model', 'SimpleModel')
+__all__ = ('TiledModel', 'SimpleTiledModel')
 
 import _pixarray
 from surface import TiledSurface, T_SIZE, Tile
@@ -35,8 +35,8 @@ import PIL.Image as Image
 from openraster import *
 import png, os
 
-class Model(object):
-    """ Model() -> instance
+class TiledModel(object):
+    """TiledModel(colormodel='RGB') -> instance
 
     This class shall not be used as it, but shall be used to create drawing models.
     Subclass it and define methods marked to be defined by subclasses.
@@ -77,6 +77,13 @@ class Model(object):
         pass # nothing to do by default
 
     def GetRenderBuffers(self, *args):
+        """GetRenderBuffers(xmin, ymin, xmax, ymax) -> generator
+
+        Return a generator object that give list of rendered pixels buffers
+        to redraw the damaged surface under the bounding box given as parameters.
+
+        Rendered buffers can be used by a View class for system rendering.
+        """
         xmin, ymin, xmax, ymax = [ int(x) for x in args ]
         for ty in xrange(ymin, ymax+T_SIZE-1, T_SIZE):
             for tx in xrange(xmin, xmax+T_SIZE-1, T_SIZE):
@@ -137,17 +144,17 @@ class Model(object):
         pass # Must be implemented by subclasses
 
 
-class SimpleModel(Model):
+class SimpleTiledModel(TiledModel):
     """
     2 working color spaces supported: RGB and CMYK.
     """
 
     def __init__(self, *args, **kwds):
-        super(SimpleModel, self).__init__(*args, **kwds)
+        super(SimpleTiledModel, self).__init__(*args, **kwds)
         self._surface = TiledSurface(self._colormodel)
 
     def Clear(self):
-        super(SimpleModel, self).Clear() # clear the render surface
+        super(SimpleTiledModel, self).Clear() # clear the render surface
         self._surface.Clear() # clear the draw surface
 
     def Cleanup(self):
@@ -190,14 +197,12 @@ class SimpleModel(Model):
         return self._surface.RenderAsPixelArray(mode)
 
     def Undo(self):
-        super(SimpleModel, self).Undo()
+        super(SimpleTiledModel, self).Undo()
         self._surface.Undo()
 
     def Redo(self):
-        super(SimpleModel, self).Undo()
+        super(SimpleTiledModel, self).Undo()
         self._surface.Undo()
-
-    bbox = property(fget=lambda self: self._surface.bbox)
 
     def SaveAsOpenRaster(self, filename):
         with OpenRasterFileWriter(filename, extra=self.info) as ora:
@@ -245,10 +250,11 @@ class SimpleModel(Model):
                 self.RenderBuffer(buf)
         return 0, 0, w, h
 
-
     def GetMemoryUsed(self):
         x = self._surface.GetMemoryUsed()
         return x + self._rsurface.GetMemoryUsed(), x
 
     def PickColor(self, x, y):
         return self._surface.PickColor(x, y)
+
+    bbox = property(fget=lambda self: self._surface.bbox)

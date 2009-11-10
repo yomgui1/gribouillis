@@ -41,7 +41,7 @@ from BGSelect import MiniBackgroundSelect
 from CMSPrefs import CMSPrefsWindow
 from model_ui import ModelInfoWindow
 from raster import Raster
-from model import SimpleModel
+from model import SimpleTiledModel
 from controler import DrawControler
 
 
@@ -58,7 +58,7 @@ class Gribouillis(Application):
         self.last_saved_dir = 'RAM:'
 
         # Create the MVC object
-        model = SimpleModel()
+        model = SimpleTiledModel()
         view = Raster()
         self.controler = DrawControler(view, model, self)
 

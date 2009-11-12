@@ -222,10 +222,14 @@ class TiledSurface(Surface):
             
         return pa
 
-    def ExportAsPILImage(self, mode='RGBA'):
-        return
-
+    def ExportAsPILImage(self, mode='RGBA8'):
         pa = self.RenderAsPixelArray(mode)
+        if mode == 'RGBA8':
+            mode = 'RGBA'
+        elif mode == 'RGB8':
+            mode = 'RGB'
+        else:
+            raise ValueError("Unsupported mode '%s'" % mode)
         return Image.frombuffer(mode, (pa.Width, pa.Height), pa, 'raw', mode, 0, 1)
 
     def PickColor(self, x, y):

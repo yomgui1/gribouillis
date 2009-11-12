@@ -316,10 +316,10 @@ rgba15x_to_rgb8(USHORT *src, UBYTE *dst, UWORD w, UWORD h, Py_ssize_t bpr)
             ULONG alpha = src[3];
 
             if (alpha > 0) {
-                /* Un-multiply by alpha, rounding and convert to range [0, 255] */
-                dst[0] = ((((ULONG)src[0]<<15) + alpha/2) / alpha * 255) >> 15;
-                dst[1] = ((((ULONG)src[1]<<15) + alpha/2) / alpha * 255) >> 15;
-                dst[2] = ((((ULONG)src[2]<<15) + alpha/2) / alpha * 255) >> 15;
+                /* keep pre-multiplied alpha */
+                dst[0] = ((ULONG)src[0] * 255) >> 15;
+                dst[1] = ((ULONG)src[1] * 255) >> 15;
+                dst[2] = ((ULONG)src[2] * 255) >> 15;
             } else
                 dst[0] = dst[1] = dst[2] = 0;
 

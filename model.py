@@ -190,10 +190,10 @@ class SimpleTiledModel(TiledModel):
     def RenderStroke(self, stroke):
         return (self.RenderBuffer(buf) for buf in self._brush.DrawStroke(stroke))
 
-    def AsPILImage(self, mode='RGBA'):
+    def AsPILImage(self, mode='RGBA8'):
         return self._surface.ExportAsPILImage(mode)
 
-    def AsPixelArray(self, mode='RGBA'):
+    def AsPixelArray(self, mode='RGBA8'):
         return self._surface.RenderAsPixelArray(mode)
 
     def Undo(self):
@@ -215,7 +215,7 @@ class SimpleTiledModel(TiledModel):
             writer.write_array(outfile, IntegerBuffer(pa))
 
     def SaveAsJPEG(self, filename, quality=95):
-        im = self.AsPILImage('RGBA')
+        im = self.AsPILImage('RGB8')
         im.save(filename, 'JPEG', optimize=True, dpi=self.info["DPI"], quality=quality)
 
     def LoadFromOpenRaster(self, filename):

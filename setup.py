@@ -9,7 +9,7 @@ modules = [os.path.splitext(x)[0] for x in glob.glob('*.py')]
 modules.remove('setup')
 
 extra_data = []
-for root, dirs, files in os.walk('Libs'):
+for root, dirs, files in os.walk('libs'):
     extra_data.append((root, [os.path.join(root, n) for n in files]))
 
 setup(name='Gribouillis',

@@ -511,7 +511,7 @@ initialize_pixarray(PyPixelArray *self, UWORD width, UWORD height, ULONG pixfmt)
 
     self->bpc = init_values->bpc;
     self->nc = init_values->nc;
-   self->bpr = width * ((self->bpc * self->nc) >> 3);
+    self->bpr = width * ((self->bpc * self->nc) >> 3);
 
     self->data = PyMem_Malloc(self->bpr * height);
     if (NULL != self->data) {

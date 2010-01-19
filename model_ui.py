@@ -36,7 +36,7 @@ class ModelInfoWindow(Window):
 
     def __init__(self, title):
         ro = VGroup()
-        super(ModelInfoWindow, self).__init__(title, ID='Data', RootObject=ro)
+        super(ModelInfoWindow, self).__init__(title, ID='Data', RootObject=ro, CloseOnReq=True)
 
         # Defaults
         self.__res_units_keys = ['m', 'cm', 'mm', 'in']
@@ -112,7 +112,7 @@ class ModelInfoWindow(Window):
         self.Open()
 
     def Cleanup(self):
-        self.ApplicationObject.Cleanup(self.model)
+        self.ApplicationObject.value.Cleanup(self.model)
         self.ShowModel(self.model)
 
     def OnContentsChanged(self, obj, attr):

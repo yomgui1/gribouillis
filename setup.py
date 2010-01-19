@@ -13,7 +13,7 @@ for root, dirs, files in os.walk('Libs'):
     extra_data.append((root, [os.path.join(root, n) for n in files]))
 
 setup(name='Gribouillis',
-      version='0.1',
+      version='0.2',
       author='Guillaume Roguez',
       platforms=['morphos'],
       ext_modules = [ Extension('_pixarray', ['_pixarraymodule.c'], extra_compile_args = opt),

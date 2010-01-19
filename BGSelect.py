@@ -40,6 +40,9 @@ class MiniBackgroundSelect(Window):
     IMAGE_SIZE = 48
     
     def __init__(self):
+        self.watchers = []
+        self.selection = None
+
         ro = laygroup.LayGroup(SameSize=True, Spacing=2)
         super(MiniBackgroundSelect, self).__init__(ID=0, # ID=0 => don't store position/size!
                                                    LeftEdge='moused', TopEdge='moused',
@@ -48,9 +51,8 @@ class MiniBackgroundSelect(Window):
                                                    RootObject=ro,
                                                    NeedsMouseObject=True)
 
-        self.selection = None
-        self.Notify('MouseObject', MUIV_EveryTime, self.OnMouseObject, MUIV_TriggerValue)
-        self.watchers = []
+        
+        self.Notify('MouseObject', MUIV_EveryTime, self.OnMouseObject)
 
     def add_watcher(self, cb):
         if cb not in self.watchers:
@@ -62,21 +64,21 @@ class MiniBackgroundSelect(Window):
     def AddImage(self, path):
         bg = Background(path, self.IMAGE_SIZE)
         bg.CycleChain = True
-        bg.Notify('Selected', True, self.OnSelection, bg)
-        ro = self.RootObject
+        bg.Notify('Selected', True, self.OnSelection)
+        ro = self.RootObject.value
         #ro.DoMethod(MUIM_Group_InitChange)
         ro.AddChild(bg)
         #ro.DoMethod(MUIM_Group_ExitChange)
         if not self.selection:
             self.selection = bg
 
-    def OnMouseObject(self, obj):
-        if isinstance(obj, Background):
+    def OnMouseObject(self, e):
+        if isinstance(e.value, Background):
             self.selection.Selected = False
-            obj.NNSet('Selected', True)
-            self.selection = obj
+            e.value.NNSet('Selected', True)
+            self.selection = e.value
 
-    def OnSelection(self, bg):
-        self.Close()
+    def OnSelection(self, evt):
+        self.CloseWindow()
         for cb in self.watchers:
-            cb(bg)
+            cb(evt.source)

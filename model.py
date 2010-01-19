@@ -24,6 +24,7 @@
 ###############################################################################
 
 from __future__ import with_statement
+from math import sqrt
 
 __all__ = ('TiledModel', 'SimpleTiledModel')
 

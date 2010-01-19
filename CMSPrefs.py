@@ -30,6 +30,7 @@ from PIL.Image import open as OpenImage
 __all__ = ('CMSPrefsWindow',)
 
 class CMSPreview(Area):
+    MCC = True
     SIZE = 196
 
     def __init__(self):
@@ -40,15 +41,26 @@ class CMSPreview(Area):
         self._bufsrc.from_string(im.tostring())
         self._bufdst = self._bufsrc.copy()
 
-        super(CMSPreview, self).__init__(MCC=True, FillArea=False)
+        super(CMSPreview, self).__init__(FillArea=False)
 
-    def MCC_AskMinMax(self, minw, defw, maxw, minh, defh, maxh):
-        w = minw+self.SIZE
-        h = minh+self.SIZE
-        return w, w, w, h, h, h
+    def MCC_AskMinMax(self):
+        self.DoSuperMethod(cl, msg)
+        minmax = msg.MinMaxInfo.contents
 
-    def MCC_Draw(self, flags):
-        if flags & MADF_DRAWOBJECT == 0: return
+        w = minmax.MinWidth.value + self.SIZE
+        h = minmax.MinHeigh.value + self.SIZE
+
+        minmax.MinWidth = w
+        minmax.DefWidth = w
+        minmax.MaxWidth = w
+        minmax.MinHeight = h
+        minmax.DefHeight = h
+        minmax.MaxHeight = h
+
+    @muimethod(MUIM_Draw)
+    def MCC_Draw(self, msg):
+        msg.DoSuper()
+        if msg.flags.value & MADF_DRAWOBJECT == 0: return
         self._rp.ScaledBlit8(self._bufdst, self._bufdst.Width, self._bufdst.Height,
                              self.MLeft, self.MTop, self.SIZE, self.SIZE)
 
@@ -59,7 +71,7 @@ class CMSPreview(Area):
 
 class CMSPrefsWindow(Window):
     def __init__(self, title):
-        super(CMSPrefsWindow, self).__init__(title, ID=0, LeftEdge='centered', TopEdge='centered')
+        super(CMSPrefsWindow, self).__init__(title, ID=0, LeftEdge='centered', TopEdge='centered', CloseOnReq=True)
 
         self.last_load_dir = None   
         self._ok_cb = []
@@ -83,8 +95,6 @@ class CMSPrefsWindow(Window):
                          'intent': 'Perceptual',
                          'bpcomp': False}
 
-        self.Notify('CloseRequest', True, self.Close)
-
         top = VGroup()
         g = HGroup()
         bt_g = HGroup()
@@ -92,7 +102,7 @@ class CMSPrefsWindow(Window):
         self.RootObject = top
 
         o = SimpleButton("Close"); o.CycleChain = True
-        o.Notify('Pressed', False, self.Close)
+        o.Notify('Pressed', False, self.CloseWindow)
         bt_g.AddChild(o)
         
         top = VGroup()
@@ -109,7 +119,7 @@ class CMSPrefsWindow(Window):
         self._groups['cms'] = cms = VGroup()
         top.AddChild(cms)
 
-        g = ColGroup(2, Title="Working Surfaces Profiles")
+        g = ColGroup(2, GroupTitle="Working Surfaces Profiles")
         cms.AddChild(g)
 
         for name in ('RGB', 'CMYK'):
@@ -117,7 +127,7 @@ class CMSPrefsWindow(Window):
             g.AddChild(Label("%s:" % name), self._groups[name])
             self._create_choices(name, (n for n, _ in self._profiles[name]))
 
-        rg = VGroup(Title="Rendering")
+        rg = VGroup(GroupTitle="Rendering")
         cms.AddChild(rg)
 
         g = ColGroup(2)
@@ -144,13 +154,13 @@ class CMSPrefsWindow(Window):
     def _create_choices(self, name, entries, active=0):
         if name in self._cycles:
             self._groups[name].RemChild(self._cycles[name])
-        o = self._cycles[name] = Cycle(entries, CycleChain=True, Active=active)
+        o = self._cycles[name] = Cycle(tuple(entries), CycleChain=True, Active=active)
         o.Notify('Active', MUIV_EveryTime, self.OnCycleProfile, MUIV_TriggerValue, name)
         self._groups[name].AddChild(o, lock=True)
 
     def OnEnableCMS(self, state):
         self._groups['cms'].Disabled = not state
-        #self.ApplicationObject.EnableCMS(state)
+        #self.ApplicationObject.value.EnableCMS(state)
 
     def OnCycleProfile(self, active, name):
         plist = self._profiles[name]

@@ -33,7 +33,7 @@ class ColorChooser(Window):
     def __init__(self, title):
         self.watchers = []
         
-        super(ColorChooser, self).__init__(title, ID="COL0", RightEdge=64, TopEdge=64)
+        super(ColorChooser, self).__init__(title, ID="COL0", RightEdge=64, TopEdge=64, CloseOnReq=True)
 
         top = VGroup()
         self.RootObject = top
@@ -56,8 +56,8 @@ class ColorChooser(Window):
 
         top.AddChild(self.coladj, bar, g)
 
-        self.coladj.Notify('RGB', MUIV_EveryTime, self.OnColorChanged)
-        self._colstr.Notify('Acknowledge', MUIV_EveryTime, self.OnColStrChanged)
+        self.coladj.Notify('RGB', callback=self.OnColorChanged)
+        self._colstr.Notify('Acknowledge', callback=self.OnColStrChanged)
 
         self.color = ColorChooser.__default_color
 
@@ -69,8 +69,8 @@ class ColorChooser(Window):
     def FloatToSysCol(v):
         return clamp(0, int(v * 0xff), 255) * 0x01010101
 
-    def OnColStrChanged(self):
-        s = self._colstr.Contents
+    def OnColStrChanged(self, evt):
+        s = evt.value
         if not s:
             self._colstr.Contents = self._colstr_save
         else:
@@ -78,10 +78,10 @@ class ColorChooser(Window):
                 c = long(s[1:], 16)
             else:
                 c = long(s)
-            self.color = (self.SysColToFloat((c>>16)&0xff), self.SysColToFloat((c>>8)&0xff), self.SysColToFloat(c&0xff))
+            self.color = (float((c>>16)&0xff)/255., float((c>>8)&0xff)/255., float(c&0xff)/255.)
 
-    def OnColorChanged(self):
-        rgb = self.coladj.RGB
+    def OnColorChanged(self, evt):
+        rgb = tuple(x.value for x in self.coladj.RGB)
         self._color = tuple(self.SysColToFloat(x) for x in rgb)
         self._colstr_save = "#%02x%02x%02x" % tuple((x >> 24) for x in rgb)
         self._colstr.Contents = self._colstr_save
@@ -112,5 +112,6 @@ class ColorChooser(Window):
     def rem_watcher(self, cb):
         self.watchers.remove(cb)
 
+    @Event.noevent
     def OnPick(self):
-        self.ApplicationObject.EnterPickMode()
+        self.ApplicationObject.value.EnterPickMode()

@@ -38,7 +38,8 @@ class BrushSelectWindow(Window):
         super(BrushSelectWindow, self).__init__(title, ID="BSEL",
                                                 RightEdge=64, BottomEdge=64,
                                                 Width=6*DrawableBrush.BRUSH_SCALE,
-                                                Height=12*DrawableBrush.BRUSH_SCALE)
+                                                Height=12*DrawableBrush.BRUSH_SCALE,
+                                                CloseOnReq=True)
 
         top = VGroup()
         self.RootObject = top 
@@ -52,19 +53,20 @@ class BrushSelectWindow(Window):
         g.AddChild(self.obj_BName)
         
         o = SimpleButton("Edit")
-        o.Notify('Pressed', False, self.EditBrush)
+        o.Notify('Pressed', False, lambda evt: self.EditBrush())
         g.AddChild(o)
 
         o = SimpleButton("Delete")
-        o.Notify('Pressed', False, self.DeleteBrush)
+        o.Notify('Pressed', False, lambda evt: self.DeleteBrush())
         o.Disabled = True
         g.AddChild(o)
  
-        top.AddChild(HGroup(Title="Current brush", Child=(self.brush, g)))
+        top.AddChild(HGroup(GroupTitle="Current brush", Child=(self.brush, g)))
         top.AddChild(Rectangle(HBar=True, FixHeight=8))
         self._bgroup = laygroup.LayGroup(SameSize=True, TopOffset=0, Spacing=0)
         top.AddChild(self._bgroup)
 
+    @Event.noevent
     def OnBrushChange(self):
         self.obj_BName.Contents = self.brush.shortname
 
@@ -80,33 +82,46 @@ class BrushSelectWindow(Window):
     def EditBrush(self):
         if not hasattr(self, '_editor'):
             self._editor = BrushEditorWindow("Brush Editor")
-            self.ApplicationObject.AddWindow(self._editor)
-            self._editor.Notify('CloseRequest', True, self._editor.Close)
+            self.ApplicationObject.value.AddChild(self._editor)
         self._editor.SetBrush(self.brush)
-        self._editor.Open()
+        self._editor.OpenWindow()
 
     def DeleteBrush(self):
         pass
 
 
 class BrushPreview(Area):
+    MCC = True
+
     WIDTH = 200
     HEIGHT = 96
 
     def __init__(self):
-        super(BrushPreview, self).__init__(MCC=True, FillArea=False)
+        super(BrushPreview, self).__init__(FillArea=False)
         self._rsurface = surface.BoundedSurface(self.WIDTH, self.HEIGHT, 'RGB8') # change me by a model
         self._rbuf = self._rsurface.GetBuffer(0, 0, read=False)
         self._rbuf.one()
         self._brush = DrawableBrush()
 
-    def MCC_AskMinMax(self, minw, defw, maxw, minh, defh, maxh):
-        w = minw + self.WIDTH
-        h = minh + self.HEIGHT
-        return w, w, w, h, h, h
+    @muimethod(MUIM_AskMinMax)
+    def MCC_AskMinMax(self, msg):
+        msg.DoSuper()
+        minmax = msg.MinMaxInfo.contents
 
-    def MCC_Draw(self, flags):
-        if flags & MADF_DRAWOBJECT == 0: return
+        w = minmax.MinWidth.value + self.WIDTH
+        h = minmax.MinHeight.value + self.HEIGHT
+
+        minmax.MinWidth = w
+        minmax.DefWidth = w
+        minmax.MaxWidth = w
+        minmax.MinHeight = h
+        minmax.DefHeight = h
+        minmax.MaxHeight = h
+
+    @muimethod(MUIM_Draw)
+    def MCC_Draw(self, msg):
+        msg.DoSuper()
+        if msg.flags.value & MADF_DRAWOBJECT == 0: return
         self._rp.Blit8(self._rbuf, self.MLeft, self.MTop, self.WIDTH, self.HEIGHT)
 
     def DrawBrush(self, brush):
@@ -150,7 +165,7 @@ class FloatValue(Group):
         self._value = String(MaxLen=7, Accept="0123456789.", Format='r', FixWidthTxt="-#.###", Frame='String', Background=None)
         self._value.Notify('Acknowledge', MUIV_EveryTime, self.OnStringValue)
         self._slider = Slider(Min=0, Max=1000)
-        self._slider.Notify('Value', MUIV_EveryTime, self.OnSliderValue, MUIV_TriggerValue)
+        self._slider.Notify('Value', MUIV_EveryTime, self.OnSliderValue)
         self.AddChild(self._value, self._slider)
 
         self.value = default
@@ -162,19 +177,19 @@ class FloatValue(Group):
         return "%.3g" % value
 
     def __float__(self):
-        return self._as_float(self._slider.Value)
+        return self._as_float(self._slider.Value.value)
 
     def __str__(self):
         return "%.3g" % float(self)
 
-    def OnSliderValue(self, value, *args):
-        value = self._as_float(value)
+    def OnSliderValue(self, evt, *args):
+        value = self._as_float(evt.value.value)
         self._value.NNSet('Contents', self._as_str(value))
         if self._cb:
             self._cb(value, *self._cb_args)
             
-    def OnStringValue(self):
-        self.value = float(self._value.Contents)
+    def OnStringValue(self, evt):
+        self.value = float(evt.value.value)
 
     def SetValue(self, value):
         self._slider.Value = min(1000, max(0, int((value-self._min)/self._range)))
@@ -201,14 +216,14 @@ class PercentSlider(Slider):
         self._cb = cb
         self._cb_args = cb_args
 
-        self.Notify('Value', MUIV_EveryTime, self.OnValue)
+        self.Notify('Value', callback=self.OnValue)
 
         self.value = default   
 
     def __float__(self):
-        return self.Value*self._range + self._min
+        return self.Value.value*self._range + self._min
 
-    def OnValue(self, *args):
+    def OnValue(self, evt):
         if self._cb:
             self._cb(float(self), *self._cb_args)
 
@@ -224,7 +239,7 @@ class PercentSlider(Slider):
 class BrushEditorWindow(Window):
     def __init__(self, title):
         ro = VGroup()
-        super(BrushEditorWindow, self).__init__(title, ID="BrushEditor", RootObject=ro)
+        super(BrushEditorWindow, self).__init__(title, ID="BrushEditor", RootObject=ro, CloseOnReq=True)
 
         self._obj = {}
         self._brush = None
@@ -233,15 +248,15 @@ class BrushEditorWindow(Window):
 
         g = VGroup()
         o = SimpleButton("Set as default")
-        o.Notify('Pressed', False, self.Default)
+        o.Notify('Pressed', False, lambda evt: self.Default())
         g.AddChild(o)
  
         o = SimpleButton("Return to saved")
-        o.Notify('Pressed', False, self.Saved)
+        o.Notify('Pressed', False, lambda evt: self.Saved())
         g.AddChild(o)
 
         o = SimpleButton("Make a copy")
-        o.Notify('Pressed', False, self.Copy)
+        o.Notify('Pressed', False, lambda evt: self.Copy)
         g.AddChild(o)
 
         g.AddChild(VSpace(0))
@@ -254,10 +269,10 @@ class BrushEditorWindow(Window):
         def Buttons(obj):
             b1 = SimpleButton("R")
             b1.HorizWeight = 0; b1.CycleChain = True
-            b1.Notify('Pressed', False, self.ResetValue, obj)
+            b1.Notify('Pressed', False, lambda evt: self.ResetValue(obj))
             b2 = SimpleButton("F(x)")
             b2.HorizWeight = 0; b2.CycleChain = True
-            b2.Notify('Pressed', False, self.OpenFxWin, obj)
+            b2.Notify('Pressed', False, lambda evt: self.OpenFxWin(obj))
             return b1, b2
 
         o = self._obj['radius'] = FloatValue(min=-2.0, max=4.0, default=0.91,
@@ -312,7 +327,7 @@ class BrushEditorWindow(Window):
         self._prev.DrawBrush(self._brush) 
  
     def SetBrush(self, brush):
-        self._brush = brush 
+        self._brush = brush
         self._saved_states = brush.states
         self._refresh()
 
@@ -350,7 +365,7 @@ class BrushEditorWindow(Window):
         self._refresh()
 
     def Copy(self):
-        brush = self.ApplicationObject.CopyBrush(self._brush)
+        brush = self.ApplicationObject.value.CopyBrush(self._brush)
         self.SetBrush(brush)
 
     def Saved(self):

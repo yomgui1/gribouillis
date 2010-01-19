@@ -26,7 +26,7 @@
 __all__ = ('Brush', 'DummyBrush')
 
 import os, array
-from pymui import MUIV_InputMode_Toggle, MUIV_Frame_ImageButton, Dtpic
+from pymui import MUIV_InputMode_Toggle, MUIV_Frame_ImageButton, Dtpic, Rectangle
 import _brush, functools
 
 MUIA_Dtpic_Scale = 0x8042ca4c  # private

@@ -30,9 +30,9 @@ import os, sys, thread, time
 from languages import lang_dict    
 lang = lang_dict['default']
 
-import pymui
 from pymui import *
 from pymui.mcc.busy import Busy
+
 from brush import Brush
 from DrawWindow import DrawWindow
 from ColorChooser import ColorChooser
@@ -43,7 +43,6 @@ from model_ui import ModelInfoWindow
 from raster import Raster
 from model import SimpleTiledModel
 from controler import DrawControler
-
 
 class Gribouillis(Application):
     VERSION = 0.1
@@ -88,12 +87,12 @@ class Gribouillis(Application):
                                         (lang.MenuViewCenter,         '*', self.Center),
                                         ('#'+lang.MenuViewFullscreen, 'F', self.ToggleFullscreen),
                                         None,
-                                        (lang.MenuViewSetCMSProfile,  'P', self.win_CMSPrefs.Open),
+                                        (lang.MenuViewSetCMSProfile,  'P', self.win_CMSPrefs.OpenWindow),
                                         ),
                      lang.MenuWindows: ((lang.MenuWindowDraw,         'D', self.OpenDrawWindow),
-                                        (lang.MenuWindowColorChooser, 'C', self.win_Color.Open),
-                                        (lang.MenuWindowBrushSel,     'B', self.win_BSel.Open),
-                                        (lang.MenuWindowMiniBGSel,    'G', self.win_MiniBGSel.Open),
+                                        (lang.MenuWindowColorChooser, 'C', self.win_Color.OpenWindow),
+                                        (lang.MenuWindowBrushSel,     'B', self.win_BSel.OpenWindow),
+                                        (lang.MenuWindowMiniBGSel,    'G', self.win_MiniBGSel.OpenWindow),
                                         ),
                      lang.MenuDebug:   (('#'+lang.MenuDegugRaster,    None, self.SetDebug, 'raster'),
                                         ),
@@ -117,7 +116,7 @@ class Gribouillis(Application):
                 else:
                     item = Menuitem(t[0], t[1])
                 if t[2]:
-                    item.action(*t[2:])
+                    item.Bind(*t[2:])
                 menu.AddTail(item)
  
         # Create Application object
@@ -131,18 +130,12 @@ class Gribouillis(Application):
             Menustrip   = strip,
         )
 
-        # Be sure that all windows can be closed
-        self.win_Color.Notify('CloseRequest', True, self.win_Color.Close)
-        self.win_BSel.Notify('CloseRequest', True, self.win_BSel.Close)
-        self.win_MiniBGSel.Notify('CloseRequest', True, self.win_MiniBGSel.Close)
-        self.win_ModelInfo.Notify('CloseRequest', True, self.win_ModelInfo.Close)
-
         # We can't open a window if it has not been attached to the application
-        self.AddWindow(self.win_Color)
-        self.AddWindow(self.win_BSel)
-        self.AddWindow(self.win_MiniBGSel)
-        self.AddWindow(self.win_CMSPrefs)
-        self.AddWindow(self.win_ModelInfo)
+        self.AddChild(self.win_Color)
+        self.AddChild(self.win_BSel)
+        self.AddChild(self.win_MiniBGSel)
+        self.AddChild(self.win_CMSPrefs)
+        self.AddChild(self.win_ModelInfo)
 
         # Create draw window
         self.InitDrawWindow()
@@ -164,27 +157,27 @@ class Gribouillis(Application):
                     self.win_MiniBGSel.AddImage(os.path.join(bg_dir, name))
 
         # Open windows now
-        self.win_BSel.Open()
-        self.win_Color.Open()
-        self.win_Draw.Open()
+        self.win_BSel.OpenWindow()
+        self.win_Color.OpenWindow()
+        self.win_Draw.OpenWindow()
 
     def OpenDrawWindow(self):
-        self.win_Draw.Open()
+        self.win_Draw.OpenWindow()
 
     def InitDrawWindow(self, fullscreen=False):
         if self.win_Draw: return
         
         self.win_Draw = DrawWindow(lang.DrawWinTitle, self.controler.view, fullscreen)
-        self.AddWindow(self.win_Draw)
-        self.win_Draw.Notify('CloseRequest', True, self.Quit)
+        self.AddChild(self.win_Draw)
+        self.win_Draw.Notify('CloseRequest', True, lambda evt: self.Quit())
         
     def TermDrawWindow(self):
         if not self.win_Draw: return
         
-        self.win_Draw.Close()
-        self.RemWindow(self.win_Draw)
-        self.win_Draw.RootObject = None
-        del self.win_Draw
+        win = self.win_Draw
+        win.CloseWindow()
+        self.RemChild(win)
+        win._cclear()
         self.win_Draw = None
 
     def init_brushes(self):
@@ -228,7 +221,7 @@ class Gribouillis(Application):
     def _add_brush(self, name):
         b = Brush()
         b.load(self._all_paths, name)
-        b.Notify(MUIA_Selected, MUIV_EveryTime, self.OnSelectBrush, b)
+        b.Notify(MUIA_Selected, MUIV_EveryTime, self.OnSelectBrush)
         self.brushes.append(b)
         return b
 
@@ -238,11 +231,11 @@ class Gribouillis(Application):
     def OnColorChanged(self, color): # Called by the ColorChooser window
         self.brush.color = color
 
-    def OnSelectBrush(self, brush):
-        if self._brush is not brush:
-            self.brush = brush
+    def OnSelectBrush(self, evt):
+        if self._brush is not evt.source:
+            self.brush = evt.source
         else:
-            brush.NNSet(MUIA_Selected, True)
+            evt.source.NNSet(MUIA_Selected, True)
 
     def set_active_brush(self, brush):
         self.brush.copy(brush)
@@ -255,12 +248,12 @@ class Gribouillis(Application):
     brush = property(fget=lambda self: self._draw_brush, fset=set_active_brush)
 
     def LoadBackground(self, bg):
-        self.controler.LoadBackground(bg.Name)
+        self.controler.LoadBackground(bg.Name.value)
 
     def OnLoadImage(self):
-        filename = pymui.getfilename(self.win_Draw, lang.LoadImageReqTitle,
-                                     self.last_loaded_dir, "#?.(png|jpeg|jpg|targa|tga|gif|ora)",
-                                     False)
+        filename = getfilename(self.win_Draw, lang.LoadImageReqTitle,
+                               self.last_loaded_dir, "#?.(png|jpeg|jpg|targa|tga|gif|ora)",
+                               False)
         if filename:
             self.last_loaded_dir = os.path.dirname(filename)
             self.controler.LoadImage(filename)
@@ -281,30 +274,30 @@ class Gribouillis(Application):
 
             self.win_SaveWin = Window("Saving Image",
                                       RootObject=top,
-                                      DefaultObject=b_ok)
+                                      DefaultObject=b_ok, CloseOnReq=True)
             self.win_SaveWin.text = o_text
             self.win_SaveWin.busy = o_busy
             self.win_SaveWin.bt_group = g2
             
-            self.win_SaveWin.Notify('Open', False, self.SaveImageFinalize)   
-            self.win_SaveWin.Notify('CloseRequest', True, self.win_SaveWin.Close)
+            self.win_SaveWin.Notify('Open', False, self.SaveImageFinalize)
             b_ok.Notify('Pressed', False, self.OkSaveImage)
             b_cancel.Notify('Pressed', False, self.SaveImageFinalize)
 
-            self.AddWindow(self.win_SaveWin)
+            self.AddChild(self.win_SaveWin)
         else:
-            self.win_SaveWin.Close()
+            self.win_SaveWin.CloseWindow()
             
         _, _, w, h = self.controler.model.bbox
         self.win_SaveWin.text.Contents = "%u x %u" % (w, h)
         self.win_Draw.Sleep = True
         self.win_SaveWin.RefWindow=self.win_Draw
-        self.win_SaveWin.Open()
+        self.win_SaveWin.OpenWindow()
 
+    @Event.noevent
     def OkSaveImage(self):
-        filename = pymui.getfilename(self.win_Draw, lang.SaveImageReqTitle,
-                                     self.last_saved_dir, "#?.(png|jpeg|jpg|targa|tga|gif|ora)",
-                                     True)
+        filename = getfilename(self.win_Draw, lang.SaveImageReqTitle,
+                               self.last_saved_dir, "#?.(png|jpeg|jpg|targa|tga|gif|ora)",
+                               True)
         if filename:
             self.last_saved_dir = os.path.dirname(filename)
             self.win_SaveWin.bt_group.Disabled = True
@@ -312,6 +305,7 @@ class Gribouillis(Application):
             
             thread.start_new_thread(self.SaveImageJob, (time, filename))
 
+    @Event.noevent
     def SaveImageFinalize(self):
         self.win_SaveWin.bt_group.Disabled = False
         self.win_SaveWin.busy.ShowMe = False
@@ -332,7 +326,7 @@ class Gribouillis(Application):
         state = self.win_Draw.fullscreen
         self.TermDrawWindow()
         self.InitDrawWindow(not state)
-        self.win_Draw.Open()
+        self.win_Draw.OpenWindow()
 
     def OnChangedCMSProfiles(self, prefs):
         if prefs.in_profile and prefs.out_profile:

@@ -24,8 +24,10 @@
 ###############################################################################
 
 import pymui, _pixarray, lcms
+from sys import getrefcount as rc
 
 class Raster(pymui.Area):
+    MCC = True
     EVENTMAP = {
         pymui.IDCMP_MOUSEBUTTONS : 'mouse-button',
         pymui.IDCMP_MOUSEMOVE    : 'mouse-motion',
@@ -36,9 +38,7 @@ class Raster(pymui.Area):
         pymui.Area.__init__(self,
                             InnerSpacing=(0,)*4,
                             FillArea=False,
-                            DoubleBuffer=True,
-                            MCC=True)
-        self._clip = True
+                            DoubleBuffer=True)
         self._damaged = []
         self._damagedbuflist = []
         self._watchers = {}
@@ -74,36 +74,55 @@ class Raster(pymui.Area):
     def RedrawDamaged(self):
         self.Redraw(pymui.MADF_DRAWUPDATE)
 
-    def MCC_AskMinMax(self, minw, defw, maxw, minh, defh, maxh):
-        return minw, defw+320, 10000, minh, defh+320, 10000
+    @pymui.muimethod(pymui.MUIM_AskMinMax)
+    def MCC_AskMinMax(self, msg):
+        msg.DoSuper()
+        minmax = msg.MinMaxInfo.contents
 
-    def MCC_Setup(self):
+        minmax.DefWidth += 320
+        minmax.DefHeight += 320
+        minmax.MaxHeight = minmax.MaxWidth = pymui.MUI_MAXMAX
+
+    @pymui.muimethod(pymui.MUIM_Setup)
+    def MCC_Setup(self, msg):
         self._ev.install(self, pymui.IDCMP_RAWKEY | pymui.IDCMP_MOUSEBUTTONS)
-        return True
+        return msg.DoSuper()
 
-    def MCC_Cleanup(self):
+    @pymui.muimethod(pymui.MUIM_Cleanup)
+    def MCC_Cleanup(self, msg):
         self._ev.uninstall()
+        return msg.DoSuper()
 
-    def MCC_HandleEvent(self, evt):
-        wl = self._watchers.get(Raster.EVENTMAP.get(evt.Class), [])
+    @pymui.muimethod(pymui.MUIM_HandleEvent)
+    def MCC_HandleEvent(self, msg):
+        self._ev.readmsg(msg)
+        wl = self._watchers.get(Raster.EVENTMAP.get(self._ev.Class), [])
         for cb, args in wl:
-            return cb(evt, *args)
+            return cb(self._ev, *args)
 
-    def MCC_Draw(self, flags):
-        # Draw full raster
-        if flags & pymui.MADF_DRAWOBJECT:
-            self._draw_area(self.MLeft, self.MTop, self.MRight, self.MBottom)
+    @pymui.muimethod(pymui.MUIM_Draw)
+    def MCC_Draw(self, msg):
+        msg.DoSuper()
+        flags = msg.flags.value
 
-        # Draw only damaged area
-        elif flags & pymui.MADF_DRAWUPDATE:
-            # Redraw damaged rectangles
-            for rect in self._damaged:
-                self._draw_area(*rect)
-            self._damaged = []
+        self.AddClipping()
+        try:
+            # Draw full raster
+            if flags & pymui.MADF_DRAWOBJECT:
+                self._draw_area(self.MLeft, self.MTop, self.MRight, self.MBottom)
 
-            # Redraw damaged buffers
-            self._draw_buffers(self._damagedbuflist)
-            self._damagedbuflist = []
+            # Draw only damaged area
+            elif flags & pymui.MADF_DRAWUPDATE:
+                # Redraw damaged rectangles
+                for rect in self._damaged:
+                    self._draw_area(*rect)
+                self._damaged = []
+
+                # Redraw damaged buffers
+                self._draw_buffers(self._damagedbuflist)
+                self._damagedbuflist = []
+        finally:
+            self.RemoveClipping()
 
     def _draw_area(self, *bbox):
         a, b = self.GetSurfacePos(*bbox[:2])

@@ -32,15 +32,15 @@ class Tile(_pixarray.PixelArray):
     # Saving memory, don't create a __dict__ object per instance
     #__slots__ = ('saved', 'clear')
     
-    def __new__(cl, pixfmt, clear=True):
+    def __new__(cl, pixfmt, **kwds):
         return _pixarray.PixelArray.__new__(cl, T_SIZE, T_SIZE, pixfmt)
 
     def __init__(self, pixfmt, clear=True):
-        self.clear = self.zero
+        #self.clear = self.zero
         self.bg = False
 
         if clear:
-            self.clear()
+            self.zero()
 
     def GetMemoryUsed(self):
         return self.BytesPerRow * self.Height
@@ -48,7 +48,7 @@ class Tile(_pixarray.PixelArray):
     def copy(self):
         o = Tile(self.pixfmt, clear=False)
         o.from_pixarray(self)
-        o.clear = o.zero
+        #o.clear = o.zero
         o.bg = self.bg
         return o
 
@@ -136,12 +136,12 @@ class TiledSurface(Surface):
             self._bg.x = x*T_SIZE
             self._bg.y = y*T_SIZE
             return self._bg
-        else:
-            tile = Tile(self.pixfmt, clear=clear)
-            tile.x = x*T_SIZE
-            tile.y = y*T_SIZE
-            self.tiles[k] = tile
-            return tile
+
+        tile = Tile(self.pixfmt, clear=clear)
+        tile.x = x*T_SIZE
+        tile.y = y*T_SIZE
+        self.tiles[k] = tile
+        return tile
 
     def IterPixelArray(self):
         return self.tiles.itervalues()

@@ -23,7 +23,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-__all__ = ('DrawWindow', )
+__all__ = [ 'DrawWindow' ]
 
 from pymui import *
 
@@ -39,7 +39,7 @@ class DrawWindow(Window):
             kwds['HeightScreen'] = 100
             kwds['Borderless'] = True
             kwds['Backdrop'] = True
-            kwds['ID'] = 'DRWF'
+            #kwds['ID'] = 'DRWF'
             # Note: if I use the same ID for each FS mode, the FS window will take data
             # of the non FS window... that's render very bad ;-)
         else:
@@ -54,10 +54,10 @@ class DrawWindow(Window):
                                          TabletMessages=True, # enable tablet events support
                                          **kwds)
 
-        self.Notify('Activate', MUIV_EveryTime, self.OnActivate, MUIV_TriggerValue)
+        self.Notify('Activate', MUIV_EveryTime, self.OnActivate)
 
-    def OnActivate(self, state):
-        if state:
+    def OnActivate(self, evt):
+        if evt.value:
             self.pointer = POINTERTYPE_AIMING
         else:
             self.pointer = POINTERTYPE_NORMAL

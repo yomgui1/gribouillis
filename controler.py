@@ -180,7 +180,7 @@ class DrawControler(object):
 
     def DrawOnMotion(self, evt):
         # create the stroke data
-        if evt.ValidTD:
+        if evt.td_Tags:
             #if self.tbx is not None:
             #    speed = (evt.td_NormTabletX - self.tbx,
             #             evt.td_NormTabletY - self.tby)
@@ -195,7 +195,7 @@ class DrawControler(object):
             ty = 0.0
 
         pos = self.view.GetSurfacePos(evt.MouseX, evt.MouseY)
-        
+
         # record and render the stroke
         # TODO: for now, a stroke is just a dict object.
         # we need to use a custom object later for optimizations.

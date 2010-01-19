@@ -10,6 +10,8 @@
 #include <utility/hooks.h>
 #include <clib/macros.h>
 
+#include <proto/exec.h>
+
 #undef USE_INLINE_STDARG
 #include <clib/alib_protos.h>
 #include <proto/muimaster.h>

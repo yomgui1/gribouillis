@@ -94,6 +94,12 @@ typedef struct PyBrush_STRUCT {
     FLOAT           b_Pressure;
     FLOAT           b_cs, b_sn;
 
+    /* Model for Hermite interpolation */
+    FLOAT           b_SplineFactors[3]; /* t, b, c values */
+    FLOAT           b_T1x, b_T1y;
+    LONG            b_P1x, b_P1y;
+    LONG            b_P2x, b_P2y;
+    
     FLOAT           b_BasicValues[BASIC_VALUES_MAX];
 
     USHORT          b_RGBColor[3];
@@ -675,6 +681,130 @@ brush_drawstroke(PyBrush *self, PyObject *args)
     return buflist;
 }
 //-
+//+ brush_drawstroke2
+static PyObject *
+brush_drawstroke2(PyBrush *self, PyObject *args)
+{
+    PyObject *stroke, *o, *buflist;
+    LONG sx, sy;
+    FLOAT radius, a, b, one_minus_t, tx, ty;
+    ULONG i, n;
+    
+    if (NULL == self->b_Surface)
+        return PyErr_Format(PyExc_RuntimeError, "Uninitialized brush");
+
+    /* TODO: yes, stroke is currently a dict object... */
+    if (!PyArg_ParseTuple(args, "O!", &PyDict_Type, &stroke))
+        return NULL;
+
+    o = PyDict_GetItemString(stroke, "pos"); /* BR */
+    if ((NULL == o) || !PyArg_ParseTuple(o, "kk", &sx, &sy))
+        return NULL;
+
+    buflist = PyList_New(0); /* NR */
+    if (NULL == buflist)
+        return NULL;
+
+    /* computing dynamic brush parameters */
+    radius = self->b_BasicValues[BV_RADIUS];
+    radius = CLAMP(radius, 0.01, 128.0);
+
+    /* Number of dabs to draw */
+    n = 10;
+
+    /* About interpolation:
+     * Events points from the user device (tablet/mouse/...)
+     * are given by exact positions (well... at the device resolution),
+     * but it's discretes positions, no continuity in positions inputs.
+     * To make a draw between them I need to interpolate.
+     *
+     * So it exists two type of interpolation.
+     *  1) by interpolating the curve
+     *  2) by approximating the curve
+     *
+     * I don't want to use the second one, as it gives a curve that doesn't
+     * pass exactly on control points (ones given by the device).
+     * So I'm using here the first method.
+     *
+     * And specially use Hermite Interpolation: this type is able to
+     * do the job with only 2 points, if you give derivatives for each ones.
+     *
+     * Really handy, because points are coming in real time: we don't have
+     * all points when computation start, but one by one.
+     * As I need to draw something before that the user stop to move the device,
+     * it's not possible to wait this moment before to reach the minimal
+     * number of points to compute the spline.
+     *
+     * With Hermite interpolation, I just need 2 points and derivatives for
+     * each one (derivative = tangent at the point).
+     *
+     * So the problem is now to compute these tangents...
+     * I'm using Kochanek-Bartels tangents fomulations!
+     * (see http://en.wikipedia.org/wiki/Kochanek-Bartels_spline)
+     *
+     * My implementation compute a spline between 2 points: P1, P2.
+     * But need in fact 3 points (add P3) and suppose that T1 tangent is known.
+     * I take notation in the previous URL, I've got T1=d(1) and I try to compute T2=d(2).
+     *
+     * d(2) = ([(1-t)*(1+b)*(1-c)]*(P2-P1) + [(1-t)*(1-b)*(1+c)]*(P3-P2)) * 0.5
+     *
+     * That cause in the rendering to wait 3 points before starting to draw the spline
+     * between the first two points. So a special process shall be done to finish the curve
+     * when user raise up the pen (or release the mouse button, etc).
+     */
+
+    /* Computing T2
+     *
+     * b_SplineFactors[0]: t (tension)
+     * b_SplineFactors[0]: b (bias)
+     * b_SplineFactors[0]: c (continuity)
+     */
+
+    one_minus_t = 1.f - self->b_SplineFactors[0];
+    a = .5f * (one_minus_t * (1.f + self->b_SplineFactors[1]) * (1.f - self->b_SplineFactors[2]));
+    b = .5f * (one_minus_t * (1.f - self->b_SplineFactors[1]) * (1.f + self->b_SplineFactors[2]));
+
+    t2x = a*(self->b_P2x - self->b_P1x) + b*(sx - self->b_P2x);
+    t2y = a*(self->b_P2y - self->b_P1y) + b*(sy - self->b_P2y);
+
+    /* Now interpolate using Hermite spline formula */
+    for (i=0; i < n; i++) {
+        float t = (float)i / n;
+        float t2 = t*t;
+        float t3 = t*t*t;
+        float h1 =  2*t3 - 3*t2 + 1.f;
+        float h2 = -2*t3 + 3*t2;
+        float h3 =    t3 - 2*t2 + t;
+        float h4 =    t3 -   t2;
+        FLOAT x, y;
+        
+        x = h1*self->b_P1x + h2*self->b_P2x + h3*self->b_T1x + h4*t2x;
+        y = h1*self->b_P1y + h2*self->b_P2y + h3*self->b_T1y + h4*t2y;
+
+        ret = drawdab_solid(self, buflist, self->b_Surface,
+                            (LONG)x, (LONG)y, radius, 1.0,
+                            self->b_BasicValues[BV_HARDNESS],
+                            self->b_BasicValues[BV_ERASE],
+                            self->b_BasicValues[BV_OPACITY],
+                            1.0, 0.0);
+
+        if (NULL == ret) {
+            Py_CLEAR(buflist); /* BUG: let pa damaged ! */
+            break;
+        }
+    }
+
+    /* Now P2 => P1, P3 => P2, T2 => T1 */
+    self->b_P1x = self->b_P2x;
+    self->b_P1y = self->b_P2y;
+    self->b_P2x = sx;
+    self->b_P2y = sy;
+    self->b_T1x = t2x;
+    self->b_T1y = t2y;
+
+    return buflist;
+}
+//-
 //+ brush_invalid_cache
 static PyObject *
 brush_invalid_cache(PyBrush *self)
@@ -886,6 +1016,7 @@ static PyGetSetDef brush_getseters[] = {
 static struct PyMethodDef brush_methods[] = {
     {"drawdab_solid", (PyCFunction)brush_drawdab_solid, METH_VARARGS, NULL},
     {"draw_stroke",   (PyCFunction)brush_drawstroke, METH_VARARGS, NULL},
+    {"draw_stroke2",   (PyCFunction)brush_drawstroke2, METH_VARARGS, NULL},
     {"invalid_cache", (PyCFunction)brush_invalid_cache, METH_NOARGS, NULL},
     {"get_states",    (PyCFunction)brush_get_states, METH_NOARGS, NULL},
     {"get_state",    (PyCFunction)brush_get_state, METH_VARARGS, NULL},
@@ -897,6 +1028,12 @@ static PyMemberDef brush_members[] = {
     {"x",            T_LONG,   offsetof(PyBrush, b_X), 0, NULL},
     {"y",            T_LONG,   offsetof(PyBrush, b_Y), 0, NULL},
     {"pressure",     T_FLOAT,  offsetof(PyBrush, b_Pressure), 0, NULL},
+    {"t1x",          T_FLOAT,  offsetof(PyBrush, b_T1x), 0, NULL},
+    {"t1y",          T_FLOAT,  offsetof(PyBrush, b_T1y), 0, NULL},
+    {"p1x",          T_LONG,   offsetof(PyBrush, b_P1x), 0, NULL},
+    {"p1y",          T_LONG,   offsetof(PyBrush, b_P1y), 0, NULL},
+    {"p2x",          T_LONG,   offsetof(PyBrush, b_P2x), 0, NULL},
+    {"p2y",          T_LONG,   offsetof(PyBrush, b_P2y), 0, NULL},
     {NULL}
 };
 

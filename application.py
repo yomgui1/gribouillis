@@ -317,7 +317,7 @@ class Gribouillis(Application):
             self.controler.SaveImage(filename)
             print "[*DBG*]: Saved %s in" % filename, time.time() - start, "seconds"
         finally:
-            self._do(MUIM_Application_PushMethod, (self.win_SaveWin, 3, MUIM_Set, MUIA_Window_Open, False))
+            self.PushMethod(self.win_SaveWin, 3, MUIM_Set, MUIA_Window_Open, False)
 
     def OnQuitRequest(self):
         self.Quit()

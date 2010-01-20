@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!C:python
 
 ###############################################################################
 # Copyright (c) 2009 Guillaume Roguez
@@ -27,11 +27,12 @@
 
 import os, sys
 
-sys.path.append('libs')
+rootpath = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.join(rootpath, 'libs'))
 
 from application import Gribouillis  
 
-app = Gribouillis(os.getcwd())
+app = Gribouillis(rootpath)
 try:
     app.Run()
 finally:

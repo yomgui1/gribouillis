@@ -52,6 +52,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 #define PyBrush_CheckExact(op) ((op)->ob_type == &PyBrush_Type)
 
 #define PA_CACHE_SIZE 15 /* good value for the case of big brushes */
+#define DABS_PER_SECONDS 0
 
 //#define STAT_TIMING
 
@@ -67,7 +68,6 @@ enum {
     BV_ERASE,
     BV_RADIUS_RANDOM,
     BV_DABS_PER_RADIUS,
-    BV_MOVE_SMOOTH_FAC,
     BV_GRAIN_FAC,
     BASIC_VALUES_MAX
 };
@@ -88,17 +88,15 @@ typedef struct PyBrush_STRUCT {
     PANode *        b_FirstInvalid;
 
     /* Brush Model */
-    LONG            b_X, b_dX;
-    LONG            b_Y, b_dY;
     FLOAT           b_Time;
     FLOAT           b_Pressure;
     FLOAT           b_cs, b_sn;
 
     /* Model for Hermite interpolation */
-    FLOAT           b_SplineFactors[3]; /* t, b, c values */
     FLOAT           b_T1x, b_T1y;
     LONG            b_P1x, b_P1y;
     LONG            b_P2x, b_P2y;
+    LONG            b_Start;
     
     FLOAT           b_BasicValues[BASIC_VALUES_MAX];
 
@@ -252,11 +250,16 @@ drawdab_solid(PyBrush *self, /* In: */
     UQUAD t1, t2;
 #endif
 
-    minx = floorf(sx - radius);
-    maxx = ceilf(sx + radius);
-    miny = floorf(sy - radius);
-    maxy = ceilf(sy + radius);
-    DPRINT("BDraw: bbox = (%ld, %ld, %ld, %ld) (radius=%lu)\n", minx, miny, maxx, maxy, (ULONG)floorf(radius));
+    cs = 1.0;
+    sn = 0.0;
+
+    DPRINT("BDraw: pos = (%ld, %ld)\n", sx, sy);
+
+    minx = floorf((FLOAT)sx - radius);
+    maxx = ceilf((FLOAT)sx + radius);
+    miny = floorf((FLOAT)sy - radius);
+    maxy = ceilf((FLOAT)sy + radius);
+    DPRINT("BDraw: bbox = (%ld, %ld, %ld, %ld) (radius=%f)\n", minx, miny, maxx, maxy, radius);
 
     /* check if there is really something to draw */
     if ((minx == maxx) || (miny == maxy))
@@ -273,7 +276,7 @@ drawdab_solid(PyBrush *self, /* In: */
             ULONG bx_left, bx_right, by_top, by_bottom;
             ULONG bx, by; /* x, y in buffer space */
             LONG n, i = -1; /* >=0 when some pixels have been written */
-            FLOAT cx, cy;
+            ULONG cx, cy;
 
             /* Try to obtain the surface pixels buffer for the point (x, y).
              * Search in internal cache for it, then ask directly to the surface object.
@@ -322,7 +325,7 @@ drawdab_solid(PyBrush *self, /* In: */
 
             buf += by_top * pa->bpr;
             
-            DPRINT("BDraw: area = (%ld, %ld, %ld, %ld) size=(%lu, %lu) (%ld)\n",
+            DPRINT("BDraw: area = (%ld, %ld, %ld, %ld) size=(%lu, %lu)\n",
                 bx_left, by_top, bx_right, by_bottom, bx_right-bx_left, by_bottom-by_top);
 
             /* Filling one pixel buffer (inner loop) */
@@ -330,34 +333,32 @@ drawdab_solid(PyBrush *self, /* In: */
             ReadCPUClock(&t1);
 #endif
 
-            /* Compute the square of ellipse radius: rr^2 = rx^2 + ry^2
-             * Note: Why +0.5 for each coordinate? because we put the center of
-             * ellipse in the center of the pixel (pixel positions are integers).
-             */
-
             /* Ellipse center in buffer coordinates */
-            cx = sx - (pa->x + 0.5);
-            cy = sy - (pa->y + 0.5);
+            cx = sx - pa->x;
+            cy = sy - pa->y;
 
             for (by=by_top; by <= by_bottom; by++) {
-                LONG yy = (LONG)by - cy;
+                FLOAT yy = ((LONG)by - (LONG)cy);
                 FLOAT yycs = yy*cs;
                 FLOAT yysn = yy*sn;
 
                 for (bx=bx_left; bx <= bx_right; bx++) {
-                    FLOAT xx, rx, ry, rr, opa;
+                    FLOAT xx, rx, ry, rr, opa, g;
 
-                    xx = (LONG)bx - cx;
+                    xx = (LONG)bx - (LONG)cx;
 
                     /* Rotation */
                     rx = yysn + xx*cs;
                     ry = (yycs - xx*sn) * yratio;
 
-                    /* Final radius */
+                    /* Compute the square of pixel radius: rr^2 = rx^2 + ry^2
+                     * Divide by the square of the ellipse radius to have
+                     * a number relative to this radius.
+                     */
                     rr = (rx*rx + ry*ry) / radius_radius;
 
                     /* (x, y) in the Ellipse ? */
-                    if (rr <= 1.0) {
+                    if (rr <= 1.) {
                         /* opacity = opacity_base * f(r), where:
                          *   - f is a falloff function
                          *   - r the radius (we using the square radius (rr) in fact)
@@ -366,17 +367,24 @@ drawdab_solid(PyBrush *self, /* In: */
                          * hardness can't be zero (or density = -infinity, clamped to zero)
                          */
                         opa = opacity;
-                        if (hardness < 1.0) {
+                        if (hardness < 1.) {
                             if (rr < hardness)
-                                opa *= (rr + 1-(rr/hardness));
+                                opa *= (rr + 1.-(rr/hardness));
                             else
-                                opa *= (hardness/(hardness-1)*(rr-1));
+                                opa *= (hardness/(hardness-1.)*(rr-1.));
                         }
 
-                        if (myrand3()*grain <= opacity) {
-                            i = bx * n;
-                            pa->writepixel(&buf[i], opa, erase, color);
+                        g = myrand3();
+                        if (g <= grain) {
+                            FLOAT opa2 = opa*(2.*g/grain-1.);
+                            if (opa2 > 1.)
+                                opa2 = 1.;
+                            else if (opa2 < 0.)
+                                opa2 = 0.;
+                            opa *= opa2;
                         }
+                        i = bx * n;
+                        pa->writepixel(&buf[i], opa, erase, color);
                     }
                 }
 
@@ -404,8 +412,8 @@ drawdab_solid(PyBrush *self, /* In: */
                 }
             }
 
-            if (SetSignal(0, SIGBREAKF_CTRL_C) & SIGBREAKF_CTRL_C)
-                goto end;
+            //if (SetSignal(0, SIGBREAKF_CTRL_C) & SIGBREAKF_CTRL_C)
+            //    goto end;
             
             /* Update x */
             x += bx_right - bx_left + 1;
@@ -537,6 +545,7 @@ brush_drawdab_solid(PyBrush *self, PyObject *args)
     return buflist;
 }
 //-
+#if 0
 //+ brush_drawstroke
 static PyObject *
 brush_drawstroke(PyBrush *self, PyObject *args)
@@ -591,8 +600,6 @@ brush_drawstroke(PyBrush *self, PyObject *args)
     buflist = PyList_New(0); /* NR */
     if (NULL == buflist)
         return NULL;
-
-#define DABS_PER_SECONDS 0
 
     radius = self->b_BasicValues[BV_RADIUS];
     yratio = CLAMP(self->b_BasicValues[BV_YRATIO], 1.0, 100.0);
@@ -681,13 +688,14 @@ brush_drawstroke(PyBrush *self, PyObject *args)
     return buflist;
 }
 //-
-//+ brush_drawstroke2
+#endif
+//+ brush_drawstroke
 static PyObject *
-brush_drawstroke2(PyBrush *self, PyObject *args)
+brush_drawstroke(PyBrush *self, PyObject *args)
 {
-    PyObject *stroke, *o, *buflist;
+    PyObject *stroke, *o, *buflist, *ret;
     LONG sx, sy;
-    FLOAT radius, a, b, one_minus_t, tx, ty;
+    FLOAT radius, t2x, t2y, d, pressure, time, dx, dy, tiltx, tilty, yratio;
     ULONG i, n;
     
     if (NULL == self->b_Surface)
@@ -701,16 +709,64 @@ brush_drawstroke2(PyBrush *self, PyObject *args)
     if ((NULL == o) || !PyArg_ParseTuple(o, "kk", &sx, &sy))
         return NULL;
 
+    o = PyDict_GetItemString(stroke, "pressure");
+    if ((NULL == o) || ((pressure = PyFloat_AsDouble(o)), NULL != PyErr_Occurred()))
+        return NULL;
+
+    o = PyDict_GetItemString(stroke, "time");
+    if ((NULL == o) || ((time = PyFloat_AsDouble(o)), NULL != PyErr_Occurred()))
+        return NULL;
+
+    o = PyDict_GetItemString(stroke, "tiltx");
+    if (NULL == o) {
+        PyErr_Clear();
+        tiltx = 0.5;
+    } else {
+        tiltx = PyFloat_AsDouble(o);
+        if (PyErr_Occurred())
+            return NULL;
+    }
+
+    o = PyDict_GetItemString(stroke, "tilty");
+    if (NULL == o) {
+        PyErr_Clear();
+        tilty = -0.5;
+    } else {
+        tilty = PyFloat_AsDouble(o);
+        if (PyErr_Occurred())
+            return NULL;
+    }
+
     buflist = PyList_New(0); /* NR */
     if (NULL == buflist)
         return NULL;
 
     /* computing dynamic brush parameters */
     radius = self->b_BasicValues[BV_RADIUS];
+
+    /* Compute movement vector */
+    dx = self->b_P2x - self->b_P1x;
+    dy = self->b_P2y - self->b_P1y;
+
+    /* Brush direction (cos/sin) */
+    if ((dx != 0) || (dy != 0)) {
+        d = sqrtf(dx*dx + dy*dy);
+        self->b_cs = -dy/d;
+        self->b_sn = dx/d;
+    } else
+        d = 0.0;
+
+    /* clamping values */
     radius = CLAMP(radius, 0.01, 128.0);
+    pressure = CLAMP(pressure, 0.0, 1.0);
+    yratio = CLAMP(self->b_BasicValues[BV_YRATIO], 1.0, 100.0);
 
     /* Number of dabs to draw */
-    n = 10;
+    d *= self->b_BasicValues[BV_DABS_PER_RADIUS] / radius;
+    d += time * DABS_PER_SECONDS;
+
+    n = (ULONG)d;
+    n = MAX(self->b_Start+1, MIN(n, 500));
 
     /* About interpolation:
      * Events points from the user device (tablet/mouse/...)
@@ -751,42 +807,42 @@ brush_drawstroke2(PyBrush *self, PyObject *args)
      * That cause in the rendering to wait 3 points before starting to draw the spline
      * between the first two points. So a special process shall be done to finish the curve
      * when user raise up the pen (or release the mouse button, etc).
-     */
-
-    /* Computing T2
      *
-     * b_SplineFactors[0]: t (tension)
-     * b_SplineFactors[0]: b (bias)
-     * b_SplineFactors[0]: c (continuity)
+     * After some tests, I choose to fix tension (t, )bias (b) and continuity (c)
+     * to (1.0, 0.0, 0.0) giving Catmull splines.
      */
 
-    one_minus_t = 1.f - self->b_SplineFactors[0];
-    a = .5f * (one_minus_t * (1.f + self->b_SplineFactors[1]) * (1.f - self->b_SplineFactors[2]));
-    b = .5f * (one_minus_t * (1.f - self->b_SplineFactors[1]) * (1.f + self->b_SplineFactors[2]));
-
-    t2x = a*(self->b_P2x - self->b_P1x) + b*(sx - self->b_P2x);
-    t2y = a*(self->b_P2y - self->b_P1y) + b*(sy - self->b_P2y);
+    /* Computing T2 */
+    t2x = ((self->b_P2x - self->b_P1x) + (sx - self->b_P2x)) * .5;
+    t2y = ((self->b_P2y - self->b_P1y) + (sy - self->b_P2y)) * .5 ;
 
     /* Now interpolate using Hermite spline formula */
-    for (i=0; i < n; i++) {
-        float t = (float)i / n;
-        float t2 = t*t;
-        float t3 = t*t*t;
-        float h1 =  2*t3 - 3*t2 + 1.f;
-        float h2 = -2*t3 + 3*t2;
-        float h3 =    t3 - 2*t2 + t;
-        float h4 =    t3 -   t2;
-        FLOAT x, y;
+    for (i=self->b_Start; i < n; i++) {
+        double t = (double)i / ((n>1)?(n-1):n);
+        double t2 = t*t;
+        double t3 = t*t*t;
+        double h1 =  2*t3 - 3*t2 + 1;
+        double h2 = -2*t3 + 3*t2;
+        double h3 =    t3 - 2*t2 + t;
+        double h4 =    t3 -   t2;
+        double vx, vy, r;
+        LONG x, y;
         
-        x = h1*self->b_P1x + h2*self->b_P2x + h3*self->b_T1x + h4*t2x;
-        y = h1*self->b_P1y + h2*self->b_P2y + h3*self->b_T1y + h4*t2y;
+        /* Radius per dabs */
+        r = radius * (self->b_Pressure*(1.-t) + pressure*t);
+
+        vx = (myrand1()*2.-1.)*self->b_BasicValues[BV_RADIUS_RANDOM]*r;
+        vy = (myrand2()*2.-1.)*self->b_BasicValues[BV_RADIUS_RANDOM]*r;
+
+        x = h1*self->b_P1x + h2*self->b_P2x + h3*self->b_T1x + h4*t2x + vx + .5;
+        y = h1*self->b_P1y + h2*self->b_P2y + h3*self->b_T1y + h4*t2y + vy + .5;
 
         ret = drawdab_solid(self, buflist, self->b_Surface,
-                            (LONG)x, (LONG)y, radius, 1.0,
+                            x, y, r, yratio,
                             self->b_BasicValues[BV_HARDNESS],
                             self->b_BasicValues[BV_ERASE],
-                            self->b_BasicValues[BV_OPACITY],
-                            1.0, 0.0);
+                            pressure * self->b_BasicValues[BV_OPACITY],
+                            self->b_cs, self->b_sn);
 
         if (NULL == ret) {
             Py_CLEAR(buflist); /* BUG: let pa damaged ! */
@@ -801,6 +857,9 @@ brush_drawstroke2(PyBrush *self, PyObject *args)
     self->b_P2y = sy;
     self->b_T1x = t2x;
     self->b_T1y = t2y;
+    self->b_Pressure = pressure;
+    self->b_Time = time; /* TODO: use it somewhere... */
+    self->b_Start = 1;
 
     return buflist;
 }
@@ -990,17 +1049,16 @@ brush_set_color(PyBrush *self, PyObject *value, void *closure)
 //-
 
 static PyGetSetDef brush_getseters[] = {
-    {"surface",  (getter)brush_get_surface, (setter)brush_set_surface,          "Surface to use", NULL},
+    {"surface", (getter)brush_get_surface, (setter)brush_set_surface, "Surface to use", NULL},
 
-    {"radius",          (getter)brush_get_float, (setter)brush_set_float,            "Radius",   (APTR)BV_RADIUS},
-    {"yratio",          (getter)brush_get_float, (setter)brush_set_float,            "Y-ratio",  (APTR)BV_YRATIO},
-    {"hardness",        (getter)brush_get_float, (setter)brush_set_normalized_float, "Hardness", (APTR)BV_HARDNESS},
-    {"opacity",         (getter)brush_get_float, (setter)brush_set_normalized_float, "Opacity",  (APTR)BV_OPACITY},
-    {"erase",           (getter)brush_get_float, (setter)brush_set_normalized_float, "Erase",    (APTR)BV_ERASE},
-    {"radius_random",   (getter)brush_get_float, (setter)brush_set_float,            "Radius Randomize", (APTR)BV_RADIUS_RANDOM},
-    {"dabs_per_radius", (getter)brush_get_float, (setter)brush_set_float,            "Dabs per radius", (APTR)BV_DABS_PER_RADIUS},
-    {"move_smooth_fac", (getter)brush_get_float, (setter)brush_set_normalized_float, "Movement smoothing factor", (APTR)BV_MOVE_SMOOTH_FAC},
-    {"grain",           (getter)brush_get_float, (setter)brush_set_normalized_float, "Grain factor", (APTR)BV_GRAIN_FAC},
+    {"radius",            (getter)brush_get_float, (setter)brush_set_float,            "Radius",   (APTR)BV_RADIUS},
+    {"yratio",            (getter)brush_get_float, (setter)brush_set_float,            "Y-ratio",  (APTR)BV_YRATIO},
+    {"hardness",          (getter)brush_get_float, (setter)brush_set_normalized_float, "Hardness", (APTR)BV_HARDNESS},
+    {"opacity",           (getter)brush_get_float, (setter)brush_set_normalized_float, "Opacity",  (APTR)BV_OPACITY},
+    {"erase",             (getter)brush_get_float, (setter)brush_set_normalized_float, "Erase",    (APTR)BV_ERASE},
+    {"radius_random",     (getter)brush_get_float, (setter)brush_set_float,            "Radius Randomize", (APTR)BV_RADIUS_RANDOM},
+    {"dabs_per_radius",   (getter)brush_get_float, (setter)brush_set_float,            "Dabs per radius", (APTR)BV_DABS_PER_RADIUS},
+    {"grain",             (getter)brush_get_float, (setter)brush_set_normalized_float, "Grain factor", (APTR)BV_GRAIN_FAC},
 
     {"red",      (getter)brush_get_color,   (setter)brush_set_color,            "Color (Red channel)",     (APTR)offsetof(PyBrush, b_RGBColor[0])},
     {"green",    (getter)brush_get_color,   (setter)brush_set_color,            "Color (Green channel)",   (APTR)offsetof(PyBrush, b_RGBColor[1])},
@@ -1016,7 +1074,6 @@ static PyGetSetDef brush_getseters[] = {
 static struct PyMethodDef brush_methods[] = {
     {"drawdab_solid", (PyCFunction)brush_drawdab_solid, METH_VARARGS, NULL},
     {"draw_stroke",   (PyCFunction)brush_drawstroke, METH_VARARGS, NULL},
-    {"draw_stroke2",   (PyCFunction)brush_drawstroke2, METH_VARARGS, NULL},
     {"invalid_cache", (PyCFunction)brush_invalid_cache, METH_NOARGS, NULL},
     {"get_states",    (PyCFunction)brush_get_states, METH_NOARGS, NULL},
     {"get_state",    (PyCFunction)brush_get_state, METH_VARARGS, NULL},
@@ -1025,8 +1082,6 @@ static struct PyMethodDef brush_methods[] = {
 };
 
 static PyMemberDef brush_members[] = {
-    {"x",            T_LONG,   offsetof(PyBrush, b_X), 0, NULL},
-    {"y",            T_LONG,   offsetof(PyBrush, b_Y), 0, NULL},
     {"pressure",     T_FLOAT,  offsetof(PyBrush, b_Pressure), 0, NULL},
     {"t1x",          T_FLOAT,  offsetof(PyBrush, b_T1x), 0, NULL},
     {"t1y",          T_FLOAT,  offsetof(PyBrush, b_T1y), 0, NULL},
@@ -1034,6 +1089,7 @@ static PyMemberDef brush_members[] = {
     {"p1y",          T_LONG,   offsetof(PyBrush, b_P1y), 0, NULL},
     {"p2x",          T_LONG,   offsetof(PyBrush, b_P2x), 0, NULL},
     {"p2y",          T_LONG,   offsetof(PyBrush, b_P2y), 0, NULL},
+    {"start",        T_LONG,   offsetof(PyBrush, b_Start), 0, NULL},
     {NULL}
 };
 
@@ -1075,7 +1131,6 @@ static int add_constants(PyObject *m)
     INSI(m, "BV_ERASE", BV_ERASE);
     INSI(m, "BV_RADIUS_RANDOM", BV_RADIUS_RANDOM);
     INSI(m, "BV_DABS_PER_RADIUS", BV_DABS_PER_RADIUS);
-    INSI(m, "BV_MOVE_SMOOTH_FAC", BV_MOVE_SMOOTH_FAC);
     INSI(m, "BV_GRAIN_FAC", BV_GRAIN_FAC);
     INSI(m, "BASIC_VALUES_MAX", BASIC_VALUES_MAX);
 

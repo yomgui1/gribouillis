@@ -33,7 +33,4 @@ sys.path.append(os.path.join(rootpath, 'libs'))
 from application import Gribouillis  
 
 app = Gribouillis(rootpath)
-try:
-    app.Run()
-finally:
-    del app # better!
+app.Run()

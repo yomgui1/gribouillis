@@ -81,4 +81,4 @@ class MiniBackgroundSelect(Window):
     def OnSelection(self, evt):
         self.CloseWindow()
         for cb in self.watchers:
-            cb(evt.source)
+            cb(evt.Source)

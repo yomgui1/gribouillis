@@ -135,7 +135,7 @@ class BrushPreview(Area):
         stroke = dict(time=0.0)
         b.InitDraw(self._rsurface, (self.WIDTH/8, h))
 
-        for i in xrange(w+1):
+        for i in xrange(0, w+1, 2):
             fx = float(i)/w
             x = i + self.WIDTH/8
             y = int(h + (h/2)*math.sin(fx*math.pi*2))
@@ -305,10 +305,6 @@ class BrushEditorWindow(Window):
                                                   cb=self.OnFloatChange, cb_args=('rad_rand',))
         top.AddChild(Label('Radius Randomize:'), o, *Buttons(o))
 
-        o = self._obj['move_smooth_fac'] = PercentSlider(min=0.0, max=1.0, default=0.0,
-                                                  cb=self.OnFloatChange, cb_args=('move_smooth_fac',))
-        top.AddChild(Label('Movement Smoothing Factor:'), o, *Buttons(o))
-
         o = self._obj['grain'] = PercentSlider(min=0.0, max=1.0, default=0.0,
                                                   cb=self.OnFloatChange, cb_args=('grain',))
         top.AddChild(Label('Grain Factor:'), o, *Buttons(o))
@@ -322,7 +318,6 @@ class BrushEditorWindow(Window):
         self._obj['erase'].value = self._brush.erase
         self._obj['rad_rand'].value = self._brush.radius_random
         self._obj['dabs_per_radius'].value = self._brush.dabs_per_radius
-        self._obj['move_smooth_fac'].value = self._brush.move_smooth_fac
         self._obj['grain'].value = self._brush.grain
         self._prev.DrawBrush(self._brush) 
  
@@ -348,8 +343,6 @@ class BrushEditorWindow(Window):
             self._brush.radius_random = value
         elif n == 'dabs_per_radius':
             self._brush.dabs_per_radius = value
-        elif n == 'move_smooth_fac':
-            self._brush.move_smooth_fac = value
         elif n == 'grain':
             self._brush.grain = value
         self._prev.DrawBrush(self._brush)

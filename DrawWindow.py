@@ -31,7 +31,7 @@ POINTERTYPE_NORMAL = 0
 POINTERTYPE_AIMING = 6
 
 class DrawWindow(Window):
-    def __init__(self, title, raster, fullscreen=False):
+    def __init__(self, title, fullscreen=False):
         self.fullscreen = fullscreen
         kwds = {}
         if fullscreen:
@@ -39,7 +39,7 @@ class DrawWindow(Window):
             kwds['HeightScreen'] = 100
             kwds['Borderless'] = True
             kwds['Backdrop'] = True
-            #kwds['ID'] = 'DRWF'
+            kwds['ID'] = 'DRWF'
             # Note: if I use the same ID for each FS mode, the FS window will take data
             # of the non FS window... that's render very bad ;-)
         else:
@@ -50,11 +50,19 @@ class DrawWindow(Window):
             kwds['ID'] = 'DRW0'
 
         super(DrawWindow, self).__init__(title,
-                                         RootObject=raster,
                                          TabletMessages=True, # enable tablet events support
                                          **kwds)
 
         self.Notify('Activate', MUIV_EveryTime, self.OnActivate)
+        self.Notify('CloseRequest', True, lambda evt: evt.Source.KillApp())
+
+    def __set_raster(self, v):
+        self.RootObject = v
+
+    def __del_raster(self):
+        self.RootObject = None
+
+    raster = property(fget=lambda self: self.RootObject, fset=__set_raster, fdel=__del_raster)
 
     def OnActivate(self, evt):
         if evt.value:

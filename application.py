@@ -63,6 +63,8 @@ class Gribouillis(Application):
 
         # Create Windows
         self.win_Draw = None
+        self.win_Draw_Normal = DrawWindow(lang.DrawWinTitle, False)
+        self.win_Draw_Full = DrawWindow(lang.DrawWinTitle, True)
         self.win_Color = ColorChooser(lang.ColorChooserWinTitle)
         self.win_BSel = BrushSelectWindow(lang.BrushSelectWinTitle)
         self.win_MiniBGSel = MiniBackgroundSelect()
@@ -132,6 +134,8 @@ class Gribouillis(Application):
 
         # We can't open a window if it has not been attached to the application
         self.AddChild(self.win_Color)
+        self.AddChild(self.win_Draw_Normal)
+        self.AddChild(self.win_Draw_Full)
         self.AddChild(self.win_BSel)
         self.AddChild(self.win_MiniBGSel)
         self.AddChild(self.win_CMSPrefs)
@@ -166,19 +170,17 @@ class Gribouillis(Application):
 
     def InitDrawWindow(self, fullscreen=False):
         if self.win_Draw: return
-        
-        self.win_Draw = DrawWindow(lang.DrawWinTitle, self.controler.view, fullscreen)
-        self.AddChild(self.win_Draw)
-        self.win_Draw.Notify('CloseRequest', True, lambda evt: self.Quit())
-        
+        self.win_Draw = (self.win_Draw_Full if fullscreen else self.win_Draw_Normal)
+        self.win_Draw.raster = self.controler.view
+
     def TermDrawWindow(self):
         if not self.win_Draw: return
         
         win = self.win_Draw
+
         win.CloseWindow()
-        self.RemChild(win)
-        win._cclear()
         self.win_Draw = None
+        del win.raster
 
     def init_brushes(self):
         self._draw_brush = self.win_BSel.brush

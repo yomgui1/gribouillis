@@ -28,7 +28,7 @@
 import os, sys
 
 rootpath = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.join(rootpath, 'libs'))
+sys.path.insert(0, os.path.join(rootpath, 'libs'))
 
 from application import Gribouillis  
 

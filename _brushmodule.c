@@ -250,11 +250,9 @@ drawdab_solid(PyBrush *self, /* In: */
     UQUAD t1, t2;
 #endif
 
-    cs = 1.0;
-    sn = 0.0;
-
     DPRINT("BDraw: pos = (%ld, %ld)\n", sx, sy);
 
+    /* Compute dab bounding box (XXX: yratio?) */
     minx = floorf((FLOAT)sx - radius);
     maxx = ceilf((FLOAT)sx + radius);
     miny = floorf((FLOAT)sy - radius);
@@ -360,7 +358,7 @@ drawdab_solid(PyBrush *self, /* In: */
                     /* (x, y) in the Ellipse ? */
                     if (rr <= 1.) {
                         /* opacity = opacity_base * f(r), where:
-                         *   - f is a falloff function
+                         *   - f is a fall-off function
                          *   - r the radius (we using the square radius (rr) in fact)
                          *
                          * hardness is the first zero of f (f(hardness)=0.0).
@@ -369,9 +367,9 @@ drawdab_solid(PyBrush *self, /* In: */
                         opa = opacity;
                         if (hardness < 1.) {
                             if (rr < hardness)
-                                opa *= (rr + 1.-(rr/hardness));
+                                opa *= rr + 1.-(rr/hardness);
                             else
-                                opa *= (hardness/(hardness-1.)*(rr-1.));
+                                opa *= hardness/(hardness-1.)*(rr-1.);
                         }
 
                         g = myrand3();

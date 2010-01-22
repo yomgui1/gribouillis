@@ -23,30 +23,23 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-class StrokeRecord(object):
-    """StrokeRecord(pos)
+from historic import Command
 
-    Used by Brush class to handle strokes.
+class Stroke(list, Command):
+    def __init__(self, brush):
+        list.__init__(self)
+        self._brush = brush
 
-    Records a number of input events unrelated to a particular brush.
-    A stroke object combinated to a brush object can totaly describe a graphical
-    action made the user.
-    """
+    def execute(self, s):
+        self._brush.DrawInit(s)
+        for dev in self:
+            self._brush.DrawDeviceEvent(dev)
+        self._brush.DrawTerm()
+        return self._brush.weight
 
-    def __init__(self, pos):
-        self.strokes = []
-        self.init_pos = pos
+    def setBrush(self, b):
+        self._brush = b
 
-    def Add(self, stroke):
-        self.strokes.append(stroke)
-
-    def Draw(self, surface, brush):
-        "Redraw on given surface and using given brush all recorded strokes."
-        pass
-    
-    def Replay(self, surface, brush):
-        "Like Draw() but use timerstamp also."
-        pass
-
-    def __len__(self):
-        return len(self.strokes)
+    brush = property(doc="Used brush during drawing",
+                     fget=lambda self: self._brush,
+                     fset=setBrush)

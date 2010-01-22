@@ -64,6 +64,7 @@ class Surface(object):
     }
 
     def __init__(self, mode):
+        self.mode = mode
         self.pixfmt = Surface.MODE2PIXFMT[mode]
 
     def GetBuffer(self, x, y, read=True, bg=None):
@@ -71,6 +72,10 @@ class Surface(object):
     
     def Clear(self):
         pass # subclass implemented
+
+    def news(self):
+        "Return a compatible surface but empty"
+        return type(self)(self.mode)
 
     bbox = property() # subclass implemented
 
@@ -92,6 +97,10 @@ class BoundedSurface(Surface):
     def bbox(self):
         return 0, 0, self.width, self.height
 
+    def news(self):
+        "Return a compatible surface but empty"
+        return type(self)(self.width, self.height, self.mode)
+    
 
 class TiledSurface(Surface):
     def __init__(self, mode, bg=None):

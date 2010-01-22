@@ -259,3 +259,19 @@ class SimpleTiledModel(TiledModel):
         return self._surface.PickColor(x, y)
 
     bbox = property(fget=lambda self: self._surface.bbox)
+
+
+from historic import DrawSlice
+
+
+class Layer:
+    def __init__(self):
+        pass
+
+
+class TiledLayer(Layer):
+    def __init__(self):
+        self.slices = []
+
+    def addcmd(self, cmd):
+        self._cur

@@ -52,7 +52,7 @@ class MiniBackgroundSelect(Window):
                                                    NeedsMouseObject=True)
 
         
-        self.Notify('MouseObject', MUIV_EveryTime, self.OnMouseObject)
+        self.Notify('MouseObject', self.OnMouseObject)
 
     def add_watcher(self, cb):
         if cb not in self.watchers:
@@ -64,7 +64,7 @@ class MiniBackgroundSelect(Window):
     def AddImage(self, path):
         bg = Background(path, self.IMAGE_SIZE)
         bg.CycleChain = True
-        bg.Notify('Selected', True, self.OnSelection)
+        bg.Notify('Selected', self.OnSelection, when=True)
         ro = self.RootObject.value
         #ro.DoMethod(MUIM_Group_InitChange)
         ro.AddChild(bg)

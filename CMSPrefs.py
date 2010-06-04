@@ -102,7 +102,7 @@ class CMSPrefsWindow(Window):
         self.RootObject = top
 
         o = SimpleButton("Close"); o.CycleChain = True
-        o.Notify('Pressed', False, self.CloseWindow)
+        o.Notify('Pressed', self.CloseWindow, when=False)
         bt_g.AddChild(o)
         
         top = VGroup()
@@ -111,7 +111,7 @@ class CMSPrefsWindow(Window):
 
         enable = CheckMark()
         enable.CycleChain = True
-        enable.Notify('Selected', MUIV_EveryTime, self.OnEnableCMS, MUIV_TriggerValue)
+        enable.Notify('Selected', self.OnEnableCMS, MUIV_TriggerValue)
         g = HGroup()
         g.AddChild(enable, LLabel("Activate Color Management"), HSpace(0))
         top.AddChild(g)
@@ -138,14 +138,13 @@ class CMSPrefsWindow(Window):
 
         l = self._intents_entries = sorted(self._intents.keys())
         o = Cycle(l, CycleChain=True, Active=l.index(self._options['intent']))
-        o.Notify('Active', MUIV_EveryTime, self.OnIntentChanged, MUIV_TriggerValue)
+        o.Notify('Active', self.OnIntentChanged, MUIV_TriggerValue)
         g.AddChild(Label("Intent:"), o)
 
         g = HGroup()
         rg.AddChild(g)
         o = CheckMark(selected=self._options['bpcomp'])
-        o.Notify('Selected', MUIV_EveryTime,
-                 self.OnOptionChanged,
+        o.Notify('Selected', self.OnOptionChanged,
                  'bpcomp', MUIV_TriggerValue)
         g.AddChild(HSpace(0), o, LLabel("Black Point Compensation"))
 
@@ -155,7 +154,7 @@ class CMSPrefsWindow(Window):
         if name in self._cycles:
             self._groups[name].RemChild(self._cycles[name])
         o = self._cycles[name] = Cycle(tuple(entries), CycleChain=True, Active=active)
-        o.Notify('Active', MUIV_EveryTime, self.OnCycleProfile, MUIV_TriggerValue, name)
+        o.Notify('Active', self.OnCycleProfile, MUIV_TriggerValue, name)
         self._groups[name].AddChild(o, lock=True)
 
     def OnEnableCMS(self, state):
@@ -166,9 +165,9 @@ class CMSPrefsWindow(Window):
         plist = self._profiles[name]
         # From file?
         if active == len(plist)-1:
-            fn = getfilename(self, "Choose %s color profile" % name,
+            fn = GetFilename(self, "Choose %s color profile" % name,
                              self.last_load_dir, "#?.icc",
-                             False)
+                             save=False)
             if fn is not None and os.path.isfile(fn):
                 profile = lcms.Profile(fn)
                 self.last_load_dir = os.path.dirname(fn)

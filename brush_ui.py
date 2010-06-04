@@ -45,7 +45,7 @@ class BrushSelectWindow(Window):
         self.RootObject = top 
 
         self.brush = DrawableBrush()
-        self.brush.Notify('Name', MUIV_EveryTime, self.OnBrushChange)
+        self.brush.Notify('Name', self.OnBrushChange)
 
         g = VGroup()
         
@@ -53,11 +53,11 @@ class BrushSelectWindow(Window):
         g.AddChild(self.obj_BName)
         
         o = SimpleButton("Edit")
-        o.Notify('Pressed', False, lambda evt: self.EditBrush())
+        o.Notify('Pressed', lambda evt: self.EditBrush(), when=False)
         g.AddChild(o)
 
         o = SimpleButton("Delete")
-        o.Notify('Pressed', False, lambda evt: self.DeleteBrush())
+        o.Notify('Pressed', lambda evt: self.DeleteBrush(), when=False)
         o.Disabled = True
         g.AddChild(o)
  
@@ -163,9 +163,9 @@ class FloatValue(Group):
         self._cb_args = cb_args
 
         self._value = String(MaxLen=7, Accept="0123456789.", Format='r', FixWidthTxt="-#.###", Frame='String', Background=None)
-        self._value.Notify('Acknowledge', MUIV_EveryTime, self.OnStringValue)
+        self._value.Notify('Acknowledge', self.OnStringValue)
         self._slider = Slider(Min=0, Max=1000)
-        self._slider.Notify('Value', MUIV_EveryTime, self.OnSliderValue)
+        self._slider.Notify('Value', self.OnSliderValue)
         self.AddChild(self._value, self._slider)
 
         self.value = default
@@ -216,7 +216,7 @@ class PercentSlider(Slider):
         self._cb = cb
         self._cb_args = cb_args
 
-        self.Notify('Value', callback=self.OnValue)
+        self.Notify('Value', self.OnValue)
 
         self.value = default   
 
@@ -248,15 +248,15 @@ class BrushEditorWindow(Window):
 
         g = VGroup()
         o = SimpleButton("Set as default")
-        o.Notify('Pressed', False, lambda evt: self.Default())
+        o.Notify('Pressed', lambda evt: self.Default(), when=False)
         g.AddChild(o)
  
         o = SimpleButton("Return to saved")
-        o.Notify('Pressed', False, lambda evt: self.Saved())
+        o.Notify('Pressed', lambda evt: self.Saved(), when=False)
         g.AddChild(o)
 
         o = SimpleButton("Make a copy")
-        o.Notify('Pressed', False, lambda evt: self.Copy)
+        o.Notify('Pressed', lambda evt: self.Copy, when=False)
         g.AddChild(o)
 
         g.AddChild(VSpace(0))
@@ -269,10 +269,10 @@ class BrushEditorWindow(Window):
         def Buttons(obj):
             b1 = SimpleButton("R")
             b1.HorizWeight = 0; b1.CycleChain = True
-            b1.Notify('Pressed', False, lambda evt: self.ResetValue(obj))
+            b1.Notify('Pressed', lambda evt: self.ResetValue(obj), when=False)
             b2 = SimpleButton("F(x)")
             b2.HorizWeight = 0; b2.CycleChain = True
-            b2.Notify('Pressed', False, lambda evt: self.OpenFxWin(obj))
+            b2.Notify('Pressed', lambda evt: self.OpenFxWin(obj), when=False)
             return b1, b2
 
         o = self._obj['radius'] = FloatValue(min=-2.0, max=4.0, default=0.91,

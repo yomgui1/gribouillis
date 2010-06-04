@@ -12,7 +12,7 @@ class Selector(mui.Window):
         dl = mui.DirList(CycleChain=True)
         top.AddChild(dl)
 
-        dl.Notify('DoubleClick', True, self.OnDoubleClick)
+        dl.Notify('DoubleClick', self.OnDoubleClick, when=True)
 
         self.dl = dl
 

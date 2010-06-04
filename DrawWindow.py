@@ -47,22 +47,27 @@ class DrawWindow(Window):
             kwds['Height'] = 600
             kwds['LeftEdge'] = 64
             kwds['TopEdge'] = 64
+            kwds['CloseOnReq'] = True
             kwds['ID'] = 'DRW0'
 
         super(DrawWindow, self).__init__(title,
                                          TabletMessages=True, # enable tablet events support
                                          **kwds)
 
-        self.Notify('Activate', MUIV_EveryTime, self.OnActivate)
-        self.Notify('CloseRequest', True, lambda evt: evt.Source.KillApp())
+        self.Notify('Activate', self.OnActivate)
 
-    def __set_raster(self, v):
-        self.RootObject = v
+    def attach_raster(self, raster):
+        oldr = self.raster
+        self.raster = raster
+        self.RootObject = raster
+        return oldr
 
-    def __del_raster(self):
-        self.RootObject = None
-
-    raster = property(fget=lambda self: self.RootObject, fset=__set_raster, fdel=__del_raster)
+    def dettach_raster(self):
+        self.Open = False
+        oldr = self.raster
+        self.raster = None
+        self.RootObject = HVSpace()
+        return oldr
 
     def OnActivate(self, evt):
         if evt.value:

@@ -47,7 +47,7 @@ class ColorChooser(Window):
         g.AddChild(Text("Hex value:", Weight=0), self._colstr)
 
         bt = SimpleButton("Pick")
-        bt.Notify('Pressed', False, self.OnPick)
+        bt.Notify('Pressed', self.OnPick, when=False)
 
         g = HGroup(Child=(g, bt, HSpace(0)))
 
@@ -56,8 +56,8 @@ class ColorChooser(Window):
 
         top.AddChild(self.coladj, bar, g)
 
-        self.coladj.Notify('RGB', callback=self.OnColorChanged)
-        self._colstr.Notify('Acknowledge', callback=self.OnColStrChanged)
+        self.coladj.Notify('RGB', self.OnColorChanged)
+        self._colstr.Notify('Acknowledge', self.OnColStrChanged)
 
         self.color = ColorChooser.__default_color
 

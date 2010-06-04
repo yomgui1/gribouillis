@@ -171,16 +171,13 @@ class Gribouillis(Application):
     def InitDrawWindow(self, fullscreen=False):
         if self.win_Draw: return
         self.win_Draw = (self.win_Draw_Full if fullscreen else self.win_Draw_Normal)
-        self.win_Draw.raster = self.controler.view
+        self.win_Draw.attach_raster(self.controler.view)
 
     def TermDrawWindow(self):
         if not self.win_Draw: return
-        
         win = self.win_Draw
-
-        win.CloseWindow()
+        win.dettach_raster()
         self.win_Draw = None
-        del win.raster
 
     def init_brushes(self):
         self._draw_brush = self.win_BSel.brush
@@ -223,7 +220,7 @@ class Gribouillis(Application):
     def _add_brush(self, name):
         b = Brush()
         b.load(self._all_paths, name)
-        b.Notify(MUIA_Selected, MUIV_EveryTime, self.OnSelectBrush)
+        b.Notify(MUIA_Selected, self.OnSelectBrush)
         self.brushes.append(b)
         return b
 
@@ -253,9 +250,9 @@ class Gribouillis(Application):
         self.controler.LoadBackground(bg.Name.value)
 
     def OnLoadImage(self):
-        filename = getfilename(self.win_Draw, lang.LoadImageReqTitle,
+        filename = GetFilename(self.win_Draw, lang.LoadImageReqTitle,
                                self.last_loaded_dir, "#?.(png|jpeg|jpg|targa|tga|gif|ora)",
-                               False)
+                               save=False)
         if filename:
             self.last_loaded_dir = os.path.dirname(filename)
             self.controler.LoadImage(filename)
@@ -281,9 +278,9 @@ class Gribouillis(Application):
             self.win_SaveWin.busy = o_busy
             self.win_SaveWin.bt_group = g2
             
-            self.win_SaveWin.Notify('Open', False, self.SaveImageFinalize)
-            b_ok.Notify('Pressed', False, self.OkSaveImage)
-            b_cancel.Notify('Pressed', False, self.SaveImageFinalize)
+            self.win_SaveWin.Notify('Open', self.SaveImageFinalize, when=False)
+            b_ok.Notify('Pressed', self.OkSaveImage, when=False)
+            b_cancel.Notify('Pressed', self.SaveImageFinalize, when=False)
 
             self.AddChild(self.win_SaveWin)
         else:
@@ -297,9 +294,9 @@ class Gribouillis(Application):
 
     @Event.noevent
     def OkSaveImage(self):
-        filename = getfilename(self.win_Draw, lang.SaveImageReqTitle,
+        filename = GetGilename(self.win_Draw, lang.SaveImageReqTitle,
                                self.last_saved_dir, "#?.(png|jpeg|jpg|targa|tga|gif|ora)",
-                               True)
+                               save=True)
         if filename:
             self.last_saved_dir = os.path.dirname(filename)
             self.win_SaveWin.bt_group.Disabled = True
@@ -328,7 +325,7 @@ class Gribouillis(Application):
         state = self.win_Draw.fullscreen
         self.TermDrawWindow()
         self.InitDrawWindow(not state)
-        self.win_Draw.OpenWindow()
+        self.win_Draw.Open = True
 
     def OnChangedCMSProfiles(self, prefs):
         if prefs.in_profile and prefs.out_profile:

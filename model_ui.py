@@ -51,30 +51,30 @@ class ModelInfoWindow(Window):
         
         self._MemoryUsed = Text(PreParse=MUIX_R)
         o = SimpleButton("Cleanup")
-        o.Notify('Pressed', False, self.Cleanup)
+        o.Notify('Pressed', self.Cleanup, when=False)
         gp.AddChild(Label("Memory used:"), HGroup(Child=(self._MemoryUsed, o)))
 
         self._ResUnit = Cycle(self.__res_units_keys, CycleChain=True)
         self._ResUnit.Active = self.__res_units_keys.index('in')
-        self._ResUnit.Notify('Active', MUIV_EveryTime, self.OnResUnitChanged, MUIV_TriggerValue)
+        self._ResUnit.Notify('Active', self.OnResUnitChanged, MUIV_TriggerValue)
         gp.AddChild(Label("Resolution unit:"), self._ResUnit)
         
         self._ResObj = [None, None]
         for i, n in enumerate("XY"):
             self._ResObj[i] = String(Accept="1234567890", Format='r', MaxLen=10, Frame='String', CycleChain=True)
-            self._ResObj[i].Notify('Integer', MUIV_EveryTime, self.OnResolutionChanged, i, MUIV_TriggerValue)
+            self._ResObj[i].Notify('Integer', self.OnResolutionChanged, i, MUIV_TriggerValue)
             gp.AddChild(Label(n+"-Resolution:"), self._ResObj[i])
 
         self._Author = String(Frame='String', CycleChain=True)
-        self._Author.Notify('Contents', MUIV_EveryTime, self.OnContentsChanged, self._Author, 'Author')
+        self._Author.Notify('Contents', self.OnContentsChanged, self._Author, 'Author')
         gp.AddChild(Label("Author:"), self._Author)
 
         self._Comments = Textinputscroll(Frame='String', Multiline=True, CycleChain=True)
-        self._Comments.Notify('Contents', MUIV_EveryTime, self.OnContentsChanged, self._Comments, 'Comments')
+        self._Comments.Notify('Contents', self.OnContentsChanged, self._Comments, 'Comments')
         gp.AddChild(VGroup(Child=(FreeLabel("Comments:"), VSpace(0))), self._Comments)
 
         o = SimpleButton("Refresh"); o.CycleChain = True
-        o.Notify('Pressed', False, self.ShowModel, None)
+        o.Notify('Pressed', self.ShowModel, None, when=False)
         ro.AddChild(HBar(2), o)
 
     def ShowModel(self, model):

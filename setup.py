@@ -3,7 +3,7 @@
 import glob, os
 from distutils.core import setup, Extension
 
-opt = ['-Wall -Wuninitialized -Wstrict-prototypes']
+opt = ['-Wall -Wuninitialized -Wstrict-prototypes -Wno-pointer-sign']
 
 modules = [os.path.splitext(x)[0] for x in glob.glob('*.py')]
 modules.remove('setup')

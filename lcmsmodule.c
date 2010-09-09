@@ -45,7 +45,7 @@ typedef struct PyLCMS_Transform_STRUCT {
     cmsHTRANSFORM    th_hTransform;
 } PyLCMS_Transform;
 
-static struct Library *LittleCMSBase;
+struct Library *LittleCMSBase;
 static PyTypeObject PyLCMS_Transform_Type;
 static PyTypeObject PyLCMS_Profile_Type;
 
@@ -257,9 +257,9 @@ static int add_constants(PyObject *m)
     return 0;
 }
 //-
-//+ PyMorphOS_CloseModule
+//+ PyMorphOS_TermModule
 void
-PyMorphOS_CloseModule(void)
+PyMorphOS_TermModule(void)
 {
     if (NULL != LittleCMSBase) {
         CloseLibrary(LittleCMSBase);

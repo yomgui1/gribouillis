@@ -263,7 +263,7 @@ class DrawControler(object):
             elif ext == '.ora':
                 self.model.SaveAsOpenRaster(tmp)
             else:
-                im = self.model.AsPILImage('RGBA')
+                im = self.model.AsPILImage('RGBA8')
                 im.save(tmp)
         except:
             if os.path.isfile(tmp):

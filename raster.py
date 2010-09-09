@@ -27,7 +27,7 @@ import pymui, _pixarray, lcms
 from sys import getrefcount as rc
 
 class Raster(pymui.Area):
-    MCC = True
+    _MCC_ = True
     EVENTMAP = {
         pymui.IDCMP_MOUSEBUTTONS : 'mouse-button',
         pymui.IDCMP_MOUSEMOVE    : 'mouse-motion',
@@ -79,9 +79,10 @@ class Raster(pymui.Area):
         msg.DoSuper()
         minmax = msg.MinMaxInfo.contents
 
-        minmax.DefWidth += 320
-        minmax.DefHeight += 320
-        minmax.MaxHeight = minmax.MaxWidth = pymui.MUI_MAXMAX
+        minmax.DefWidth.value += 320
+        minmax.DefHeight.value += 320
+        minmax.MaxHeight.value += pymui.MUI_MAXMAX
+        minmax.MaxWidth.value += pymui.MUI_MAXMAX
 
     @pymui.muimethod(pymui.MUIM_Setup)
     def MCC_Setup(self, msg):

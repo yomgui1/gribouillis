@@ -98,7 +98,7 @@ class ColorChooser(Window):
             rgb = tuple(clamp(0.0, float(x), 1.0) for x in rgb[0])
 
         # will call OnColorChanged()
-        self.coladj.RGB = tuple(self.FloatToSysCol(x) for x in rgb)
+        self.coladj.RGB = c_ULONG.ArrayType(3)(*tuple(self.FloatToSysCol(x) for x in rgb))
 
     def DelColor(self):
         self.color = self.default_color

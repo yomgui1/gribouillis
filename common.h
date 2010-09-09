@@ -4,7 +4,6 @@
 #include <Python.h>
 #include <structmember.h>
 
-#include <private/mui2intuition/mui.h>
 #include <libraries/mui.h>
 #include <libraries/gadtools.h>
 #include <utility/hooks.h>

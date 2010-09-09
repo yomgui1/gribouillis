@@ -249,23 +249,21 @@ class Gribouillis(Application):
     def LoadBackground(self, bg):
         self.controler.LoadBackground(bg.Name.value)
 
-    def OnLoadImage(self):
+    def OnLoadImage(self, evt):
         filename = GetFilename(self.win_Draw, lang.LoadImageReqTitle,
                                self.last_loaded_dir, "#?.(png|jpeg|jpg|targa|tga|gif|ora)",
-                               save=False)
+                               save=False)[0]
         if filename:
             self.last_loaded_dir = os.path.dirname(filename)
             self.controler.LoadImage(filename)
 
-    def OnSaveImage(self):
+    def OnSaveImage(self, evt):
         if not getattr(self, 'win_SaveWin', None):
             o_text = Text(Frame='String', Background='TextBack')
             g1 = ColGroup(2, Child=(Label("Image size:"), o_text))
             
-            b_ok = KeyButton(lang.ButtonOkLabel, lang.ButtonOkKey)
-            b_ok.CycleChain = True
-            b_cancel = KeyButton(lang.ButtonCancelLabel, lang.ButtonCancelKey)
-            b_cancel.CycleChain = True
+            b_ok = KeyButton(lang.ButtonOkLabel, lang.ButtonOkKey, CycleChain=True)
+            b_cancel = KeyButton(lang.ButtonCancelLabel, lang.ButtonCancelKey, CycleChain=True)
             g2 = HGroup(Child=(b_ok, b_cancel))
 
             o_busy = Busy(ShowMe=False, FixHeight=8)
@@ -294,9 +292,9 @@ class Gribouillis(Application):
 
     @Event.noevent
     def OkSaveImage(self):
-        filename = GetGilename(self.win_Draw, lang.SaveImageReqTitle,
+        filename = GetFilename(self.win_Draw, lang.SaveImageReqTitle,
                                self.last_saved_dir, "#?.(png|jpeg|jpg|targa|tga|gif|ora)",
-                               save=True)
+                               save=True)[0]
         if filename:
             self.last_saved_dir = os.path.dirname(filename)
             self.win_SaveWin.bt_group.Disabled = True
@@ -304,10 +302,10 @@ class Gribouillis(Application):
             
             thread.start_new_thread(self.SaveImageJob, (time, filename))
 
-    @Event.noevent
-    def SaveImageFinalize(self):
+    def SaveImageFinalize(self, evt):
         self.win_SaveWin.bt_group.Disabled = False
         self.win_SaveWin.busy.ShowMe = False
+        self.win_SaveWin.Open = False
         self.win_Draw.Sleep = False
 
     def SaveImageJob(self, time, filename):
@@ -318,10 +316,10 @@ class Gribouillis(Application):
         finally:
             self.PushMethod(self.win_SaveWin, 3, MUIM_Set, MUIA_Window_Open, False)
 
-    def OnQuitRequest(self):
+    def OnQuitRequest(self, evt):
         self.Quit()
 
-    def ToggleFullscreen(self):
+    def ToggleFullscreen(self, evt):
         state = self.win_Draw.fullscreen
         self.TermDrawWindow()
         self.InitDrawWindow(not state)
@@ -337,30 +335,30 @@ class Gribouillis(Application):
             self.controler.view.EnableCMS(False)
         self.controler.view.RedrawFull()
 
-    def SetDebug(self, what):
+    def SetDebug(self, evt, what):
         if what == 'raster':
             self.controler.view.debug = not self.controler.view.debug
             self.controler.view.RedrawFull()
 
-    def ClearAll(self):
+    def ClearAll(self, evt):
         self.controler.Clear()
 
     def Cleanup(self, model=None):
         self.controler.Cleanup()
 
-    def Undo(self):
+    def Undo(self, evt):
         self.controler.Undo()
         
-    def Redo(self):
+    def Redo(self, evt):
         self.controler.Redo()
 
-    def ResetZoom(self):
+    def ResetZoom(self, evt):
         self.controler.ResetZoom()
 
-    def Center(self):
+    def Center(self, evt):
         self.controler.Center()
 
-    def ShowModelInfo(self):
+    def ShowModelInfo(self, evt):
         self.win_ModelInfo.ShowModel(self.controler.model)
 
     def EnableCMS(self, state=True):

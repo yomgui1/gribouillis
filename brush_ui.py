@@ -82,7 +82,7 @@ class BrushSelectWindow(Window):
     def EditBrush(self):
         if not hasattr(self, '_editor'):
             self._editor = BrushEditorWindow("Brush Editor")
-            self.ApplicationObject.value.AddChild(self._editor)
+            self.ApplicationObject.contents.AddChild(self._editor)
         self._editor.SetBrush(self.brush)
         self._editor.OpenWindow()
 

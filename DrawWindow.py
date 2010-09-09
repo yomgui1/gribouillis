@@ -33,6 +33,7 @@ POINTERTYPE_AIMING = 6
 class DrawWindow(Window):
     def __init__(self, title, fullscreen=False):
         self.fullscreen = fullscreen
+        self.raster = None
         kwds = {}
         if fullscreen:
             kwds['WidthScreen'] = 100

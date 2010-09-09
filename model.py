@@ -31,7 +31,7 @@ __all__ = ('TiledModel', 'SimpleTiledModel')
 import _pixarray
 from surface import TiledSurface, T_SIZE, Tile
 from brush import Brush, DummyBrush
-from stroke import StrokeRecord
+#from stroke import StrokeRecord
 import PIL.Image as Image
 from openraster import *
 import png, os
@@ -98,7 +98,7 @@ class TiledModel(object):
         self.InitBrush(pos)
 
         # Undo management at stroke level
-        self._stroke_rec = StrokeRecord(pos)
+        #self._stroke_rec = StrokeRecord(pos)
         
         # Undo management at surface level
         self.InitWriteContext()
@@ -119,7 +119,7 @@ class TiledModel(object):
         pass
 
     def RecordStroke(self, stroke):
-        self._stroke_rec.Add(stroke)
+        pass #self._stroke_rec.Add(stroke)
 
     def LoadBackground(self, filename):
         im = Image.open(filename).convert('RGB')

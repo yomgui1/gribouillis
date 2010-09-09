@@ -41,7 +41,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 #define MODNAME "_pixarray"
 #endif
 
-static struct Library *CyberGfxBase;
+struct Library *CyberGfxBase;
 
 typedef struct PA_InitValue
 {
@@ -545,7 +545,7 @@ pixarray_new(PyTypeObject *type, PyObject *args)
     self = (PyPixelArray *)type->tp_alloc(type, 0); /* NR */
     if (NULL != self) {
         if (!initialize_pixarray(self, w, h, pixfmt))
-            Py_CLEAR((PyObject *)self);
+            Py_CLEAR(self);
     }
 
     return (PyObject *)self;
@@ -686,23 +686,23 @@ pixarray_pick_color(PyPixelArray *self, PyObject *args)
     if (self->pixfmt & PyPixelArray_FLAG_RGB) {
         if (self->pixfmt & PyPixelArray_FLAG_ALPHA_FIRST) {
             if (self->pixfmt & PyPixelArray_FLAG_8) {
-                r = *(++(UBYTE *)ptr) / 255.;
-                g = *(++(UBYTE *)ptr) / 255.;
-                b = *(++(UBYTE *)ptr) / 255.;
+                r = ((UBYTE *)ptr)[1] / 255.;
+                g = ((UBYTE *)ptr)[2] / 255.;
+                b = ((UBYTE *)ptr)[3] / 255.;
             } else {
-                r = *(++(USHORT *)ptr) / (float)(1<<15);
-                g = *(++(USHORT *)ptr) / (float)(1<<15);
-                b = *(++(USHORT *)ptr) / (float)(1<<15);
+                r = ((USHORT *)ptr)[1] / (float)(1<<15);
+                g = ((USHORT *)ptr)[2] / (float)(1<<15);
+                b = ((USHORT *)ptr)[3] / (float)(1<<15);
             }
         } else {
             if (self->pixfmt & PyPixelArray_FLAG_8) {
-                r = *(((UBYTE *)ptr)++) / 255.;
-                g = *(((UBYTE *)ptr)++) / 255.;
-                b = *((UBYTE *)ptr)     / 255.;
+                r = ((UBYTE *)ptr)[0] / 255.;
+                g = ((UBYTE *)ptr)[1] / 255.;
+                b = ((UBYTE *)ptr)[2] / 255.;
             } else {
-                r = *(((USHORT *)ptr)++) / (float)(1<<15);
-                g = *(((USHORT *)ptr)++) / (float)(1<<15);
-                b = *((USHORT *)ptr)     / (float)(1<<15);
+                r = ((USHORT *)ptr)[0] / (float)(1<<15);
+                g = ((USHORT *)ptr)[1] / (float)(1<<15);
+                b = ((USHORT *)ptr)[2] / (float)(1<<15);
             }
         }
     } else {
@@ -998,9 +998,9 @@ static int add_constants(PyObject *m)
     return 0;
 }
 //-
-//+ PyMorphOS_CloseModule
+//+ PyMorphOS_TermModule
 void
-PyMorphOS_CloseModule(void)
+PyMorphOS_TermModule(void)
 {
     if (NULL != CyberGfxBase) {
         CloseLibrary(CyberGfxBase);

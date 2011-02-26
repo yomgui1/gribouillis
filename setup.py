@@ -3,30 +3,28 @@
 import glob, os
 from distutils.core import setup, Extension
 
-opt = ['-Wall -Wuninitialized -Wstrict-prototypes -Wno-pointer-sign']
+pb_src_root = 'src'
+pb_generic_srcs = [ 'math.c']
+pb_generic_srcs = [ os.path.join(pb_src_root, p) for p in pb_generic_srcs ]
 
-modules = [os.path.splitext(x)[0] for x in glob.glob('*.py')]
-modules.remove('setup')
+if os.name == 'morphos':
+    opt = [ '-Wall -Wuninitialized -Wstrict-prototypes' ]
+    pb_plat_srcs = [ 'src/platform-morphos.c' ]
+elif os.name == 'posix':
+    opt = None
+    pb_plat_srcs = [ 'src/platform-posix.c' ]
 
-extra_data = []
-for root, dirs, files in os.walk('libs'):
-    extra_data.append((root, [os.path.join(root, n) for n in files]))
+pb_srcs = pb_generic_srcs + pb_plat_srcs
 
 setup(name='Gribouillis',
-      version='0.2',
+      version='2.7',
       author='Guillaume Roguez',
-      platforms=['morphos'],
-      ext_modules = [ Extension('_pixarray', ['_pixarraymodule.c'], extra_compile_args = opt),
-                      Extension('_brush', ['_brushmodule.c'], extra_compile_args = opt),
-                      Extension('lcms', ['lcmsmodule.c'], extra_compile_args = opt),
+      platforms=['unix', 'morphos'],
+      ext_modules = [ Extension('model/_pixbuf', [ 'src/_pixbufmodule.c' ] + pb_srcs,
+                                extra_compile_args = opt),
+                      Extension('model/_tilemgr', [ 'src/_tilemgrmodule.c' ] + pb_srcs,
+                                extra_compile_args = opt),
+                      Extension('model/_brush', [ 'src/_brushmodule.c' ] + pb_srcs,
+                                extra_compile_args = opt),
                       ],
-      py_modules=modules,
-      scripts=['Gribouillis'],
-      data_files=['LICENSE', 'HISTORY',
-				  ('brushes', glob.glob('brushes/*.myb')
-                   + glob.glob('brushes/*.png')
-                   + glob.glob('brushes/*.conf')),
-                  ('backgrounds', glob.glob('backgrounds/*.conf')
-                   + glob.glob('backgrounds/*.png')),
-                  ] + extra_data,
       )

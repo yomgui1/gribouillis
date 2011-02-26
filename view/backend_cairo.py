@@ -31,7 +31,7 @@ from math import floor, ceil, radians, pi, atan, hypot, cos, sin, exp
 from time import time
 
 from model import _pixbuf
-from .cairo_tools import *
+from cairo_tools import *
 
 pi2 = pi*2
 

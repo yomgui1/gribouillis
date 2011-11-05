@@ -23,17 +23,18 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
+import os
 from functools import wraps
+from time import time
 
 import puremvc.interfaces
 import puremvc.patterns.mediator
 import puremvc.patterns.proxy
-
-import model
+import puremvc.patterns.command
 
 __all__ = [ 'VirtualCalledError', 'virtualmethod',
             'Mediator', 'UndoableCommand', 'mvcHandler',
-            'MetaSingleton', 'idle_cb', '_T' ]
+            'MetaSingleton', 'idle_cb', '_T', 'delayedmethod' ]
 
 idle_cb = lambda *a, **k: None
 
@@ -54,6 +55,20 @@ def virtualmethod(wrapped_func):
     @wraps(wrapped_func)
     def wrapper(self, *args, **kwds):
         raise VirtualCalledError(self, wrapped_func)
+    return wrapper
+
+
+def delayedmethod(delay):
+    def wrapper(func):
+        func.__delay = delay
+        func.__lastcall = 0.
+        @wraps(func)
+        def _func(*a, **k):
+            t = time()
+            if t-func.__lastcall >= func.__delay:
+                func.__lastcall = t
+                return func(*a, **k)
+        return _func
     return wrapper
 
 
@@ -112,6 +127,14 @@ def mvcHandler(signal):
         return func
     return decorator
 
+
+def join_area(a1, a2):
+    # TODO: make a C version
+    x1 = min(a1[0], a2[0])
+    y1 = min(a1[1], a2[1])
+    x2 = max(a1[0]+a1[2], a2[0]+a2[2])
+    y2 = max(a1[1]+a1[3], a2[1]+a2[3])
+    return x1,y1,x2-x1,y2-y1
 
 ##
 ## PureMVC extention implemented from "PureMVC AS3 Utility - Undo"
@@ -374,3 +397,20 @@ class UndoableCommand(puremvc.patterns.command.SimpleCommand, IUndoableCommand):
         """
 
         return self.getNote().getName()
+
+##
+## Should be located at the end of the file
+##
+
+from model.prefs import prefs
+from string import Template
+
+class _MyTemplate(Template): idpattern = '[_a-z][_a-z0-9\-]*'
+
+def resolve_path(path):
+    path = path.replace('/', os.path.sep)
+    old_path = None
+    while path != old_path:
+        old_path = path
+        path = _MyTemplate(path).safe_substitute(prefs)
+    return path

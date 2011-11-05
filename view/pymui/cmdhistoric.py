@@ -27,9 +27,7 @@ from pymui import *
 
 import model, view, main, utils
 
-from utils import mvcHandler
-
-__all__ = [ 'CommandsHistoryList', 'CommandsHistoryListMediator' ]
+__all__ = [ 'CommandsHistoryList' ]
 
 class MyList(List):
     MCC = True
@@ -53,8 +51,9 @@ class MyList(List):
 
 
 class CommandsHistoryList(Window):
-    def __init__(self):
+    def __init__(self, name):
         super(CommandsHistoryList, self).__init__(ID='CMDH', Title='Commands Historic', CloseOnReq=True)
+        self.name = name
 
         ro = VGroup()
         self.RootObject = ro
@@ -104,6 +103,7 @@ class CommandsHistoryList(Window):
                 self._cmdlist.Remove(MUIV_List_Remove_First)
 
         self._cmdlist.InsertSingleString(cmd.getCommandName(), MUIV_List_Insert_Top)
+        self._cmdlist.Active = MUIV_List_Active_Top
         self.__last_added = 0
         self.enable_undo()
         self.enable_redo(False)
@@ -112,6 +112,7 @@ class CommandsHistoryList(Window):
     def flush(self):
         self._cmdlist.Clear()
         self._cmdlist.InsertSingleString(MUIX_B + '<start>')
+        self._cmdlist.Active = MUIV_List_Active_Top
         self.__last_added = -1
         self.enable_undo(False)
         self.enable_redo(False)
@@ -163,65 +164,8 @@ class CommandsHistoryList(Window):
         else:
             self.enable_redo(False)
 
+        self._cmdlist.Active = MUIV_List_Active_Top
         self._cmdlist.Quiet = False
 
         if self.__last_added >= 0:
             self._cmdlist.Active = self.__last_added
-
-
-class CommandsHistoryListMediator(utils.Mediator):
-    NAME = "CommandsHistoryListMediator"
-
-    #### Private API ####
-
-    def __init__(self, component):
-        assert isinstance(component, CommandsHistoryList)
-        super(CommandsHistoryListMediator, self).__init__(CommandsHistoryListMediator.NAME, component)
-
-        self.__cur_hp = None
-
-        component.btn_undo.Notify('Pressed', self._on_undo, when=False)
-        component.btn_redo.Notify('Pressed', self._on_redo, when=False)
-        component.btn_flush.Notify('Pressed', self._on_flush, when=False)
-
-    #### Protected API ####
-
-    def _on_undo(self, *a):
-        self.sendNotification(main.Gribouillis.UNDO)
-
-    def _on_redo(self, *a):
-        self.sendNotification(main.Gribouillis.REDO)
-
-    def _on_flush(self, *a):
-        self.sendNotification(main.Gribouillis.FLUSH)
-
-    ### notification handlers ###
-
-    @mvcHandler(main.Gribouillis.DOC_ACTIVATED)
-    def _on_doc_activated(self, docproxy):
-        self.viewComponent.set_doc_name(docproxy.docname)
-        hp = utils.CommandsHistoryProxy.get_active()
-        if hp != self.__cur_hp:
-            self.__cur_hp = hp
-            self.viewComponent.update(hp)
-
-    @mvcHandler(utils.CommandsHistoryProxy.CMD_HIST_ADD)
-    def _on_cmd_add(self, hp, cmd):
-        if hp is self.__cur_hp:
-            self.viewComponent.add_cmd(cmd)
-
-    @mvcHandler(utils.CommandsHistoryProxy.CMD_HIST_FLUSHED)
-    def _on_cmd_flush(self, hp):
-        if hp is self.__cur_hp:
-            self.viewComponent.flush()
-
-    @mvcHandler(utils.CommandsHistoryProxy.CMD_HIST_UNDO)
-    def _on_cmd_undo(self, hp, cmd):
-        if hp is self.__cur_hp:
-            self.viewComponent.undo(cmd)
-
-    @mvcHandler(utils.CommandsHistoryProxy.CMD_HIST_REDO)
-    def _on_cmd_redo(self, hp, cmd):
-        if hp is self.__cur_hp:
-            self.viewComponent.redo(cmd)
-

@@ -23,25 +23,25 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import sys
-
-if __name__ == '__main__':
-    sys.setrecursionlimit(100)
-    sys.path.insert(0, 'libs/python25.zip')
-
 import os
 import puremvc.patterns.facade
-import controller
 
 __all__ = ['Gribouillis', 'VERSION', 'DATE' ]
 
-VERSION = 2.7
-DATE = 23/02/2011
+# Defaults - must be changed by the caller
+VERSION = 3.0
+BUILD = 0
+DATE = 'dd.mm.yyyy'
+
+# Must be commited
+STATUS = 'beta'
 
 class Gribouillis(puremvc.patterns.facade.Facade):
+    __instance = None
+        
     # application constants
-    BACKGROUND_PATH = os.path.join('images', 'backgrounds')
-    DEFAULT_BRUSHPREVIEW_BACKGROUND = os.path.join(BACKGROUND_PATH, 'checker.png')
+    PREVIEW_BACKGROUND = '${backgrounds-path}/checker.png'
+    TRANSPARENT_BACKGROUND = '${backgrounds-path}/checker.png'
     DEFAULT_BACKGROUND = (1,1,1)
 
     # application notifications
@@ -58,10 +58,10 @@ class Gribouillis(puremvc.patterns.facade.Facade):
     NEW_DOCUMENT         = 'new-doc'      # user want to create a new document
     NEW_DOCUMENT_RESULT  = 'new-doc-res'
     
-    DOC_UPDATED          = 'doc-updated'
     DOC_ACTIVATE         = 'doc-activate'
-    DOC_ACTIVATED        = 'doc-activated' # When the document is ready to accept user inputs
-
+    DOC_ACTIVATED        = 'doc-activated' # document is ready to accept user inputs
+    DOC_UPDATED          = 'doc-updated'
+    DOC_DIRTY            = 'doc-dirty'
     DOC_SAVE             = 'doc-save'
     DOC_SAVE_RESULT      = 'doc-save-res'
     DOC_DELETE           = 'doc-del'
@@ -78,34 +78,46 @@ class Gribouillis(puremvc.patterns.facade.Facade):
     DOC_LAYER_DEL           = 'doc-layer-del'    # undoable command
     DOC_LAYER_DELETED       = 'doc-layer-deleted'
     DOC_LAYER_DUP           = 'doc-layer-dup'    # undoable command
-    DOC_LAYER_MOVE          = 'doc-layer-move'   # undoable command
-    DOC_LAYER_MOVED         = 'doc-layer-moved'
+    DOC_LAYER_STACK_CHANGE  = 'doc-layer-stack-change'   # undoable command
+    DOC_LAYER_STACK_CHANGED = 'doc-layer-stack-changed'
     DOC_LAYER_CLEAR         = 'doc-layer-clear'   # undoable command
     DOC_LAYER_SET_VISIBLE   = 'doc-layer-visible' # undoable command
     DOC_LAYER_SET_OPACITY   = 'doc-layer-opacity'
     DOC_LAYER_MERGE_DOWN    = 'doc-layer-merge-down' # undoable command
     DOC_RECORD_STROKE       = 'doc-record-stroke' # undoable command
     DOC_LOAD_IMAGE_AS_LAYER = 'doc-load-image-as-layer' # undoable command
+    DOC_LAYER_MATRIX        = 'doc-layer-matrix' # undoable command
+    
     DOC_BRUSH_UPDATED       = 'doc-brush-updated'
 
     # Brush notifications
     BRUSH_PROP_CHANGED = 'brush-prop-changed'
 
+    def __new__(cl, *a, **k):
+        if cl.__instance:
+            return cl.__instance
+        
+        self = super(Gribouillis, cl).__new__(cl, *a, **k)
+        cl.__instance = self
+        return self
+    
     def __init__(self, datapath, userpath=None):
         if userpath is None:
             userpath = datapath
         self.paths = dict(data=datapath, userpath=userpath)
         self.initializeFacade()
-
-    @staticmethod
-    def getInstance():
-        return Gribouillis()
+        
+    @classmethod
+    def getInstance(cl):
+        return cl.__instance
 
     def initializeFacade(self):
         super(Gribouillis, self).initializeFacade()
         self.initializeController()
 
     def initializeController(self):
+        import controller
+
         super_ = super(Gribouillis, self)
         super_.initializeController()
 
@@ -123,7 +135,8 @@ class Gribouillis(puremvc.patterns.facade.Facade):
         super_.registerCommand(Gribouillis.DOC_LAYER_ADD, controller.AddLayerCmd)
         super_.registerCommand(Gribouillis.DOC_LAYER_DEL, controller.RemoveLayerCmd)
         super_.registerCommand(Gribouillis.DOC_LAYER_DUP, controller.DuplicateLayerCmd)
-        super_.registerCommand(Gribouillis.DOC_LAYER_MOVE, controller.MoveLayerCmd)
+        super_.registerCommand(Gribouillis.DOC_LAYER_STACK_CHANGE, controller.LayerStackChangeCmd)
+        super_.registerCommand(Gribouillis.DOC_LAYER_MATRIX, controller.SetLayerMatrixCmd)
         super_.registerCommand(Gribouillis.DOC_LAYER_ACTIVATE, controller.ActivateLayerCmd)
         super_.registerCommand(Gribouillis.DOC_LAYER_CLEAR, controller.ClearLayerCmd)
         super_.registerCommand(Gribouillis.DOC_LAYER_SET_VISIBLE, controller.SetLayerVisibilityCmd)
@@ -132,12 +145,3 @@ class Gribouillis(puremvc.patterns.facade.Facade):
         super_.registerCommand(Gribouillis.DOC_LAYER_SET_OPACITY, controller.SetLayerOpacityCmd)
         super_.registerCommand(Gribouillis.DOC_LAYER_MERGE_DOWN, controller.MergeDownLayerCmd)
         
-
-if __name__ == '__main__':
-    import os
-    import view
-
-    gribouillis = Gribouillis(os.getcwd())
-    be_app = view.Application()
-    gribouillis.sendNotification(Gribouillis.STARTUP, be_app)
-    be_app.run()

@@ -26,14 +26,20 @@ OTHER DEALINGS IN THE SOFTWARE.
 #ifndef MATH_H
 #define MATH_H
 
+#include <Python.h>
 #include <math.h>
 
 #define FASTFLOOR(x) ( ((x)>0) ? ((int)x) : (((int)x)-1) )
+
+#ifndef M_TWOPI
+#define M_TWOPI 6.28318530717958647692
+#endif
 
 extern float noise_2d(float x, float y);
 extern float myrand1(void);
 extern float myrand2(void);
 extern void rgb_to_hsv(float *rgb, float *hsv);
 extern void hsv_to_rgb(float *hsv, float *rgb);
+extern void my_Py_DECREF(PyObject *o);
 
 #endif

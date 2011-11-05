@@ -29,6 +29,8 @@ OTHER DEALINGS IN THE SOFTWARE.
 #include "_pixbufmodule.h"
 #include "math.h"
 
+#include <string.h>
+
 #ifndef INITFUNC
 #define INITFUNC init_brush
 #endif
@@ -51,24 +53,26 @@ OTHER DEALINGS IN THE SOFTWARE.
 #define PB_CACHE_SIZE 15 /* good value for the case of big brushes */
 #define DABS_PER_SECONDS 0
 
+#define HERMITE_NUMPOINTS 3
+
 //#define STAT_TIMING
 
-#define GET_INT_FROM_STROKE(state, var, name) {                   \
-    PyObject *_o = PyObject_GetAttrString(state, name); /* NR */ \
+#define GET_INT_FROM_STROKE(state, var, name) \
+    { PyObject *_o = PyObject_GetAttrString(state, name); \
     if (NULL == _o) return NULL; \
     else if (!PyInt_CheckExact(_o)) \
     { Py_DECREF(_o); return PyErr_Format(PyExc_TypeError, "Invalid '%s' attribute in stroke", name); } \
     var = PyInt_AS_LONG(_o); Py_DECREF(_o); }
 
-#define GET_FLOAT_FROM_STROKE(state, var, name) {                \
-    PyObject *_o = PyObject_GetAttrString(state, name); /* NR */ \
+#define GET_FLOAT_FROM_STROKE(state, var, name) \
+    { PyObject *_o = PyObject_GetAttrString(state, name); \
     if (NULL == _o) return NULL; \
     else if (!PyFloat_CheckExact(_o)) \
     { Py_DECREF(_o); return PyErr_Format(PyExc_TypeError, "Invalid '%s' attribute in stroke", name); } \
     var = PyFloat_AS_DOUBLE(_o); Py_DECREF(_o); }
     
-#define GET_2T_FLOAT_FROM_STROKE(state, var0, var1, name) {      \
-    PyObject *_o = PyObject_GetAttrString(state, name); /* NR */ \
+#define GET_2T_FLOAT_FROM_STROKE(state, var0, var1, name) \
+    { PyObject *_o = PyObject_GetAttrString(state, name); \
     if (NULL == _o) return NULL; \
     else if (!PyTuple_CheckExact(_o)) \
     { Py_DECREF(_o); return PyErr_Format(PyExc_TypeError, "Invalid '%s' attribute in stroke", name); } \
@@ -76,8 +80,8 @@ OTHER DEALINGS IN THE SOFTWARE.
     var1 = PyFloat_AsDouble(PyTuple_GET_ITEM(_o, 1)); \
     Py_DECREF(_o); }
     
-#define GET_2T_INT_FROM_STROKE(state, var0, var1, name) {        \
-    PyObject *_o = PyObject_GetAttrString(state, name); /* NR */ \
+#define GET_2T_INT_FROM_STROKE(state, var0, var1, name) \
+    { PyObject *_o = PyObject_GetAttrString(state, name); \
     if (NULL == _o) return NULL; \
     else if (!PyTuple_CheckExact(_o)) \
     { Py_DECREF(_o); return PyErr_Format(PyExc_TypeError, "Invalid '%s' attribute in stroke", name); } \
@@ -91,18 +95,24 @@ enum
     BV_RADIUS_MIN=0,
     BV_RADIUS_MAX,
     BV_YRATIO,
+    BV_ANGLE,
     BV_HARDNESS,
     BV_OPACITY_MIN,
     BV_OPACITY_MAX,
     BV_OPACITY_COMPENSATION,
     BV_ERASE,
-    BV_RADIUS_RANDOM,
     BV_SPACING,
     BV_GRAIN_FAC,
     BV_MOTION_TRACK,
     BV_HI_SPEED_TRACK,
     BV_SMUDGE,
     BV_SMUDGE_VAR,
+    BV_DIRECTION_JITTER,
+    BV_DAB_POS_JITTER,
+    BV_DAB_RADIUS_JITTER,
+    BV_COLOR_SHIFT_H,
+    BV_COLOR_SHIFT_S,
+    BV_COLOR_SHIFT_V,
     BASIC_VALUES_MAX
 };
 
@@ -115,11 +125,23 @@ typedef struct PBNode
     int             pbn_Valid;
 } PBNode;
 
-typedef struct
+typedef struct MyRec
 {
     int32_t x1, y1;
     int32_t x2, y2;
 } MyRec;
+
+typedef struct
+{
+    int     p_IX, p_IY;
+    float   p_SX, p_SY;
+    float   p_SXo, p_SYo;
+    float   p_XTilt, p_YTilt;
+    double  p_Time;
+    float   p_Pressure;
+    float   p_Radius;
+    float   p_Opacity;
+} Point;
 
 typedef struct PyBrush
 {
@@ -127,28 +149,26 @@ typedef struct PyBrush
 
     /* Object Data */
     PyObject *      b_Surface;
+    PyObject *      b_GetPixBufFunc; /* cached method from b_Surface */
     PBNode          b_PBCache[PB_CACHE_SIZE];
     PBNode *        b_PBFirst;
     PBNode *        b_PBLast;
     PBNode *        b_FirstInvalid;
 
     /* Brush Model */
-    double          b_Time;
-    float           b_Pressure;
-    float           b_cs, b_sn;
     float           b_RemainSteps; /* remaining dabs between last drawn dabs and last control knot */
-    float           b_Length;
-    float           b_Radius;
-    float           b_Opacity;
+    float           b_cs, b_sn;
 
-    int             b_OldIX, b_OldIY;
-    float           b_OldSX, b_OldSY;
+    int             b_PointIndex;
+    int             b_NeededPoints;
+    float           b_SmudgeColor[4];
+    Point           b_Points[4];
 
     float           b_BasicValues[BASIC_VALUES_MAX];
 
     float           b_HSVColor[3]; /* HSV colorspace */
     float           b_RGBColor[3]; /* RGB colorspace */
-    float           b_SmudgeColor[4];
+    float           b_Color[3];    /* Stroke saving */
 
 #ifdef STAT_TIMING
     unsigned int    b_CacheAccesses;
@@ -161,9 +181,13 @@ typedef struct PyBrush
 
 static PyTypeObject PyBrush_Type;
 
+#define CS_TABLE_SIZE 2048
 
-/*
-********************************************************************************
+static float fixed_cos[CS_TABLE_SIZE];
+static float fixed_sin[CS_TABLE_SIZE];
+
+
+/*********************************************************************************
 ** Private routines
 */
 
@@ -220,7 +244,6 @@ ppc_getcounter(uint64_t *v)
 #endif
 #endif /* STAT_TIMING */
 
-//+ obtain_pixbuffer
 static PyPixbuf *
 obtain_pixbuffer(PyBrush *self, PyObject *surface, int x, int y)
 {
@@ -287,7 +310,22 @@ obtain_pixbuffer(PyBrush *self, PyObject *surface, int x, int y)
 #ifdef STAT_TIMING
         self->b_CacheMiss++;
 #endif
-        o = PyObject_CallMethod(surface, "get_pixbuf", "ii", x, y); /* NR */
+        PyObject *args = PyTuple_New(2); /* NR */
+
+        if (NULL == args)
+            return NULL;
+
+        /* A bit dangerous in theory (no errors checking)
+         * but harmless in pratice as the tuple deallocation
+         * will call Py_XDECREF() on each items.
+         */
+        PyTuple_SET_ITEM(args, 0, PyInt_FromLong(x));
+        PyTuple_SET_ITEM(args, 1, PyInt_FromLong(y));
+
+        /* Call the cached get_pixbuf surface method */
+        o = PyObject_Call(self->b_GetPixBufFunc, args, NULL); /* NR */
+        Py_DECREF(args);
+
         if (NULL == o)
             return NULL;
         
@@ -328,8 +366,6 @@ obtain_pixbuffer(PyBrush *self, PyObject *surface, int x, int y)
 
     return (void *)o;
 }
-//-
-//+ drawdab_solid
 /* Solid spherical filling engine */
 static int
 drawdab_solid(PyBrush *self,        /* In: brush object */
@@ -377,10 +413,16 @@ drawdab_solid(PyBrush *self,        /* In: brush object */
     DPRINT("BDraw: update area = (%ld, %ld, %ld, %ld)\n",
             area->x1, area->y1, area->x2, area->y2);
 
-    grain = self->b_BasicValues[BV_GRAIN_FAC];
+    grain = self->b_BasicValues[BV_GRAIN_FAC] * radius;
 
     cs /= radius;
     sn /= radius;
+
+    /* Ellipse radius derivatives */
+    float rxdx = cs;
+    float rydx = -sn*yratio;
+    float rxdy = sn;
+    float rydy = cs*yratio;
 
     /* Loop on all pixels inside a bbox centered on (sx, sy) */
     for (y=miny; y <= maxy;)
@@ -392,7 +434,6 @@ drawdab_solid(PyBrush *self,        /* In: brush object */
             unsigned int bx_left, bx_right, by_top, by_bottom;
             unsigned int bx, by; /* x, y in buffer space */
             int bpp;
-            float cx, cy;
 
             /* Try to obtain the surface pixels buffer for the point (x, y).
             ** Search in internal cache for it, then ask directly to the surface object.
@@ -434,16 +475,15 @@ drawdab_solid(PyBrush *self,        /* In: brush object */
              */
 
             /* Computing bbox inside the given buffer (surface units)
-             * OPTIMIZE: modulo can be avoided if pa (x,y) are correctly set.
+             * OPTIMIZE: we trust in obtain_pixbuffer() results so modulo
+             * is avoided to check bounds.
              */
             bx_left = x - pb->x;
-            //bx_left %= pb->width; /* /!\ modulo of neg is neg... */
             bx_right = MIN(bx_left+(maxx-x), pb->width-1);
             by_top = y - pb->y;
-            //by_top %= pb->height;
             by_bottom = MIN(by_top+(maxy-y), pb->height-1);
 
-            /* Start at the right pixel */
+            /* Shift pixel pointer on the line containing the first pixel to process */
             bpp = (pb->bpc * pb->nc) >> 3;
             buf = pb->data + by_top*pb->bpr;
 
@@ -456,48 +496,43 @@ drawdab_solid(PyBrush *self,        /* In: brush object */
             READ_TIMESTAMP(t1);
 #endif
 
-            /* Ellipse center in buffer coordinates.
-             * Shift by a demi-pixel to be pixel centered.
-             */
-            cx = sx - pb->x - .5;
-            cy = sy - pb->y - .5;
-
-            /* OPTIM: linear data to compute pixels distance from center
+            /* linear coef. to compute pixels distance from center
              * using a scanline processing.
+             * This is just a simple ellipse computation evaluated for each pixels,
+             * using left to right and top to bottom processing.
              */
-            float yy0 = (float)by_top - cy;
-            float yycs = yy0*cs;
-            float yysn = yy0*sn;
-            
-            float xx0 = (float)bx_left - cx;
-            float rx0 = xx0*cs;
-            float ry0 = -xx0*sn*yratio;
-            float ryd = -sn*yratio;
-            float rxd = cs;
-            
-            for (by=by_top; by <= by_bottom; by++, yycs += cs, yysn += sn, buf += pb->bpr)
-            {                
-                uint8_t *pixel = buf + bx_left*bpp;
-                
-                /* Rotation */
-                float rx = yysn + rx0;
-                float ry = yycs*yratio + ry0;
-                
-                for (bx=bx_left; bx <= bx_right; bx++, rx += rxd, ry += ryd, pixel += bpp)
-                {
-                    float rr, opa;
 
+            /* Set origin at the ellipse center, pixel centered */
+            float xx0 = (float)x - sx + .5;
+            float yy0 = (float)y - sy + .5;
+
+            /* Radius vector of the top-left pixel, taking care of direction */
+            float rxy = xx0*rxdx + yy0*rxdy;
+            float ryy = xx0*rydx + yy0*rydy;
+
+            for (by=by_top; by <= by_bottom; by++, rxy += rxdy, ryy += rydy, buf += pb->bpr)
+            {                
+                uint8_t *pixel = buf + bx_left*bpp; /* X-axis offset */
+                float rx = rxy;
+                float ry = ryy;
+
+                for (bx=bx_left; bx <= bx_right; bx++, rx += rxdx, ry += rydx, pixel += bpp)
+                {
                     /* Compute the square of pixel radius: rr^2 = rx^2 + ry^2
                      * Divide by the square of the ellipse radius to have
                      * a number relative to this radius (done in cs,sn).
+                     * Here this division is done during computation of rx and ry.
+                     * Any point (x,y) is inside the ellipse, when the distance from
+                     * the center is bellow or equal to the ellipse's radius.
                      *
-                     * OPTIM: as pixel are processed in scanline way,
-                     * rx and ry can be computed in linear way (additions).
+                     * Note: one major problem of this method occures when the radius is large,
+                     * as the wasted surface of pixels (pixels where the following condition is false)
+                     * has a quadratic grow (Sw(r) = Cst * r^2).
                      */
-                    rr = rx*rx + ry*ry;
 
-                    /* (x, y) in the Ellipse ? */
-                    if (rr <= 1.)
+                    float rr = rx*rx + ry*ry;
+
+                    if (rr <= 1.0)
                     {
                         /* opacity = opacity_base * f(r), where:
                          *   - f is a fall-off function
@@ -506,19 +541,21 @@ drawdab_solid(PyBrush *self,        /* In: brush object */
                          * hardness is the first zero of f (f(hardness)=0.0).
                          * hardness can't be zero (or density = -infinity, clamped to zero)
                          */
-                        opa = opacity;
+                        float opa = opacity;
+
                         if (hardness < 1.0)
                         {
                             if (rr < hardness)
-                                opa *= rr + 1.-(rr/hardness);
+                                opa *= rr + 1.0-(rr/hardness);
                             else
-                                opa *= hardness/(1.-hardness)*(1.-rr);
+                                opa *= hardness/(1.0-hardness)*(1.0-rr);
                         }
                         
                         if (grain > 0)
                         {
-                            float g = noise_2d((pb->x + (int)bx)*grain, (pb->y + (int)by)*grain);
-                            opa = CLAMP(opa * ((g+1)/2), 0.0, 1.0);
+                            float noise = (noise_2d(sx + rx*grain, sy + ry*grain)+1.)*.5;
+
+                            opa = MIN(opa * noise, 1.0);
                         }
 
                         pb->writepixel(pixel, opa, alpha, native_color);
@@ -546,8 +583,6 @@ next_pixel:
     DPRINT("BDraw: done\n");
     return 0;
 }
-//-
-//+ get_dab_color
 /* Get the average color under a dabs */
 static int
 get_dab_color(PyBrush *self,       /* In: */
@@ -583,6 +618,12 @@ get_dab_color(PyBrush *self,       /* In: */
     cs /= radius;
     sn /= radius;
 
+    /* Radius derivatives */
+    float rxdx = cs;
+    float rydx = -sn*yratio;
+    float rxdy = sn;
+    float rydy = cs*yratio;
+
     /* Loop on all pixels inside a bbox centered on (sx, sy) */
     for (y=miny; y <= maxy;)
     {
@@ -592,7 +633,6 @@ get_dab_color(PyBrush *self,       /* In: */
             uint8_t *buf;
             unsigned int bx_left, bx_right, by_top, by_bottom;
             unsigned int bx, by; /* x, y in buffer space */
-            unsigned int cx, cy;
             int bpp;
 
             /* Try to obtain the surface pixels buffer for the point (x, y).
@@ -606,68 +646,45 @@ get_dab_color(PyBrush *self,       /* In: */
             if ((void *)-1 == pb)
             {
                 x++;
+                by_top = miny;
+                by_bottom = maxy;
                 goto next_pixel;
             }
 
-            /* 'buf' pointer is supposed to be an ARGB15X pixels buffer.
-             * This pointer is directly positionned on pixel (box, boy).
-             * Buffer is buf_width pixels of width and buf_height pixels of height.
-             * buf_bpr gives the number of bytes to add to pass directly
-             * to the pixel just below the current position.
-             */
-
-            /* Computing bbox inside the given buffer (surface units)
-             * OPTIMIZE: modulo can be avoided if pa (x,y) are correctly set.
-             */
             bx_left = x - pb->x;
-            bx_left %= pb->width; /* /!\ modulo of neg is neg... */
             bx_right = MIN(bx_left+(maxx-x), pb->width-1);
             by_top = y - pb->y;
-            by_top %= pb->height;
             by_bottom = MIN(by_top+(maxy-y), pb->height-1);
 
-            /* Start at the right pixel */
             bpp = (pb->bpc * pb->nc) >> 3;
             buf = pb->data + by_top*pb->bpr;
 
-            /* Ellipse center in buffer coordinates */
-            cx = sx - pb->x - .5;
-            cy = sy - pb->y - .5;
+            float xx0 = (float)x - sx + .5;
+            float yy0 = (float)y - sy + .5;
+            float rxy = xx0*rxdx + yy0*rxdy;
+            float ryy = xx0*rydx + yy0*rydy;
 
-            float yy0 = (float)by_top - cy;
-            float yycs = yy0*cs;
-            float yysn = yy0*sn;
-            
-            float xx0 = (float)bx_left - cx;
-            float rx0 = xx0*cs;
-            float ry0 = -xx0*sn*yratio;
-            float ryd = -sn*yratio;
-            
-            for (by=by_top; by <= by_bottom; by++, yycs += cs, yysn += sn, buf += pb->bpr)
+            for (by=by_top; by <= by_bottom; by++, rxy += rxdy, ryy += rydy, buf += pb->bpr)
             {                
                 uint8_t *pixel = buf + bx_left*bpp;
-                
-                float rx = yysn + rx0;
-                float ry = yycs*yratio + ry0;
-                
-                for (bx=bx_left; bx <= bx_right; bx++, rx += cs, ry += ryd, pixel += bpp)
+                float rx = rxy;
+                float ry = ryy;
+
+                for (bx=bx_left; bx <= bx_right; bx++, rx += rxdx, ry += rydx, pixel += bpp)
                 {
-                    float rr, opa;
-                    uint16_t tmp_color[MAX_CHANNELS];
-
-                    /* square normalized radius */
-                    rr = rx*rx + ry*ry;
-
-                    /* (x, y) in the Ellipse ? */
-                    if (rr <= 1.)
+                    float rr = rx*rx + ry*ry;
+                    if (rr <= 1.0)
                     {
+                        float opa;
+                        uint16_t tmp_color[MAX_CHANNELS];
+
                         opa = 1.0; /* start at full opacity */
-                        if (hardness < 1.)
+                        if (hardness < 1.0)
                         {
                             if (rr < hardness)
-                                opa *= rr + 1.-(rr/hardness);
+                                opa *= rr + 1.0-(rr/hardness);
                             else
-                                opa *= hardness/(1.-hardness)*(1.-rr);
+                                opa *= hardness/(1.0-hardness)*(1.0-rr);
                         }
                         sum_weight += opa;
 
@@ -696,76 +713,83 @@ next_pixel:
         return 1;
 
     /* Average alpha (always the last item) */
-    color[chan_count-1] = sums[chan_count-1] / sum_weight;
-
-    if (color[chan_count-1] > 0.0)
+    float alpha_sum = sums[chan_count-1];
+    
+    color[chan_count-1] = alpha_sum / sum_weight;
+    if (color[chan_count-1] >= (1.0 / (1 << 15)))
     {
         /* colors are alpha-premultiplied, so un-multiply it now */
+        /* FIXME: it's not always the truth! */
         for (i=0; i<chan_count-1; i++)
         {
             /* OPTIM: no need to divide color by weight sum as alpha sum is also weighted */
-            sums[i] /= sums[chan_count-1];
-            color[i] = CLAMP(sums[i], 0.0, 1.0); /* fix rounding errors */
+            color[i] = CLAMP(sums[i] / alpha_sum, 0.0, 1.0); /* fix rounding errors */
         }
     }
     else
     {
         /* fully transparent color */
+        //printf("%f\n", color[chan_count-1]);
+        bzero(color, sizeof(color));
         color[0] = 1.0; /* to see if alpha is not taken in account */
-        for (i=1; i<chan_count-1; i++)
-            color[i] = 0.0;
+
+        //return 1;
     }
 
     return 0;
 }
-//-
-//+ decay
-/* Inspired from http://en.wikipedia.org/wiki/Exponential_decay */
 static float
 decay(float t, float tau)
 {
+    /* Inspired from http://en.wikipedia.org/wiki/Exponential_decay */
+    
     t = -t / tau;
     if (t >= -87.) /* limits says, float_MIN = 1.17549435E-38 => ~= exp(-87) */
         return expf(t);
     else
         return 0.0;
 }
-//-
-//+ process_smudge
 static int
 process_smudge(PyBrush *self,
                float x, float y,
-               float radius, float yratio, float cs, float sn,
-               float hardness, float *color, float *alpha)
+               float radius, float yratio,
+               float cs, float sn,
+               float hardness,
+               float *color, float *alpha)
 {
     int i, err;
     float fac, avg_color[MAX_CHANNELS];
 
-    *alpha = 1.0;
-
-    if (!self->b_BasicValues[BV_SMUDGE]) return 0;
-
-    err = get_dab_color(self, self->b_Surface,
-                        x, y, radius, yratio, hardness,
-                        cs, sn, avg_color);
-    if (err < 0) return 1;
+    if (self->b_BasicValues[BV_SMUDGE] == 0.0)
+    {
+        *alpha = 1.0;
+        return 0;
+    }
     
-    /* fully transparent? => no changes */
-    if (err > 0) return 0;
-
     fac = self->b_BasicValues[BV_SMUDGE];
     *alpha = 1.0*(1.0-fac) + self->b_SmudgeColor[3]*fac;
+    
     if (*alpha > 0.0)
     {
+        /* blender smudge color with given color */
         for (i=0; i<3; i++)
             color[i] = (color[i]*(1.0-fac) + self->b_SmudgeColor[i]*fac) / *alpha;
     }
     else
     {
-        color[0] = 1.0;
+        color[0] = 1.0; /* for bug tracking */
         color[1] = 0.0;
         color[2] = 0.0;
     }
+
+    /* Get the average color under the brush */
+    err = get_dab_color(self, self->b_Surface,
+                        x, y, radius, yratio, hardness,
+                        cs, sn, avg_color);
+    if (err < 0) return 1;
+    
+    /* fully transparent? */
+    /*if (err > 0) return 0;*/
 
     fac = self->b_BasicValues[BV_SMUDGE_VAR];
     if (fac > 0.0)
@@ -777,8 +801,6 @@ process_smudge(PyBrush *self,
 
     return 0;
 }
-//-
-//+ get_radius_from_pressure
 static float
 get_radius_from_pressure(PyBrush *self, float pressure)
 {
@@ -787,8 +809,6 @@ get_radius_from_pressure(PyBrush *self, float pressure)
     float radius = min + (max-min)*pressure;
     return CLAMP(radius, 0.5, 128.0);
 }
-//-
-//+ get_opacity_from_pressure
 static float
 get_opacity_from_pressure(PyBrush *self, float pressure)
 {
@@ -797,13 +817,212 @@ get_opacity_from_pressure(PyBrush *self, float pressure)
     float opa = min + (max-min)*pressure;
     return CLAMP(opa, 0.0, 1.0);
 }
-//-
+static void
+_draw_stroke(PyBrush *self, Point *pt[4], MyRec *area)
+{
+    float dist, dx, dy, hardness, spacing, yratio;
+    float color[MAX_CHANNELS];
+
+    yratio = self->b_BasicValues[BV_YRATIO];
+    hardness = self->b_BasicValues[BV_HARDNESS];
+    spacing = self->b_BasicValues[BV_SPACING];
+
+    /* TODO: CYMK colorspace handling */
+    color[0] = self->b_Color[0];
+    color[1] = self->b_Color[1];
+    color[2] = self->b_Color[2];
+    color[3] = 1.0;
+        
+    dx = pt[2]->p_SX - pt[1]->p_SX;
+    dy = pt[2]->p_SY - pt[1]->p_SY;
+    dist = hypotf(dx, dy);
+    
+    float dabs_frac, dabs_todo;
+
+    /* Number of dabs to draw.
+     * d is the euclidian distance between 2 events.
+     * Note: this distance is inaccurate when dabs positions
+     * are interpolated on a curved path.
+     *
+     * But I don't care! :-p
+     */
+         
+    float radius=pt[2]->p_Radius;
+    float rad_per_sp = radius * spacing;
+
+    //printf("start: p=%g, r=%g\n", p, r);
+    //printf("end:   p=%g, r=%g\n", pressure, radius);
+        
+    float fac = self->b_BasicValues[BV_OPACITY_COMPENSATION] / spacing;
+    float opa0 = powf(pt[1]->p_Opacity, fac);
+    float opa1 = powf(pt[2]->p_Opacity, fac);
+        
+    float xtilt = (pt[1]->p_XTilt + pt[2]->p_XTilt) * .5;
+    float ytilt = (pt[1]->p_YTilt + pt[2]->p_YTilt) * .5;
+        
+    /* Discretized direction brush angle [0, 1023] */
+    float angle = atanf(xtilt/ytilt) + self->b_BasicValues[BV_ANGLE]*M_TWOPI/360.;
+    int dir_angle = angle * 1024./M_TWOPI;
+    if (dir_angle == 1024)
+		dir_angle = 0;
+		
+    /* Brush direction (cos/sin) */
+    self->b_cs = cosf(angle);
+    self->b_sn = sinf(angle);
+
+    float m0x = (pt[2]->p_SX - pt[0]->p_SX) / 2;
+    float m0y = (pt[2]->p_SY - pt[0]->p_SY) / 2;
+    float m1x = (pt[3]->p_SX - pt[1]->p_SX) / 2;
+    float m1y = (pt[3]->p_SY - pt[1]->p_SY) / 2;
+
+    //printf("m0: (%g, %g)\n", m0x, m0y);
+    //printf("m1: (%g, %g)\n", m1x, m1y);
+
+    dabs_frac = self->b_RemainSteps;
+    dabs_todo  = dist / rad_per_sp;
+    //dabs_todo += dist / (radius * spacing);
+    
+	float t=0;
+	float p=pt[1]->p_Pressure;
+	float r=pt[1]->p_Radius;
+	float opa=opa0;
+	float x=pt[1]->p_SX;
+	float y=pt[1]->p_SY;
+
+    while ((dabs_frac + dabs_todo) >= 1.0)
+    {
+		float h00, h10, h01, h11;
+		float alpha=1;
+        float frac, t2, t3;
+
+        if (dabs_frac > 0.0)
+        {
+            frac = (1 - dabs_frac) / dabs_todo;
+            dabs_frac = 0.0;
+        }
+        else
+            frac = 1.0 / dabs_todo;
+		
+		t += frac * (1 - t);
+		t2 =  t * t;
+		t3 = t2 * t;
+		
+		/* Computing Hermite Spline coefficients (Catmull-Rom case) */
+		h00 =  2*t3 - 3*t2 + 1;
+		h10 =    t3 - 2*t2 + t;
+		h01 = -2*t3 + 3*t2;
+		h11 =    t3 -   t2;
+
+		/* Compute per dab position using cubic Hermite interpolation */
+		x = h00 * pt[1]->p_SX + h10 * m0x + h01 * pt[2]->p_SX + h11 * m1x;
+		y = h00 * pt[1]->p_SY + h10 * m0y + h01 * pt[2]->p_SY + h11 * m1y;
+		
+		//x += frac * (pt[2]->p_SX - x);
+        //y += frac * (pt[2]->p_SY - y);
+
+		/* Compute per dab others states using linear interpolation */
+		p += frac * (pt[2]->p_Pressure - p);
+		if (CLAMP(p, 0.0, 1.0) != p)
+			printf("***> Pressure clamp warn: %g\n", p);
+		r += frac * (radius - r);
+		opa += frac * (opa1 - opa);
+
+		/* Final dab values (with possible jittering) */
+		float jitter, dab_x=x, dab_y=y, dab_r=r;
+
+		/* Per-dab radius jitter */
+		jitter = self->b_BasicValues[BV_DAB_RADIUS_JITTER];
+		if (jitter > 0.0)
+			dab_r *= 1. - myrand2()*jitter;
+
+		/* Per-dab position jitter (from dab radius) */
+		jitter = self->b_BasicValues[BV_DAB_POS_JITTER];
+		if (jitter > 0.0)
+		{
+			jitter *= dab_r;
+			dab_x += (myrand1()*2-1)*jitter;
+			dab_y += (myrand2()*2-1)*jitter;
+		}
+			
+		/* Direction jitter */
+		jitter = self->b_BasicValues[BV_DIRECTION_JITTER];
+		if (jitter > 0.0)
+		{
+			int da;
+
+			/* Dabs are round by nature, so random factor is limited to +-90° */
+			da = dir_angle + ((int)(myrand1()*jitter*512)-256);
+				
+			/* Cos/Sin tables are oversized to remove a modulo usage.
+			 * So only negative values protection remains.
+			 */
+			if (da < 0)
+				da += CS_TABLE_SIZE-1;
+			
+			self->b_cs = fixed_cos[da];
+			self->b_sn = fixed_sin[da];
+		}
+				
+		/* smudge step */
+		if (process_smudge(self, dab_x, dab_y,
+						   dab_r, yratio, self->b_cs, self->b_sn,
+						   hardness, color, &alpha))
+		{
+			return;
+		}
+		
+		/* Color HSV shift */
+		float hsv[3];
+		
+        rgb_to_hsv(color, hsv);
+        hsv[0] += self->b_BasicValues[BV_COLOR_SHIFT_H];
+        hsv[1] += self->b_BasicValues[BV_COLOR_SHIFT_S];
+        hsv[2] += self->b_BasicValues[BV_COLOR_SHIFT_V];
+        hsv_to_rgb(hsv, color);
+
+        /* Save for the next segment */
+        self->b_Color[0] = color[0];
+        self->b_Color[1] = color[1];
+        self->b_Color[2] = color[2];
+
+		/* Do erase? */
+		if (self->b_BasicValues[BV_ERASE] < 1.0)
+			alpha *= self->b_BasicValues[BV_ERASE];
+
+#ifdef STAT_TIMING
+		uint64_t ts1, ts2;
+		READ_TIMESTAMP(ts1);
+#endif
+		if (drawdab_solid(self, area, self->b_Surface,
+						  dab_x, dab_y,
+						  dab_r, yratio, hardness,
+						  alpha, opa,
+						  self->b_cs, self->b_sn, color))
+		{
+			return;
+		}
+
+#ifdef STAT_TIMING
+		READ_TIMESTAMP(ts2);
+		self->b_Times[0] += ts2 - ts1;
+		self->b_TimesCount[0]++;
+#endif
+
+        dx = pt[2]->p_SX-x;
+        dy = pt[2]->p_SY-y;
+        float d = hypot(dx, dy) / rad_per_sp;
+        
+        if (fabs(d-dabs_todo) < 1e-4) break;
+        dabs_todo = d;
+    }
+
+    self->b_RemainSteps = dabs_frac + dabs_todo;
+}
 
 /*******************************************************************************************
 ** PyBrush_Type
 */
 
-//+ brush_new
 static PyObject *
 brush_new(PyTypeObject *type, PyObject *args)
 {
@@ -846,32 +1065,30 @@ brush_new(PyTypeObject *type, PyObject *args)
 
     return (PyObject *)self;
 }
-//-
-//+ brush_traverse
+
 static int
 brush_traverse(PyBrush *self, visitproc visit, void *arg)
 {
+    Py_VISIT(self->b_GetPixBufFunc);
     Py_VISIT(self->b_Surface);
     return 0;
 }
-//-
-//+ brush_clear
+
 static int
 brush_clear(PyBrush *self)
 {
+    Py_CLEAR(self->b_GetPixBufFunc);
     Py_CLEAR(self->b_Surface);
     return 0;
 }
-//-
-//+ brush_dealloc
+
 static void
 brush_dealloc(PyBrush *self)
 {
     brush_clear(self);
     self->ob_type->tp_free((PyObject *)self);
 }
-//-
-//+ brush_drawdab_solid
+
 static PyObject *
 brush_drawdab_solid(PyBrush *self, PyObject *args)
 {
@@ -915,188 +1132,105 @@ brush_drawdab_solid(PyBrush *self, PyObject *args)
 
     return Py_BuildValue("iiii", area.x1, area.y1, area.x2, area.y2);
 }
-//-
-//+ brush_drawstroke
+
 static PyObject *
 brush_drawstroke(PyBrush *self, PyObject *args)
 {
+    Point *pt[4];
     PyObject *state;
-    int ix, iy;
-    float sx, sy, radius, dist, pressure, dx, dy, tiltx, tilty, yratio;
-    float hardness, spacing, opacity;
-    MyRec area;
-    double time;
-
+	int i, j, ix, iy;
+	float sx, sy, radius, dist, pressure, dx, dy, tiltx, tilty;
+	double time;
+    
     if (NULL == self->b_Surface)
         return PyErr_Format(PyExc_RuntimeError, "Uninitialized brush");
 
-    if (!PyArg_ParseTuple(args, "O", &state))
-        return NULL;
+	if (!PyArg_ParseTuple(args, "O", &state))
+		return NULL;
 
-    /* Compute the total movement vector */
-    GET_2T_FLOAT_FROM_STROKE(state, sx, sy, "spos");
-    dx = sx - self->b_OldSX;
-    dy = sy - self->b_OldSY;
-    dist = hypotf(dx, dy);
+	/* Compute a points array with following indexes:
+	 * 0 : last starting point
+	 * 1 : starting point 
+	 * 2 : ending point
+	 * 3 : current device point
+	 */
 
-    if (dist == 0.)
-        Py_RETURN_NONE;
-        
-    GET_2T_INT_FROM_STROKE(state, ix, iy, "vpos");
-    GET_FLOAT_FROM_STROKE(state, time, "time");
-    GET_FLOAT_FROM_STROKE(state, tiltx, "xtilt");
-    GET_FLOAT_FROM_STROKE(state, tilty, "ytilt");
+	if (self->b_NeededPoints > 0)
+		j = 5 - self->b_NeededPoints;
+	else
+		j = self->b_PointIndex;
+	
+	for (i=0; i < 4; i++)
+		pt[i] = &self->b_Points[(i + j) % 4];
+	
+	/* Don't insert new point if no movement */
+	GET_2T_FLOAT_FROM_STROKE(state, sx, sy, "spos");
+	dx = sx - pt[2]->p_SX;
+	dy = sy - pt[2]->p_SY;
+	dist = hypotf(dx, dy);
 
+	if (dist == 0.)
+		Py_RETURN_NONE;
+	
+	GET_2T_INT_FROM_STROKE(state, ix, iy, "vpos");
+	GET_FLOAT_FROM_STROKE(state, time, "time");
+	GET_FLOAT_FROM_STROKE(state, tiltx, "xtilt");
+	GET_FLOAT_FROM_STROKE(state, tilty, "ytilt");
+
+	/* computing dynamic brush parameters */
+	GET_FLOAT_FROM_STROKE(state, pressure, "pressure");
+	pressure = CLAMP(pressure, 0.0, 1.0);
+	radius = get_radius_from_pressure(self, pressure);
+
+	if (0.0 == radius)
+		Py_RETURN_NONE;
+
+	double dtime = time - pt[2]->p_Time;
+
+	/* Point states are computed and ok, record it */
+	pt[3]->p_IX = ix;
+	pt[3]->p_IY = iy;
+	pt[3]->p_SXo = sx;
+	pt[3]->p_SYo = sy;
+	pt[3]->p_XTilt = tiltx;
+	pt[3]->p_YTilt = tilty;
+	pt[3]->p_Time = time;
+	pt[3]->p_Pressure = pressure;
+	pt[3]->p_Radius = radius;
+	pt[3]->p_Opacity = get_opacity_from_pressure(self, pressure);
+	
+	/* Motion tracking filter */
+	{
+		float speed = hypot(ix - pt[2]->p_IX, iy - pt[2]->p_IY) / dtime;
+		float lofac, fac = decay(1e3/speed, self->b_BasicValues[BV_HI_SPEED_TRACK]);
+
+		sx -= dx*fac;
+		sy -= dy*fac;
+		lofac = decay(self->b_BasicValues[BV_MOTION_TRACK], 1.0);
+		sx = sx*lofac + pt[2]->p_SX*(1.0-lofac);
+		sy = sy*lofac + pt[2]->p_SY*(1.0-lofac);
+	}
+	
+	pt[3]->p_SX = sx;
+	pt[3]->p_SY = sy;
+
+	/* Not enough points to start drawing? */
+	if (self->b_NeededPoints > 0)
+	{
+		self->b_NeededPoints--;
+		Py_RETURN_NONE;
+	}
+	
+	self->b_PointIndex = (self->b_PointIndex + 1) % 4;
+
+    /* Drawing dabs between pt[1] and pt[2] */
+    MyRec area;
+    
     area.x1 = area.y1 = INT32_MAX;
     area.x2 = area.y2 = INT32_MIN;
     
-    /* computing dynamic brush parameters */
-    GET_FLOAT_FROM_STROKE(state, pressure, "pressure");
-    pressure = CLAMP(pressure, 0.0, 1.0);
-    radius = get_radius_from_pressure(self, pressure);
+	_draw_stroke(self, pt, &area);
     
-    if (0.0 == radius)
-        Py_RETURN_NONE;
-    
-    /* clamping values */
-    yratio = CLAMP(self->b_BasicValues[BV_YRATIO], 1.0, 100.0);
-    hardness = CLAMP(self->b_BasicValues[BV_HARDNESS], 0.01, 1.0);
-    spacing = MAX(self->b_BasicValues[BV_SPACING], 0.01);
-    
-    {
-        double dtime = time - self->b_Time;
-        float speed = hypot(ix-self->b_OldIX, iy-self->b_OldIY) / dtime;
-        float lofac, fac = decay(1e3/speed, self->b_BasicValues[BV_HI_SPEED_TRACK]);
-        float color[MAX_CHANNELS];
-
-        /* TODO: CYMK colorspace handling */
-        color[0] = self->b_RGBColor[0];
-        color[1] = self->b_RGBColor[1];
-        color[2] = self->b_RGBColor[2];
-        color[3] = 1.0;
-        
-        /* Motion tracking filter */
-        sx -= dx*fac;
-        sy -= dy*fac;
-        lofac = decay(self->b_BasicValues[BV_MOTION_TRACK], 1.0);
-        sx = sx*lofac + self->b_OldSX*(1.0-lofac);
-        sy = sy*lofac + self->b_OldSY*(1.0-lofac);
-        
-        dx = sx - self->b_OldSX;
-        dy = sy - self->b_OldSY;
-        dist = hypotf(dx, dy);
-    
-        float dabs_frac, dabs_todo;
-
-        /* Number of dabs to draw.
-         * d is the euclidian distance between 2 events.
-         * Note: this distance is inaccurate when dabs positions
-         * are interpolated on a curved path.
-         *
-         * But I don't care! :-p
-         */
-         
-        float x, y, p, r, opa, rad_per_sp=radius*spacing;
-        float rad_rand = self->b_BasicValues[BV_RADIUS_RANDOM] * radius;
-    
-        dabs_frac = self->b_RemainSteps; /* float value in [0.0, 1.0[ */
-        dabs_todo  = dist / rad_per_sp;
-        //dabs_todo += dist / (self->b_Radius*spacing);
-
-        x = self->b_OldSX;
-        y = self->b_OldSY;
-        p = self->b_Pressure;
-        r = self->b_Radius;
-        
-        fac = self->b_BasicValues[BV_OPACITY_COMPENSATION]/spacing;
-        opa = powf(self->b_Opacity, fac);
-        self->b_Opacity = get_opacity_from_pressure(self, pressure);
-        opacity = powf(self->b_Opacity, fac);
-        
-        /* Brush direction (cos/sin) */
-        self->b_cs = -dy/dist;
-        self->b_sn = dx/dist;
-        
-        /* until dabs to drawn remain */
-        while ((dabs_frac+dabs_todo) >= 1.0)
-        {
-            float alpha=1.0;
-            float d, step_frac; /* represent the fraction of distance to do
-                                 * between the 2 control knots.
-                                 */
-
-            if (dabs_frac > 0.0)
-            {
-                step_frac = (1.0 - dabs_frac) / dabs_todo;
-                dabs_frac = 0.0;
-            }
-            else
-                step_frac = 1.0 / dabs_todo;
-            
-            /* Compute per dab states */
-            x += step_frac * (sx-x);
-            y += step_frac * (sy-y);
-            p += step_frac * (pressure-p);
-            if (CLAMP(p, 0.0, 1.0) != p) printf("p warn\n");
-            r += step_frac * (radius-r);
-            opa += step_frac * (opacity-opa);
-            
-            /* Randomizing position */
-            if (rad_rand > 0.0)
-            {
-                sx += (myrand1()*2.-1.)*rad_rand;
-                sy += (myrand2()*2.-1.)*rad_rand;
-            }
-                
-            /* smudge step */
-            if (process_smudge(self, x, y,
-                               r, yratio, self->b_cs, self->b_sn,
-                               hardness, color, &alpha))
-            {
-                return NULL;
-            }
-
-            /* Do erase? */
-            if (self->b_BasicValues[BV_ERASE] < 1.0)
-                alpha *= self->b_BasicValues[BV_ERASE];
-
-#ifdef STAT_TIMING
-            uint64_t ts1, ts2;
-            READ_TIMESTAMP(ts1);
-#endif
-            if (drawdab_solid(self, &area, self->b_Surface,
-                              x, y, r, yratio, hardness,
-                              alpha, opa,
-                              self->b_cs, self->b_sn, color))
-            {
-                return NULL;
-            }
-
-#ifdef STAT_TIMING
-            READ_TIMESTAMP(ts2);
-            self->b_Times[0] += ts2 - ts1;
-            self->b_TimesCount[0]++;
-#endif
-
-            dist = hypotf(sx-x, sy-y);
-            d = dist / rad_per_sp;
-            //d += dist / (self->b_Radius*spacing);
-            if (d == dabs_todo) Py_RETURN_NONE; /* safe exit */
-            dabs_todo = d;
-        }
-        
-        self->b_RemainSteps = dabs_frac+dabs_todo;
-    }
-    
-    /* Record values */
-    self->b_OldIX = ix;
-    self->b_OldIY = iy;
-    self->b_OldSX = sx;
-    self->b_OldSY = sy;
-    self->b_Pressure = pressure;
-    self->b_Time = time;
-    self->b_Radius = radius;
-
     /* something drawn? */
     //printf("%d %d %d %d\n", area.x1, area.y1, area.x2, area.y2);
     if (area.x1 != INT32_MAX)
@@ -1104,8 +1238,7 @@ brush_drawstroke(PyBrush *self, PyObject *args)
         
     Py_RETURN_NONE;
 }
-//-
-//+ brush_invalid_cache
+
 static PyObject *
 brush_invalid_cache(PyBrush *self)
 {
@@ -1142,68 +1275,141 @@ brush_invalid_cache(PyBrush *self)
 
     Py_RETURN_NONE;
 }
-//-
-//+ brush_stroke_start
+
 static PyObject *
 brush_stroke_start(PyBrush *self, PyObject *args)
 {
     PyObject *state, *res;
-    float xtilt, ytilt;
-    float alpha, color[MAX_CHANNELS];
+    float alpha;
+    Point *pt;
 
     if (!PyArg_ParseTuple(args, "O", &state))
         return NULL;
 
-    /* Read device states */
-    GET_2T_INT_FROM_STROKE(state, self->b_OldIX, self->b_OldIY, "vpos");
-    GET_2T_FLOAT_FROM_STROKE(state, self->b_OldSX, self->b_OldSY, "spos");
-    GET_FLOAT_FROM_STROKE(state, self->b_Pressure, "pressure");
-    GET_FLOAT_FROM_STROKE(state, self->b_Time, "time");
-    GET_FLOAT_FROM_STROKE(state, xtilt, "xtilt");
-    GET_FLOAT_FROM_STROKE(state, ytilt, "ytilt");
-
     self->b_RemainSteps = 0.0;
-    self->b_Pressure = CLAMP(self->b_Pressure, 0.0, 1.0);
-    self->b_Radius = get_radius_from_pressure(self, self->b_Pressure);
-    self->b_Opacity = get_opacity_from_pressure(self, self->b_Pressure);
+    self->b_PointIndex = 0;
+    self->b_NeededPoints = 2;
 
-    res = brush_invalid_cache(self);
+    /* Read first point states (p0) */
+    pt = &self->b_Points[0];
+
+    GET_2T_INT_FROM_STROKE(state, pt->p_IX, pt->p_IY, "vpos");
+    GET_2T_FLOAT_FROM_STROKE(state, pt->p_SX, pt->p_SY, "spos");
+    GET_FLOAT_FROM_STROKE(state, pt->p_Pressure, "pressure");
+    GET_FLOAT_FROM_STROKE(state, pt->p_Time, "time");
+    GET_FLOAT_FROM_STROKE(state, pt->p_XTilt, "xtilt");
+    GET_FLOAT_FROM_STROKE(state, pt->p_YTilt, "ytilt");
+
+    pt->p_Pressure = CLAMP(pt->p_Pressure, 0.0, 1.0);
+    pt->p_Radius = get_radius_from_pressure(self, pt->p_Pressure);
+    pt->p_Opacity = get_opacity_from_pressure(self, pt->p_Pressure);
+    
+    /* Duplicate for Hermite spline initial conditions (need a tangent at first point) */
+    memcpy(&pt[1], &pt[0], sizeof(Point));
+    
+    res = brush_invalid_cache(self); /* NR */
     if (NULL == res)
         return NULL;
 
     Py_DECREF(res);
 
-    memcpy(color, self->b_RGBColor, sizeof(self->b_RGBColor));
+    /* TODO: CYMK handling */
+    bzero(self->b_SmudgeColor, sizeof(self->b_SmudgeColor));
+    memcpy(self->b_Color, self->b_RGBColor, sizeof(self->b_Color));
+    
+    #if 1
+    /* Brush direction (cos/sin) */
+    float xtilt = pt->p_XTilt;
+    float ytilt = pt->p_YTilt;
+        
+    /* Discretized direction brush angle [0, 1023] */
+    float angle = atanf(xtilt/ytilt) + self->b_BasicValues[BV_ANGLE]*M_TWOPI/360.;
     
     /* setup starting smudge value */
-    if (process_smudge(self, self->b_OldSX, self->b_OldSY,
-                       self->b_Radius,
+    if (process_smudge(self, pt->p_SX, pt->p_SY, pt->p_Radius,
                        self->b_BasicValues[BV_YRATIO],
-                       1.0, 0.0,
+                       cosf(angle), sinf(angle),
                        self->b_BasicValues[BV_HARDNESS],
-                       color, &alpha))
+                       self->b_Color, &alpha))
     {
         return NULL;
     }
+    #endif
 
     Py_RETURN_NONE;
 }
-//-
-//+ brush_stroke_end
+
 static PyObject *
 brush_stroke_end(PyBrush *self, PyObject *args)
 {
+	Point *pt[4];
+
+	if (!self->b_NeededPoints)
+	{
+		MyRec area;
+		int i;
+		
+		area.x1 = area.y1 = INT32_MAX;
+		area.x2 = area.y2 = INT32_MIN;
+		
+		/* re-insert last point and draw dabs as usual, do it twice */
+		for (i=0; i < 4; i++)
+			pt[i] = &self->b_Points[(i + self->b_PointIndex) % 4];
+		memcpy(pt[3], pt[2], sizeof(Point));
+		pt[3]->p_SX = pt[3]->p_SXo;
+		pt[3]->p_SY = pt[3]->p_SYo;
+		_draw_stroke(self, pt, &area);
+		
+		for (i=0; i < 4; i++)
+			pt[i] = &self->b_Points[(i + self->b_PointIndex + 1) % 4];
+		memcpy(pt[3], pt[2], sizeof(Point));
+		_draw_stroke(self, pt, &area);
+		
+		/* something drawn? */
+		if (area.x1 != INT32_MAX)
+			return Py_BuildValue("iiII", area.x1, area.y1, area.x2-area.x1+1, area.y2-area.y1+1);
+	}
+		
     Py_RETURN_NONE;
 }
-//-
-//+ brush_get_states
+
+static PyObject *
+brush_get_pixel(PyBrush *self, PyObject *args)
+{
+    float x, y, color[MAX_CHANNELS];
+    int err;
+    PyObject *res;
+    
+    if (!PyArg_ParseTuple(args, "ff", &x, &y))
+        return NULL;
+        
+    res = brush_invalid_cache(self); /* NR */
+    if (NULL == res)
+        return NULL;
+        
+    Py_DECREF(res);
+        
+    /* use full surface under basic radius (i.e. displayed cursor area) */
+    err = get_dab_color(self, self->b_Surface,
+                        x, y,
+                        self->b_BasicValues[BV_RADIUS_MAX],
+                        1.0, 1.0, 1.0, 0.0, color);
+    if (err != 0)
+        Py_RETURN_NONE;
+    
+    /* Alpha-premul */
+    color[0] *= color[3];
+    color[1] *= color[3];
+    color[2] *= color[3];
+            
+    return Py_BuildValue("fff", color[0], color[1], color[2]);
+}
 static PyObject *
 brush_get_states(PyBrush *self)
 {
     return PyBuffer_FromReadWriteMemory((void *)self->b_BasicValues, sizeof(self->b_BasicValues));
 }
-//-
-//+ brush_get_state
+
 static PyObject *
 brush_get_state(PyBrush *self, PyObject *args)
 {
@@ -1217,8 +1423,7 @@ brush_get_state(PyBrush *self, PyObject *args)
 
     return PyFloat_FromDouble((double)self->b_BasicValues[index]);
 }
-//-
-//+ brush_set_state
+
 static PyObject *
 brush_set_state(PyBrush *self, PyObject *args)
 {
@@ -1231,13 +1436,19 @@ brush_set_state(PyBrush *self, PyObject *args)
     if (index >= BASIC_VALUES_MAX)
         return PyErr_Format(PyExc_IndexError, "index shall be lower than %u", BASIC_VALUES_MAX);
 
+    /* Clamping */
+    switch (index)
+    {
+        case BV_YRATIO: value = CLAMP(value, 1.0, 100.0); break;
+        case BV_HARDNESS: value = CLAMP(value, 0.01, 1.0); break;
+        case BV_SPACING: value = MAX(value, 0.01); break;
+    }
+
     self->b_BasicValues[index] = value;
 
     Py_RETURN_NONE;
 }
-//-
 
-//+ brush_get_surface
 static PyObject *
 brush_get_surface(PyBrush *self, void *closure)
 {
@@ -1251,23 +1462,36 @@ brush_get_surface(PyBrush *self, void *closure)
     Py_INCREF(value);
     return value;
 }
-//-
-//+ brush_set_surface
+
 static int
 brush_set_surface(PyBrush *self, PyObject *value, void *closure)
 {
-    if (NULL == value) {
-        Py_CLEAR(self->b_Surface);
+    if (value == self->b_Surface)
         return 0;
+    
+    if (NULL != self->b_Surface)
+    {
+        my_Py_DECREF(self->b_GetPixBufFunc);
+        my_Py_DECREF(self->b_Surface);
     }
-
-    self->b_Surface = value;
+    
+    if (NULL == value)
+        return 0;
+    
     Py_INCREF(value);
+    self->b_Surface = value;
+
+    /* Cache get_pixbuf method */
+    self->b_GetPixBufFunc = PyObject_GetAttrString(value, "get_pixbuf"); /* NR */
+	if (NULL == self->b_GetPixBufFunc)
+    {
+		PyErr_SetString(PyExc_AttributeError, "Surface doesn't provide get_pixbuf method");
+		return 1;
+	}
 
     return 0;
 }
-//-
-//+ brush_get_float
+
 static PyObject *
 brush_get_float(PyBrush *self, int index)
 {
@@ -1275,8 +1499,7 @@ brush_get_float(PyBrush *self, int index)
 
     return PyFloat_FromDouble((double)*ptr);
 }
-//-
-//+ brush_set_float
+
 static int
 brush_set_float(PyBrush *self, PyObject *value, int index)
 {
@@ -1293,11 +1516,18 @@ brush_set_float(PyBrush *self, PyObject *value, int index)
     if (PyErr_Occurred())
         return 1;
 
+    /* Clamping */
+    switch (index)
+    {
+        case BV_YRATIO: v = CLAMP(v, 1.0, 100.0); break;
+        case BV_HARDNESS: v = CLAMP(v, 0.01, 1.0); break;
+        case BV_SPACING: v = MAX(v, 0.01); break;
+    }
+
     *ptr = v;
     return 0;
 }
-//-
-//+ brush_set_normalized_float
+
 static int
 brush_set_normalized_float(PyBrush *self, PyObject *value, int index)
 {
@@ -1317,24 +1547,21 @@ brush_set_normalized_float(PyBrush *self, PyObject *value, int index)
     *ptr = CLAMP(v, 0.0, 1.0);
     return 0;
 }
-//-
-//+ brush_get_hsvcolor
+
 static PyObject *
 brush_get_hsvcolor(PyBrush *self, void *closure)
 {
     float ptr = self->b_HSVColor[(int)closure];
     return PyFloat_FromDouble(ptr);
 }
-//-
-//+ brush_get_rgbcolor
+
 static PyObject *
 brush_get_rgbcolor(PyBrush *self, void *closure)
 {
     float ptr = self->b_RGBColor[(int)closure];
     return PyFloat_FromDouble(ptr);
 }
-//-
-//+ brush_set_hsvcolor
+
 static int
 brush_set_hsvcolor(PyBrush *self, PyObject *value, void *closure)
 {
@@ -1355,8 +1582,7 @@ brush_set_hsvcolor(PyBrush *self, PyObject *value, void *closure)
     hsv_to_rgb(self->b_HSVColor, self->b_RGBColor);
     return 0;
 }
-//-
-//+ brush_set_rgbcolor
+
 static int
 brush_set_rgbcolor(PyBrush *self, PyObject *value, void *closure)
 {
@@ -1377,16 +1603,13 @@ brush_set_rgbcolor(PyBrush *self, PyObject *value, void *closure)
     rgb_to_hsv(self->b_RGBColor, self->b_HSVColor);
     return 0;
 }
-//-
 
-//+ brush_get_hsv
 static PyObject *
 brush_get_hsv(PyBrush *self, void *closure)
 {
     return Py_BuildValue("fff", self->b_HSVColor[0], self->b_HSVColor[1], self->b_HSVColor[2]);
 }
-//-
-//+ brush_set_hsv
+
 static int
 brush_set_hsv(PyBrush *self, PyObject *value, void *closure)
 {
@@ -1405,15 +1628,13 @@ brush_set_hsv(PyBrush *self, PyObject *value, void *closure)
     hsv_to_rgb(self->b_HSVColor, self->b_RGBColor);
     return 0;
 }
-//-
-//+ brush_get_rgb
+
 static PyObject *
 brush_get_rgb(PyBrush *self, void *closure)
 {
     return Py_BuildValue("fff", self->b_RGBColor[0], self->b_RGBColor[1], self->b_RGBColor[2]);
 }
-//-
-//+ brush_set_rgb
+
 static int
 brush_set_rgb(PyBrush *self, PyObject *value, void *closure)
 {
@@ -1432,26 +1653,32 @@ brush_set_rgb(PyBrush *self, PyObject *value, void *closure)
     rgb_to_hsv(self->b_RGBColor, self->b_HSVColor);
     return 0;
 }
-//-
 
-static PyGetSetDef brush_getseters[] = {
+
+static PyGetSetDef brush_getsetters[] = {
     {"surface",         (getter)brush_get_surface, (setter)brush_set_surface,          "Surface to use", NULL},
 
     {"radius_min",      (getter)brush_get_float,   (setter)brush_set_float,            "Radius min",              (void *)BV_RADIUS_MIN},
     {"radius_max",      (getter)brush_get_float,   (setter)brush_set_float,            "Radius max",              (void *)BV_RADIUS_MAX},
     {"yratio",          (getter)brush_get_float,   (setter)brush_set_float,            "Y-ratio",                 (void *)BV_YRATIO},
+    {"angle",           (getter)brush_get_float,   (setter)brush_set_float,            "Dab angle",               (void *)BV_ANGLE},
     {"hardness",        (getter)brush_get_float,   (setter)brush_set_normalized_float, "Hardness",                (void *)BV_HARDNESS},
     {"opacity_min",     (getter)brush_get_float,   (setter)brush_set_normalized_float, "Opacity min",             (void *)BV_OPACITY_MIN},
     {"opacity_max",     (getter)brush_get_float,   (setter)brush_set_normalized_float, "Opacity max",             (void *)BV_OPACITY_MAX},
     {"opa_comp",        (getter)brush_get_float,   (setter)brush_set_float,            "Opacity compensation",    (void *)BV_OPACITY_COMPENSATION},
     {"erase",           (getter)brush_get_float,   (setter)brush_set_normalized_float, "Erase",                   (void *)BV_ERASE},
-    {"radius_random",   (getter)brush_get_float,   (setter)brush_set_normalized_float, "Radius Randomize",        (void *)BV_RADIUS_RANDOM},
+    {"dab_radius_jitter",(getter)brush_get_float,   (setter)brush_set_normalized_float,"Per dab radius jitter",   (void *)BV_DAB_RADIUS_JITTER},
+    {"dab_pos_jitter",  (getter)brush_get_float,   (setter)brush_set_float,            "Per dab position jitter", (void *)BV_DAB_POS_JITTER},
+    {"direction_jitter",(getter)brush_get_float,   (setter)brush_set_normalized_float, "Direction jitter",        (void *)BV_DIRECTION_JITTER},
     {"spacing",         (getter)brush_get_float,   (setter)brush_set_float,            "Spacing",                 (void *)BV_SPACING},
     {"grain",           (getter)brush_get_float,   (setter)brush_set_normalized_float, "Grain factor",            (void *)BV_GRAIN_FAC},
     {"motion_track",    (getter)brush_get_float,   (setter)brush_set_float,            "Motion tracking factor",  (void *)BV_MOTION_TRACK},
     {"hi_speed_track",  (getter)brush_get_float,   (setter)brush_set_float,            "Hi speed tracking factor",(void *)BV_HI_SPEED_TRACK},
     {"smudge",          (getter)brush_get_float,   (setter)brush_set_normalized_float, "Smudge factor",           (void *)BV_SMUDGE},
     {"smudge_var",      (getter)brush_get_float,   (setter)brush_set_normalized_float, "Smudge variation factor", (void *)BV_SMUDGE_VAR},
+    {"color_shift_h",   (getter)brush_get_float,   (setter)brush_set_float,            "Color H shifting",        (void *)BV_COLOR_SHIFT_H},
+    {"color_shift_s",   (getter)brush_get_float,   (setter)brush_set_float,            "Color S shifting",        (void *)BV_COLOR_SHIFT_S},
+    {"color_shift_v",   (getter)brush_get_float,   (setter)brush_set_float,            "Color V shifting",        (void *)BV_COLOR_SHIFT_V},
 
     {"hsv",             (getter)brush_get_hsv,      (setter)brush_set_hsv,              "HSV Color",                    NULL},
     {"rgb",             (getter)brush_get_rgb,      (setter)brush_set_rgb,              "RGB Color",                    NULL},
@@ -1475,17 +1702,13 @@ static PyGetSetDef brush_getseters[] = {
 };
 
 static struct PyMethodDef brush_methods[] = {
-    //{"drawdab_solid", (PyCFunction)brush_drawdab_solid, METH_VARARGS, NULL},
+    /*{"drawdab_solid", (PyCFunction)brush_drawdab_solid, METH_VARARGS, NULL},*/
     {"draw_stroke",   (PyCFunction)brush_drawstroke,    METH_VARARGS, NULL},
     {"invalid_cache", (PyCFunction)brush_invalid_cache, METH_NOARGS,  NULL},
     {"stroke_start", (PyCFunction)brush_stroke_start, METH_VARARGS, NULL},
     {"stroke_end", (PyCFunction)brush_stroke_end, METH_VARARGS, NULL},
+    {"get_pixel", (PyCFunction)brush_get_pixel, METH_VARARGS, NULL},
     {NULL} /* sentinel */
-};
-
-static PyMemberDef brush_members[] = {
-    {"pressure", T_FLOAT, offsetof(PyBrush, b_Pressure), 0, NULL},
-    {NULL}
 };
 
 static PyTypeObject PyBrush_Type = {
@@ -1501,8 +1724,7 @@ static PyTypeObject PyBrush_Type = {
     tp_clear        : (inquiry)brush_clear,
     tp_dealloc      : (destructor)brush_dealloc,
     tp_methods      : brush_methods,
-    tp_getset       : brush_getseters,
-    tp_members      : brush_members,
+    tp_getset       : brush_getsetters,
 };
 
 
@@ -1510,38 +1732,50 @@ static PyTypeObject PyBrush_Type = {
 ** Module
 */
 
-//+ _BrushMethods
 static PyMethodDef _BrushMethods[] = {
     {NULL}
 };
-//-
 
-//+ add_constants
+
 static int add_constants(PyObject *m)
 {
     INSI(m, "BV_RADIUS_MIN", BV_RADIUS_MIN);
     INSI(m, "BV_RADIUS_MAx", BV_RADIUS_MAX);
     INSI(m, "BV_YRATIO", BV_YRATIO);
+    INSI(m, "BV_ANGLE", BV_ANGLE);
     INSI(m, "BV_HARDNESS", BV_HARDNESS);
     INSI(m, "BV_OPACITY_MIN", BV_OPACITY_MIN);
     INSI(m, "BV_OPACITY_MAX", BV_OPACITY_MAX);
     INSI(m, "BV_OPACITY_COMPENSATION", BV_OPACITY_COMPENSATION);
     INSI(m, "BV_ERASE", BV_ERASE);
-    INSI(m, "BV_RADIUS_RANDOM", BV_RADIUS_RANDOM);
+    INSI(m, "BV_DAB_RADIUS_JITTER", BV_DAB_RADIUS_JITTER);
+    INSI(m, "BV_DAB_POS_JITTER", BV_DAB_POS_JITTER);
+    INSI(m, "BV_DIRECTION_JITTER", BV_DIRECTION_JITTER);
     INSI(m, "BV_SPACING", BV_SPACING);
     INSI(m, "BV_GRAIN_FAC", BV_GRAIN_FAC);
     INSI(m, "BV_SMUDGE", BV_SMUDGE);
     INSI(m, "BV_SMUDGE_VAR", BV_SMUDGE_VAR);
+    INSI(m, "BV_COLOR_SHIFT_H", BV_COLOR_SHIFT_H);
+    INSI(m, "BV_SCOLOR_SHIFT_S", BV_COLOR_SHIFT_S);
+    INSI(m, "BV_COLOR_SHIFT_V", BV_COLOR_SHIFT_V);
     INSI(m, "BASIC_VALUES_MAX", BASIC_VALUES_MAX);
 
     return 0;
 }
-//-
-//+ INITFUNC()
 PyMODINIT_FUNC
 INITFUNC(void)
 {
     PyObject *m, *_pixbuf;
+    int i;
+
+    /* pre-compute cos/sin tables */
+    for (i=0; i<CS_TABLE_SIZE; i++)
+    {
+        float a = i * M_TWOPI/1024.0;
+        
+        fixed_cos[i] = cosf(a);
+        fixed_sin[i] = sinf(a);
+    }
 
     if (PyType_Ready(&PyBrush_Type) < 0) return;
 
@@ -1564,4 +1798,3 @@ INITFUNC(void)
         return;
     }
 }
-//-

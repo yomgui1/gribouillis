@@ -26,11 +26,14 @@
 from math import exp
 
 class DeviceState(object):
-    __slots__ = "vpos spos pressure xtilt ytilt time".split()
+    __slots__ = "cpos vpos spos pressure xtilt ytilt angle time".split()
 
-    ## vpos = (x, y) is device position in view coordinates
+    ## cpos = (x, y) is device position in view coordinates
+    ## vpos = like cpos but after possible filtering
     ## spos = (sx, sy) is device position in document coordinates
 
+    def __repr__(self):
+        return "(%d, %d)" % self.cpos
 
 class InputDevice(object):
     """InputDevice()
@@ -47,8 +50,10 @@ class InputDevice(object):
         self.previous = self.current
         self.current = state
 
-    def get_state(self):
-        return self.current
-        
-    def get_delta_time(self):
+    @property
+    def view_motion(self):
+        return [ a-b for a,b in zip(self.current.vpos, self.previous.vpos) ]
+
+    @property
+    def delta_time(self):
         return self.current.time - self.previous.time

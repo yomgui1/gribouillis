@@ -26,7 +26,7 @@
 import os
 import mixin
 
-from .backend_cairo import ViewPort
+from viewport import *
 
 if os.name == 'morphos':
     backend_name = 'pymui'

@@ -23,19 +23,26 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import gtk
-import gobject
-import cairo
+import gtk, gobject, cairo
 
 from gtk import gdk
+from random import random
+from math import ceil
 
-import model, view, main, utils
+import view, main
 
 from model.devices import *
-from utils import Mediator, mvcHandler, idle_cb
-from .app import Application
+from model.profile import Transform
 
-__all__ = [ 'DocViewer', 'DocumentMediator' ]
+from utils import delayedmethod
+from view import cairo_tools as tools
+from view import event, viewport
+
+from .app import Application
+from .cms import *
+from .eventparser import EventParser
+
+__all__ = [ 'DocViewer' ]
 
 def _menu_signal(name):
     return gobject.signal_new(name, gtk.Window,
@@ -43,31 +50,59 @@ def _menu_signal(name):
                               gobject.TYPE_BOOLEAN, ())
 
 # signal used to communicate between viewer's menu and document mediator
-sig_menu_quit    = _menu_signal('menu_quit')
-sig_menu_new_doc = _menu_signal('menu_new_doc')
-sig_menu_load_doc = _menu_signal('menu_load_doc')
-sig_menu_save_doc = _menu_signal('menu_save_doc')
-sig_menu_close_doc = _menu_signal('menu_close_doc')
-sig_menu_clear_layer = _menu_signal('menu_clear_layer')
-sig_menu_undo = _menu_signal('menu_undo')
-sig_menu_redo = _menu_signal('menu_redo')
-sig_menu_redo = _menu_signal('menu_flush')
-sig_menu_load_background = _menu_signal('menu_load_background')
+sig_menu_quit                = _menu_signal('menu_quit')
+sig_menu_new_doc             = _menu_signal('menu_new_doc')
+sig_menu_load_doc            = _menu_signal('menu_load_doc')
+sig_menu_save_doc            = _menu_signal('menu_save_doc')
+sig_menu_close_doc           = _menu_signal('menu_close_doc')
+sig_menu_clear_layer         = _menu_signal('menu_clear_layer')
+sig_menu_undo                = _menu_signal('menu_undo')
+sig_menu_redo                = _menu_signal('menu_redo')
+sig_menu_redo                = _menu_signal('menu_flush')
+sig_menu_load_background     = _menu_signal('menu_load_background')
 sig_menu_load_image_as_layer = _menu_signal('menu_load_image_as_layer')
 
 
-class Viewport(gtk.DrawingArea, view.ViewPort):
-    """Viewport class.
+class DocDisplayArea(gtk.DrawingArea, viewport.BackgroundMixin):
+    """DocDisplayArea class.
 
-    This class is responsible to display a surface (model) instance to user.
+    This class is responsible to display a given document.
     It owns and handles display properties like affine transformations,
     background, and so on.
+    It handles user events from input devices to modify the document.
+    This class can also dispay tools and cursor.
     """
 
-    def __init__(self, dv):
-        super(Viewport, self).__init__()
-        self.dv = dv
+    width = height = 0
+    _cur_area = None
+    _cur_pos = (0,0)
+    _cur_on = False
+    _evtcontext = None
+    _swap_x = _swap_y = None
+    _debug = 0
+    selpath = None
 
+    def __init__(self, win, docproxy):
+        super(DocDisplayArea, self).__init__()
+        
+        self._win = win
+        self.docproxy = docproxy
+        self.device = InputDevice()
+
+        # Viewport's
+        self._docvp = view.DocumentViewPort(docproxy)
+        self._toolsvp = view.ToolsViewPort()
+        
+        self._curvp = tools.Cursor()
+        self._curvp.set_radius(docproxy.document.brush.radius_max)
+
+        self._evmgr = event.EventManager(vp=self)
+        self._evmgr.set_current('Viewport')
+
+        # Aliases
+        self.get_view_area = self._docvp.get_view_area
+        self.enable_fast_filter = self._docvp.enable_fast_filter
+        
         self.set_events(gdk.EXPOSURE_MASK
                         | gdk.BUTTON_PRESS_MASK
                         | gdk.BUTTON_RELEASE_MASK
@@ -79,76 +114,310 @@ class Viewport(gtk.DrawingArea, view.ViewPort):
                         | gdk.KEY_RELEASE_MASK)
         self.set_can_focus(True)
         self.set_sensitive(True)
+        
+        self.connect("expose-event"        , self.on_expose)
+        self.connect("motion-notify-event" , self.on_motion_notify)
+        self.connect("button-press-event"  , self.on_button_press)
+        self.connect("button-release-event", self.on_button_release)
+        self.connect("scroll-event"        , self.on_scroll)
+        self.connect("enter-notify-event"  , self.on_enter)
+        self.connect("leave-notify-event"  , self.on_leave)
+        self.connect("key-press-event"     , self.on_key_pressed)
+        self.connect("key-release-event"   , self.on_key_released)
 
-        self.set_background(main.Gribouillis.DEFAULT_BACKGROUND)
+        self.set_background(main.Gribouillis.TRANSPARENT_BACKGROUND)
 
-    def _set_background(self, filename):
-        pixbuf = gdk.pixbuf_new_from_file(filename)
-        pixmap, mask = pixbuf.render_pixmap_and_mask()
-        self.window.set_back_pixmap(pixmap, False)
+    # PyGTK events
+    #
 
-    def on_expose(self, widget, evt, docproxy):
-        cr = widget.window.cairo_create()
-        self.repaint(cr, docproxy, evt.area, self.allocation.width, self.allocation.height)
+    def on_expose(self, widget, evt):
+        width = self.allocation.width
+        height = self.allocation.height
+
+        # Update ViewPorts size if size changed
+        if self.width != width or self.height != height:
+            self.width = width
+            self.height = height
+
+            # Process document and tools viewports
+            self._docvp.set_view_size(width, height)
+            self._toolsvp.set_view_size(width, height)
+
+            self._docvp.repaint()
+            self._toolsvp.repaint()
+
+        # Blit model and tools viewports on window RastPort (pixfmt compatible = ARGB)
+        cr = self.window.cairo_create()
+
+        cr.rectangle(*evt.area)
+        cr.clip()
+
+        cr.set_operator(cairo.OPERATOR_SOURCE)
+        
+        # Paint background first
+        dx, dy = self._docvp.offset
+        cr.translate(dx, dy)
+        if self._backpat:
+            cr.set_source(self._backpat)
+        else:
+            cr.set_source_rgb(*self._backcolor)
+        cr.paint()
+        cr.translate(-dx, -dy)
+
+        cr.set_operator(cairo.OPERATOR_OVER)
+        cr.set_source_surface(self._docvp.cairo_surface, 0, 0)
+        cr.paint()
+    
+        if self._debug:
+            cr.set_source_rgba(1,0,0,random()*.7)
+            cr.paint()
+            
+        cr.set_source_surface(self._toolsvp.cairo_surface, 0, 0)
+        cr.paint()
+
+        self._cur_area = None
+        if self._cur_on:
+            self._cur_area = self._get_cursor_clip(*self._cur_pos)
+            self._curvp.render()
+            x, y = self._cur_pos
+            x -= self._cur_area[2]/2
+            y -= self._cur_area[3]/2
+            cr.set_source_surface(self._curvp.cairo_surface, x, y)
+            cr.paint()
+            
         return True
 
-    def redraw(self, area=None, model=True, tools=True, cursor=True):
-        self.set_repaint(model, tools, cursor)
-        if area:
-            self.queue_draw_area(*map(int, area))
+    # Events dispatchers
+    #
+    
+    def on_button_press(self, widget, evt):
+        # ignore double-click events
+        if evt.type == gdk.BUTTON_PRESS:
+            eat, self._evtcontext = self._evtcontext.process('key-pressed', EventParser(evt))
+            return eat
+
+    def on_button_release(self, widget, evt):
+        if evt.type == gdk.BUTTON_RELEASE:
+            eat, self._evtcontext = self._evtcontext.process('key-released', EventParser(evt))
+            return eat
+        
+    def on_motion_notify(self, widget, evt):
+        # We always receive the event event if not in focus
+        if not self.has_focus():
+            return
+        
+        eat, self._evtcontext = self._evtcontext.process('cursor-motion', EventParser(evt))
+        return eat
+
+    def on_scroll(self, widget, evt):
+        # There is only one event in GDK for mouse wheel change,
+        # so split it as two key events.
+        ep = EventParser(evt)
+        eat1, self._evtcontext = self._evtcontext.process('key-pressed', ep)
+        eat2, self._evtcontext = self._evtcontext.process('key-released', ep)
+        return eat1 or eat2
+
+    def on_enter(self, widget, evt):
+        eat, self._evtcontext = self._evtcontext.process('cursor-enter', EventParser(evt))
+        return eat
+        
+    def on_leave(self, widget, evt):
+        eat, self._evtcontext = self._evtcontext.process('cursor-leave', EventParser(evt))
+        return eat
+
+    def on_key_pressed(self, widget, evt):
+        eat, self._evtcontext = self._evtcontext.process('key-pressed', EventParser(evt))
+        return eat
+
+    def on_key_released(self, widget, evt):
+        eat, self._evtcontext = self._evtcontext.process('key-released', EventParser(evt))
+        return eat
+        
+    # Public API
+    #
+
+    def enable_motion_events(self, state=True):
+        pass # Possible?
+    
+    def is_tool_hit(self, tool, *pos):
+        return self._toolsvp.is_tool_hit(tool, *pos)
+
+    def get_model_distance(self, *a):
+        return self._docvp.get_model_distance(*a)
+
+    def get_model_point(self, *a):
+        return self._docvp.get_model_point(*a)
+
+    def lock_focus(self): pass
+    def unlock_focus(self): pass
+    
+    #### Rendering ####
+
+    def redraw(self, clip=None):
+        if clip:
+            clip = tuple(clip)
         else:
-            self.queue_draw()
+            clip = (0, 0, self.allocation.width, self.allocation.height)
+        self.window.invalidate_rect(clip, False)
+        self._force_redraw()
 
-    def scale_up(self, cx=.0, cy=.0):
-        x, y = self.get_model_point(cx, cy)
-        if view.ViewPort.scale_up(self):
-            self.update_model_matrix()
-            x, y = self.get_view_point(x, y)
-            self.scroll(cx-x, cy-y)
-            self.redraw(tools=False)
+    @delayedmethod(0.5)
+    def _force_redraw(self):
+        self.window.process_updates(False)
+    
+    def repaint(self, clip=None, redraw=True):
+        self._docvp.repaint(clip)
+        if redraw:
+            self.redraw(clip)
 
-    def scale_down(self, cx=.0, cy=.0):
-        x, y = self.get_model_point(cx, cy)
-        if view.ViewPort.scale_down(self):
-            self.update_model_matrix()
-            x, y = self.get_view_point(x, y)
-            self.scroll(cx-x, cy-y)
-            self.redraw(tools=False)
+    def repaint_tools(self, clip=None, redraw=False):
+        self._toolsvp.repaint(clip)
+        if redraw:
+            self.redraw(clip)
+    
+    def repaint_cursor(self, *pos):
+        if self._cur_area:
+            self._cur_on = False
+            self.redraw(self._cur_area)
 
-    def scroll(self, *delta):
-        view.ViewPort.scroll(self, *delta)
-        self.update_model_matrix()
-        self.redraw(tools=False)
+        # Draw the new one
+        self._cur_on = True
+        self._cur_pos = pos
+        self.redraw(self._get_cursor_clip(*pos))
+    
+    #### Cursor related ####
 
-    def rotate(self, dr):
-        view.ViewPort.rotate(self, dr)
-        self.update_model_matrix()
-        self.redraw() ## redraw tools also for the rotation helper
+    def _get_cursor_clip(self, dx, dy):
+        w = self._curvp.width
+        h = self._curvp.height
+        dx -= w/2
+        dy -= h/2
+        return dx, dy, w, h
+
+    def set_cursor_radius(self, r):
+        self._curvp.set_radius(r)
+        self.repaint_cursor(*self._cur_pos)
+    
+    def show_brush_cursor(self, state=False):
+        if state:
+            self.repaint_cursor(self.devices.current.cpos)
+        else:
+            self._cur_on = False
+
+            # Remove the cursor if was blit and not needed
+            if self._cur_area:
+                self.redraw(self._cur_area)
+        return self._cur_pos
+    
+    #### View transformations ####
 
     def reset(self):
-        view.ViewPort.reset(self)
-        self.update_model_matrix()
-        self.redraw(tools=False)
+        self._swap_x = self._swap_y = None
+        self._docvp.reset_view()
+        self._curvp.set_scale(self._docvp.scale)
+        self.repaint()
+        
+    def scale_up(self, cx=.0, cy=.0):
+        x, y = self._docvp.get_model_point(cx, cy)
+        if self._docvp.scale_up():
+            self._curvp.set_scale(self._docvp.scale)
+            self._docvp.update_matrix()
+            x, y = self._docvp.get_view_point(x, y)
+            self.scroll(cx-x, cy-y)
 
+    def scale_down(self, cx=.0, cy=.0):
+        x, y = self._docvp.get_model_point(cx, cy)
+        if self._docvp.scale_down():
+            self._curvp.set_scale(self._docvp.scale)
+            self._docvp.update_matrix()
+            x, y = self._docvp.get_view_point(x, y)
+            self.scroll(cx-x, cy-y)
 
-class DocViewer(gtk.Window):
+    def scroll(self, *delta):
+        self._docvp.scroll(*delta)
+        self._docvp.update_matrix()
+        self.repaint()
+
+    def rotate(self, angle):
+        self._docvp.rotate(angle)
+        self._docvp.update_matrix()
+        self.repaint()
+
+    def swap_x(self):
+        if self._swap_x is None:
+            self._swap_x = self.device.current.vpos[0]
+            self._docvp.swap_x(self._swap_x)
+        else:
+            self._docvp.swap_x(self._swap_x)
+            self._swap_x = None
+        self._docvp.update_matrix()
+        self.repaint()
+        
+    def swap_y(self):
+        if self._swap_y is None:
+            self._swap_y = self.device.current.vpos[1]
+            self._docvp.swap_y(self._swap_y)
+        else:
+            self._docvp.swap_y(self._swap_y)
+            self._swap_y = None
+        self._docvp.update_matrix()
+        self.repaint()
+
+    #### Device state handling ####
+    def update_dev_state(self, evt):
+        state = DeviceState()
+
+        # Get raw device position and pressure
+        state.vpos = (evt.get_axis(gdk.AXIS_X)), int(evt.get_axis(gdk.AXIS_Y))
+        state.cpos = self.get_pointer()
+        state.pressure = self.get_pressure(evt)
+
+        # Get device tilt
+        state.xtilt = evt.get_axis(gdk.AXIS_XTILT) or 0.
+        state.ytilt = evt.get_axis(gdk.AXIS_YTILT) or 0.
+
+        # timestamp
+        state.time = evt.time * 1e-3 # GDK timestamp in milliseconds
+
+        # Filter view pos by tools
+        # TODO
+
+        # Translate to surface coordinates
+        pos = self._docvp.get_model_point(*state.vpos)
+        state.spos = self.docproxy.get_layer_pos(*pos)
+        self.device.add_state(state) # for recording
+        return state
+
+    #### Tools ####
+
+    def add_tool(self, tool):
+        self._toolsvp.add_tool(tool)
+        self.redraw(tool.area)
+
+    def rem_tool(self, tool):
+        area = tool.area # saving because may be destroyed during rem_tool
+        self._toolsvp.rem_tool(tool)
+        self.redraw(area)
+
+    @property
+    def tools(self):
+        return self._toolsvp.tools
+
+    #### UI ####
+
+    def to_front(self):
+        self.get_toplevel().present()
+
+class DocWindow(gtk.Window):
     #### Private API ####
 
-    __mode = None
-    __bad_devices = []
     __title_fmt = "Document: %s"
-    _shift = False
-    _t0 = None
-    _tool = None  # the one who has the focus
-
-    KEY_INC_BRUSH_RADIUS = '+'
-    KEY_DEC_BRUSH_RADIUS = '-'
-
+    
     def __init__(self, docproxy):
-        super(DocViewer, self).__init__()
+        super(DocWindow, self).__init__()
 
-        self.docproxy = docproxy
-        self.dev = InputDevice()
+        self.viewports = []
+        self.docproxy = docproxy        
         self.set_can_focus(True)
 
         ui = '''<ui>
@@ -178,6 +447,8 @@ class DocViewer(gtk.Window):
             </menu>
             <menu action='Color'>
                 <menuitem action="color-win"/>
+                <menuitem action="assign-profile"/>
+                <menuitem action="convert-profile"/>
             </menu>
             <menu action='Tools'>
                 <menuitem action="brush-house-win"/>
@@ -200,7 +471,7 @@ class DocViewer(gtk.Window):
 
         uimanager.add_ui_from_string(ui) ## UI description
 
-        topbox = gtk.VBox(False, 1)
+        self._topbox = topbox = gtk.VBox(False, 1)
         topbox.set_border_width(1)
         self.add(topbox)
 
@@ -230,7 +501,7 @@ class DocViewer(gtk.Window):
             ('layers-load-image', gtk.STOCK_ADD, 'Load image as new layer...', '<Control><Alt>z', None, lambda *a: self.emit('menu_load_image_as_layer')),
             ('layers-win', gtk.STOCK_PROPERTIES, 'Open layers list window', '<Control>l', None, lambda *a: Application().open_layer_mgr()),
             ('layers-clear-active', gtk.STOCK_CLEAR, 'Clear active layer', '<Control>k', None, lambda *a: self.emit('menu_clear_layer')),
-            ('view-reset', None, 'Reset', '<Control>equal', None, lambda *a: self.reset_view()),
+            ('view-reset', None, 'Reset', 'equal', None, lambda *a: self.vp.reset()),
             ('view-load-background', None, 'Load background image', '<Control><Alt>b', None, lambda *a: self.emit('menu_load_background')),
             ('color-win', gtk.STOCK_PROPERTIES, 'Open color editor', '<Control>c', None, lambda *a: Application().open_colorwin()),
             ('brush-house-win', None, 'Open brush house window', None, None, lambda *a: Application().open_brush_house()),
@@ -240,6 +511,8 @@ class DocViewer(gtk.Window):
             ('line-ruler-toggle', None, 'Toggle line ruler', None, None, lambda a: self._toggle_line_ruler()),
             ('ellipse-ruler-toggle', None, 'Toggle ellipse ruler', None, None, lambda a: self._toggle_ellipse_ruler()),
             ('navigator-toggle', None, 'Toggle Navigator', None, None, lambda a: self._toggle_navigator()),
+            ('assign-profile', None, 'Assign Color Profile', None, None, lambda a: self.assign_icc()),
+            ('convert-profile', None, 'Convert to Color Profile', None, None, lambda a: self.convert_icc()),
             #('', None, '', None, None, lambda *a: self.emit('')),
             ])
 
@@ -252,9 +525,12 @@ class DocViewer(gtk.Window):
         menubar = uimanager.get_widget('/MenuBar')
         topbox.pack_start(menubar, False)
 
-        # Viewport
-        self.vp = Viewport(self)
-        topbox.pack_start(self.vp, True, True, 0)
+        # Default editor
+        vp = DocDisplayArea(self, docproxy)
+        self._add_vp(vp)
+
+        #vp = DocDisplayArea(self, docproxy)
+        #self._add_vp(vp)
 
         self.set_default_size(600, 400)
         self.move(0,0)
@@ -262,99 +538,13 @@ class DocViewer(gtk.Window):
 
         # Set defaults
         self.set_doc_name(docproxy.document.name)
-        self.mode = 'idle'
 
-    def _set_mode(self, mode):
-        if mode != self.__mode:
-            if mode == 'drag':
-                self._on_motion = self._drag_on_motion
-            elif mode == 'draw':
-                self._on_motion = self._draw_on_motion
-            elif mode == 'rotation':
-                self._on_motion = self._rotate_on_motion
-            elif mode == 'tool-hit':
-                self._on_motion = self._tool_on_motion
-            else:
-                self._on_motion = idle_cb
-                if self.vp.draw_rot:
-                    self.vp.draw_rot = False
-                    self.vp.redraw() ## redraw all
-
-            self.__mode = mode
-
-    def _action_start(self, evt, mode):
-        self.mode = mode
-        self.update_dev_state(evt)
-        
-        if mode == 'rotation':
-            state = self.dev.current
-            x, y = state.vpos
-            self.__rox, self.__roy = self.vp.get_view_point(0, 0)
-            self.__angle = self.vp.compute_angle(x-self.__rox, self.__roy-y)
-            self.vp.draw_rot = True
-            self.vp.redraw() ## redraw all
-        elif mode == 'draw':
-            self.docproxy.draw_start(self.dev)
-
-    def _action_cancel(self, evt):
-        if self.mode == 'rotation':
-            del self.__angle, self.__rox, self.__roy
-        elif self.mode == 'draw':
-            self.docproxy.draw_end()
-            self.vp.stroke_end()
-
-        self.mode = 'idle'
-
-    def _action_ok(self, evt):
-        mode = self.mode
-        if mode == 'rotation':
-            del self.__angle, self.__rox, self.__roy
-        elif mode == 'scroll':
-            if evt.direction == gdk.SCROLL_UP:
-                self.vp.scale_up(evt.x, evt.y)
-            else:
-                self.vp.scale_down(evt.x, evt.y)
-        elif mode == 'draw':
-            area = self.on_motion_notify(self.vp, evt)
-            self.docproxy.draw_end()
-            self.vp.stroke_end()
-            if area: self.vp.redraw(self.get_view_area(*area), model=True, tools=True)
-
-        self.mode = 'idle'
-
-    def _drag_on_motion(self):
-        self.vp.scroll(*self.vp.compute_motion(self.dev))
-
-    def _draw_on_motion(self):
-        area = self.docproxy.draw_stroke()
-        if area:
-            self.vp.redraw(self.vp.get_view_area(*area), tools=False, cursor=False)
-
-    def _rotate_on_motion(self):
-        state = self.dev.current
-        x, y = state.vpos
-        a = self.vp.compute_angle(x-self.__rox, self.__roy-y)
-        da = self.__angle - a
-        self.__angle = a
-        self.vp.rotate(da)
-
-    def _tool_on_motion(self):
-        if self.vp.tool_motion(self._tool, self.dev.current):
-            self._tool = None
-            self.mode = 'idle'
-
-    def _toggle_line_ruler(self):
-        self._tool = self.vp.toggle_line_ruler()
-
-    def _toggle_ellipse_ruler(self):
-        self._tool = self.vp.toggle_ellipse_ruler()
-
-    def _toggle_navigator(self):
-        self.vp.toggle_navigator()
+    def _add_vp(self, vp):
+        self.viewports.append(vp)
+        self._topbox.pack_start(vp, True, True, 0)
+        self.vp = vp
 
     #### Public API ####
-
-    mode = property(fget=lambda self: self.__mode, fset=_set_mode)
 
     def set_doc_name(self, name):
         self.set_title(self.__title_fmt % name)
@@ -369,342 +559,29 @@ class DocViewer(gtk.Window):
         dlg.destroy()
         return response == gtk.RESPONSE_OK
 
-    def get_pressure(self, evt):
-        # Is pressure value not in supposed range?
-        # Note: this code has been taken from MyPaint.
-        p = evt.get_axis(gdk.AXIS_PRESSURE)
-        if p is not None:
-            if p < 0. or p > 1.:
-                if evt.device.name not in self.__bad_devices:
-                    print 'WARNING: device "%s" is reporting bad pressure %+f' % (evt.device.name, p)
-                    self.__bad_devices.append(evt.device.name)
-                if p < -10000. or p > 10000.:
-                    # https://gna.org/bugs/?14709
-                    return .5
-        else:
-            return .5
-        return p
-
-    def update_dev_state(self, evt):
-        if self._t0 is None:
-            self._t0 = evt.time
-            
-        state = DeviceState()
-
-        # Get raw device position and pressure
-        state.vpos = int(evt.get_axis(gdk.AXIS_X)), int(evt.get_axis(gdk.AXIS_Y))
-        state.pressure = self.get_pressure(evt)
-
-        # Get device tilt
-        state.xtilt = evt.get_axis(gdk.AXIS_XTILT) or 0.
-        state.ytilt = evt.get_axis(gdk.AXIS_YTILT) or 0.
-
-        # timestamp
-        state.time = evt.time * 1e-3 # GDK timestamp in milliseconds
-        
-        # Tools can modify this position
-        if self._tool and self.mode == 'draw':
-            self._tool.filter(state)
-
-        # Translate to surface coordinates
-        state.spos = self.vp.get_model_point(*state.vpos)
-        
-        self.dev.add_state(state) # add + filter
-
-    def on_button_press(self, widget, evt):
-        # ignore double-click events
-        if evt.type != gdk.BUTTON_PRESS:
-            return
-
-        self.update_dev_state(evt)
-
-        mode = self.mode
-        bt = evt.button
-        if mode == 'idle':
-            if bt == 1:
-                tool = self.vp.tool_hit(self.dev.current)
-                if tool:
-                    self._tool = tool
-                    self._action_start(evt, 'tool-hit')
-                else:
-                    self._action_start(evt, 'draw')
-                return True
-            elif bt == 2:
-                if evt.state & gdk.CONTROL_MASK:
-                    self._action_start(evt, 'rotation')
-                else:
-                    self._action_start(evt, 'drag')
-                return True
-        elif mode == 'draw':
-            if bt == 1:
-                self._action_ok(evt)
-                return True
-        elif mode == 'drag':
-            if bt == 2:
-                self._action_ok(evt)
-                return True
-            elif bt == 3:
-                self._action_cancel(evt)
-                return True
-        elif mode == 'pick':
-            if bt == 1:
-                self._action_ok(evt)
-                return True
-            elif bt == 3:
-                self._action_cancel(evt)
-                return True
-        elif mode == 'rotation':
-            self._action_ok(evt)
-            return True
-
-    def on_motion_notify(self, vp, evt):
-        # Constrained mode?
-        self._shift = bool(evt.state & gdk.SHIFT_MASK)
-
-        # Transform device dependent data into independent data
-        self.update_dev_state(evt)
-
-        self.vp.draw_cursor()
-
-        # Call the mode dependent motion callback
-        return self._on_motion()
-
-    def on_button_release(self, vp, evt):
-        if evt.type != gdk.BUTTON_RELEASE:
-            return
-
-        self.update_dev_state(evt)
-
-        mode = self.mode
-        if mode == 'draw':
-            bt = evt.button
-            if bt == 1:
-                self._action_ok(evt)
-                return True
-
-        self._action_cancel(evt)
-        return True
-
-    def on_scroll(self, vp, evt):
-        if self.mode == 'idle':
-            self.mode = 'scroll'
-            self._action_ok(evt)
-        return True
-
-    def on_key_press(self, widget, evt, docproxy):
-        if evt.string == DocViewer.KEY_INC_BRUSH_RADIUS:
-            docproxy.add_brush_radius(1)
-            self.vp.draw_cursor()
-            return True
-        elif evt.string == DocViewer.KEY_DEC_BRUSH_RADIUS:
-            docproxy.add_brush_radius(-1)
-            self.vp.draw_cursor()
-            return True
-
-    def increase_brush_radius(self, delta=1):
-        self.docproxy.add_brush_radius(delta)
-        self.vp.draw_cursor()
-
-    def decrease_brush_radius(self, delta=-1):
-        self.docproxy.add_brush_radius(delta)
-        self.vp.draw_cursor()
-
-    def reset_view(self):
-        self.vp.reset()
-
     def load_background(self, evt=None):
         filename = Application().get_image_filename(parent=self)
         if filename:
             self.vp.set_background(filename)
 
+    def set_cursor_radius(self, r):
+        for vp in self.viewports:
+            vp.set_cursor_radius(r)
 
-class DocumentMediator(Mediator):
-    """
-    This class creates one instance for the application.
-    This instance handles creation/destruction of document viewer components.
-    This instance connects events from these components to its methods
-    in a way to do actions on the model/controller.
-    """
+    def assign_icc(self):
+        dlg = AssignCMSDialog(self.docproxy, self)
+        result = dlg.run()
+        if result == gtk.RESPONSE_OK:
+            self.docproxy.profile = dlg.get_profile()
+        dlg.destroy()
 
-    NAME = "DocumentMediator"
-
-    #### Private API ####
-
-    def __init__(self, component):
-        assert isinstance(component, Application)
-        super(DocumentMediator, self).__init__(viewComponent=component)
-
-        # Couple each created doc viewer to a doc proxy.
-        # Note: DV instances don't handle directly proxy/model references.
-        # That's why we keep the couple here, in the mediator.
-        self.__doc_proxies = {}
-        self.__focused = None
-        self._debug = True
-
-    def _create_viewer(self, docproxy):
-        dv = DocViewer(docproxy)
-
-        dv.connect("delete-event", lambda dv, e: self._safe_close_viewer(dv))
-        dv.connect("focus-in-event", self._on_focus_in_event)
-        dv.connect("menu_quit", self._on_menu_quit)
-        dv.connect("menu_new_doc", self._on_menu_new_doc)
-        dv.connect("menu_load_doc", self._on_menu_load_doc)
-        dv.connect("menu_close_doc", self._on_menu_close_doc)
-        dv.connect("menu_save_doc", self._on_menu_save_doc)
-        dv.connect("menu_undo", self._on_menu_undo)
-        dv.connect("menu_redo", self._on_menu_redo)
-        dv.connect("menu_flush", self._on_menu_flush)
-        dv.connect("menu_clear_layer", self._on_menu_clear_layer)
-        dv.connect("menu_load_image_as_layer", self._on_menu_load_image_as_layer)
-        dv.connect("key-press-event", dv.on_key_press, docproxy)
-
-        vp = dv.vp
-        vp.connect("expose-event", vp.on_expose, docproxy)
-        vp.connect("motion-notify-event", dv.on_motion_notify)
-        vp.connect("button-press-event", dv.on_button_press)
-        vp.connect("button-release-event", dv.on_button_release)
-        vp.connect("scroll-event", dv.on_scroll)
-
-        self.__doc_proxies[dv] = docproxy
-
-    def __len__(self):
-        return len(self.__doc_proxies)
-
-    def _get_viewer(self, docproxy):
-        for dv, proxy in self.__doc_proxies.iteritems():
-            if proxy == docproxy:
-                return dv
-
-    def _safe_close_viewer(self, dv):
-        docproxy = self.__doc_proxies[dv]
-        #if not docproxy.document.empty and not dv.confirm_close():
-        #    return True
-        self.sendNotification(main.Gribouillis.DOC_DELETE, docproxy)
-
-    ### UI events handlers ###
-
-    def _on_focus_in_event(self, dv, evt):
-        self.__focused = dv
-        self.sendNotification(main.Gribouillis.DOC_ACTIVATE, self.__doc_proxies[dv])
-
-    def _on_delete_event(self, dv, evt):
-        self.sendNotification(main.Gribouillis.DOC_DELETE, self.__doc_proxies[dv])
-
-    def _on_menu_close_doc(self, dv):
-        self.sendNotification(main.Gribouillis.DOC_DELETE, self.__doc_proxies[dv])
-
-    def _on_menu_quit(self, dv):
-        self.sendNotification(main.Gribouillis.QUIT)
-
-    def _on_menu_new_doc(self, dv):
-        vo = model.vo.EmptyDocumentConfigVO('New document')
-        if self.viewComponent.get_new_document_type(vo, parent=dv):
-            self.sendNotification(main.Gribouillis.NEW_DOCUMENT, vo)
-
-    def _on_menu_load_doc(self, dv):
-        filename = self.viewComponent.get_document_filename(parent=dv)
-        if filename:
-            vo = model.vo.FileDocumentConfigVO(filename)
-            self.sendNotification(main.Gribouillis.NEW_DOCUMENT, vo)
-
-    def _on_menu_save_doc(self, dv):
-        docproxy = self.__doc_proxies[dv]
-        filename = self.viewComponent.get_document_filename(parent=dv, read=False)
-        if filename:
-            self.sendNotification(main.Gribouillis.DOC_SAVE, (docproxy, filename))
-            dv.set_doc_name(docproxy.document.name)
-
-    def _on_menu_clear_layer(self, dv):
-        docproxy = self.__doc_proxies[dv]
-        self.sendNotification(main.Gribouillis.DOC_LAYER_CLEAR,
-                              model.vo.LayerCommandVO(docproxy, docproxy.active_layer),
-                              type=utils.RECORDABLE_COMMAND)
-
-    def _on_menu_undo(self, *a):
-        self.sendNotification(main.Gribouillis.UNDO)
-
-    def _on_menu_redo(self, *a):
-        self.sendNotification(main.Gribouillis.REDO)
-
-    def _on_menu_flush(self, *a):
-        self.sendNotification(main.Gribouillis.FLUSH)
-
-    def _on_menu_load_image_as_layer(self, *a):
-        self.load_image_as_layer()
-
-    ### notification handlers ###
-
-    @mvcHandler(main.Gribouillis.NEW_DOCUMENT_RESULT)
-    def _on_new_document_result(self, docproxy):
-        if docproxy:
-            self._create_viewer(docproxy)
-        else:
-            self.sendNotification(main.Gribouillis.SHOW_ERROR_DIALOG,
-                                  "Failed to create document.")
-
-    @mvcHandler(main.Gribouillis.DOC_SAVE_RESULT)
-    def _on_save_document_result(self, *args):
-        pass
-
-    @mvcHandler(main.Gribouillis.DOC_ACTIVATED)
-    def _on_activate_document(self, docproxy):
-        dv = self._get_viewer(docproxy)
-        if dv is None:
-            # Act as NEW_DOCUMENT_RESULT command
-            self._create_viewer(docproxy)
-            return
-
-        if dv is not self.__focused:
-            dv.present()
-            #Application().brusheditor.set_transient_for(dv)
-
-    #@mvcHandler(main.Gribouillis.LAYER_CREATED)
-    #def _on_layer_created(self, layer):
-    #    # set a default cairo compositing operator
-    #    layer.operator = cairo.OPERATOR_OVER
-
-    @mvcHandler(main.Gribouillis.DOC_LAYER_ADDED)
-    def _on_doc_layer_added(self, docproxy, layer, *args):
-        dv = self._get_viewer(docproxy)
-        dv.vp.update_model_matrix(layer.x, layer.y)
-        if not layer.empty:
-            dv.vp.redraw(tools=False)
-
-    @mvcHandler(main.Gribouillis.DOC_LAYER_MOVED)
-    @mvcHandler(main.Gribouillis.DOC_LAYER_UPDATED)
-    @mvcHandler(main.Gribouillis.DOC_LAYER_DELETED)
-    @mvcHandler(main.Gribouillis.DOC_UPDATED)
-    def _on_doc_layer_updated(self, docproxy, layer=None, *args):
-        dv = self._get_viewer(docproxy)
-        if layer is None:
-            layer = docproxy.active_layer
-        dv.vp.update_model_matrix(layer.x, layer.y)
-        dv.vp.redraw(tools=False)
-
-    @mvcHandler(main.Gribouillis.DOC_LAYER_ACTIVATED)
-    def _on_doc_layer_activate(self, docproxy, layer):
-        dv = self._get_viewer(docproxy)
-        dv.vp.update_model_matrix(layer.x, layer.y)
-
-    @mvcHandler(main.Gribouillis.BRUSH_PROP_CHANGED)
-    def _on_brush_prop_changed(self, brush, name):
-        if name is 'color': return
-        for docproxy in self.__doc_proxies.itervalues():
-            if docproxy.brush is brush:
-                setattr(docproxy.document.brush, name, getattr(brush, name))
-
-    #### Public API ####
-
-    def delete_docproxy(self, docproxy):
-        dv = self._get_viewer(docproxy)
-        del self.__doc_proxies[dv]
-        dv.destroy()
-
-    def load_image_as_layer(self):
-        docproxy = model.DocumentProxy.get_active()
-        dv = self._get_viewer(docproxy)
-        filename = self.viewComponent.get_image_filename(parent=dv)
-        if filename:
-            self.sendNotification(main.Gribouillis.DOC_LOAD_IMAGE_AS_LAYER,
-                                  model.vo.LayerConfigVO(docproxy=docproxy, filename=filename),
-                                  type=utils.RECORDABLE_COMMAND)
+    def convert_icc(self):
+        dlg = ConvertDialog(self.docproxy, self)
+        result = dlg.run()
+        if result == gtk.RESPONSE_OK:
+            dst_profile = dlg.get_destination()
+            src_profile = self.docproxy.profile
+            ope = Transform(src_profile, dst_profile)
+            self.vp.apply_ope(ope)
+            self.vp.redraw()
+        dlg.destroy()

@@ -26,18 +26,22 @@
 # Python 2.5 compatibility
 from __future__ import with_statement
 
-import pymui, cairo, os
+import pymui, cairo, os, glob, array
 from math import *
 from colorsys import hsv_to_rgb, rgb_to_hsv
 
 import model, view, main, utils
+from utils import _T
 
-from utils import mvcHandler, _T
-
-__all__ = [ 'ColorHarmoniesWindow', 'ColorHarmoniesWindowMediator' ]
+__all__ = [ 'ColorHarmoniesWindow' ]
 
 pi2 = pi*2
 IECODE_LBUTTON = 0x68
+
+PAL_PAT = '|'.join(ext[1:] for ext in model.palette.SUPPORTED_EXTENSIONS)
+if PAL_PAT:
+    PAL_PAT = '.(%s)' % PAL_PAT
+PAL_PAT = '#?' + PAL_PAT
 
 def get_angle(x,y):
     if x == 0:
@@ -52,7 +56,6 @@ def get_pos(r, angle):
     x = r*cos(angle)
     y = r*sin(angle)
     return x,y
-
 
 class ColorWeelHarmonies(pymui.Area):
     _MCC_ = True
@@ -83,7 +86,6 @@ class ColorWeelHarmonies(pymui.Area):
         super(ColorWeelHarmonies, self).__init__(InnerSpacing=(0,)*4,
                                                  Frame='None',
                                                  DoubleBuffer=True)
-
         self._ev = pymui.EventHandler()
         self._watchers = {}
 
@@ -297,8 +299,7 @@ class ColorWeelHarmonies2(pymui.Area):
         pymui.IDCMP_RAWKEY       : 'rawkey',
         }
 
-    _hue_ring = None
-    circle_img = None
+    __hue_ring = None
     __hsv = [0., 0., 0.]
     __pos = (0., 0.)
     __rect = None
@@ -381,13 +382,14 @@ class ColorWeelHarmonies2(pymui.Area):
             cr.restore()
 
     def mouse_to_user(self, x, y):
-        r = self._hue_ring.get_width()/2
+        r = self.__hue_ring.get_width()/2
         x -= self.MLeft+r
         y -= self.MTop+r
         return x,y
 
-    def hit_square(self, *p):
-        return hypot(*p) < self.WHEEL_HUE_RING_RADIUS-1
+    def hit_square(self, x, y):
+        return x < self.__rmax and x >= -self.__rmax \
+            and y < self.__rmax and y >= -self.__rmax
         
     def hit_hue(self, *p):
         h = hypot(*p)
@@ -410,23 +412,17 @@ class ColorWeelHarmonies2(pymui.Area):
         cr.set_source_surface(hue_ring, 0, 0)
         cr.paint()
 
-        h = self.__hsv[0]
-        a = h*pi2
-        w = hue_ring.get_width()
-        c = w/2
-        rect = self.draw_rect(int(self.WHEEL_HUE_RING_RADIUS*2/sqrt(2)-4))
+        rect = self.draw_rect()
+        c = hue_ring.get_width() / 2
         cr.translate(c, c)
-        self.__angle = pi/4 - a
-        cr.rotate(self.__angle)
-        t = -rect.get_width()/2
-        cr.set_source_surface(rect,t,t)
+        self.__rmax = rect.get_width() / 2 + 1
+        w = -self.__rmax+1
+        cr.set_source_surface(rect, w, w)
         cr.paint()
-        cr.identity_matrix()
         
-        # Draw current HUE position as 2 circles
-        x, y = get_pos(self.WHEEL_HUE_RING_RADIUS+self.WHEEL_HUE_RING_WIDTH/2, -a)
-        x += c
-        y += c
+        # Draw current HUE position as two circles
+        x, y = get_pos(self.WHEEL_HUE_RING_RADIUS+self.WHEEL_HUE_RING_WIDTH/2, -self.__hsv[0]*pi2)
+        
         cr.set_line_width(1.5)
         cr.set_source_rgb(1,1,1)
         cr.arc(x,y,6,0,pi2)
@@ -441,6 +437,33 @@ class ColorWeelHarmonies2(pymui.Area):
         cr.line_to(x+.5,y)
         cr.stroke()
         
+        # Position inside the rect represented by two circles also
+        s = self.__hsv[1]
+        v = self.__hsv[2]
+        w = -w-1
+        
+        if v >= .5:
+            x = s
+            y = (v-1)*(s-2)
+        else:
+            x = 2*v*(s-1) + 1
+            y = -v*s + 1
+        
+        x = (x*2-1)*w
+        y = (y*2-1)*w
+        
+        cr.set_source_rgb(1,1,1)
+        cr.arc(x, y, 6, 0, pi2)
+        cr.stroke()
+        
+        cr.set_source_rgb(0,0,0)
+        cr.arc(x, y, 5, 0, pi2)
+        cr.stroke()
+        
+        cr.move_to(x-.5, y)
+        cr.line_to(x+.5, y)
+        cr.stroke()
+
         return
 
         # Draw harmonies
@@ -458,8 +481,9 @@ class ColorWeelHarmonies2(pymui.Area):
             cr.stroke()
 
     def draw_hue_ring(self):
-        if self._hue_ring:
-            return self._hue_ring
+        if self.__hue_ring:
+            return self.__hue_ring
+            
         r = self.WHEEL_HUE_RING_RADIUS
         r2 = self.WHEEL_HUE_RING_RADIUS_OUT
         w = int(2*r2+2)
@@ -476,13 +500,14 @@ class ColorWeelHarmonies2(pymui.Area):
             cr.line_to(*get_pos(r2, -a))
             cr.stroke()
             a += da
-        self._hue_ring = img
+        self.__hue_ring = img
         return img
     
-    def draw_rect(self, w):
+    def draw_rect(self):
         if self.__rect:
             return self.__rect
             
+        w = int(self.WHEEL_HUE_RING_RADIUS*2/sqrt(2)-4)
         self.__rect = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, w)
         cr = cairo.Context(self.__rect)
 
@@ -499,24 +524,8 @@ class ColorWeelHarmonies2(pymui.Area):
             cr.stroke()
             
         return self.__rect
-                    
-        # Position inside the rect represented by circles
-        x, y = self.__pos
-        cr.set_source_rgb(1,1,1)
-        cr.arc(x, y, 6, 0, pi2)
-        cr.stroke()
-        
-        cr.set_source_rgb(0,0,0)
-        cr.arc(x, y, 5, 0, pi2)
-        cr.stroke()
-        
-        cr.move_to(x-.5, y)
-        cr.line_to(x+.5, y)
-        cr.stroke()
 
-        return self.__rect
-
-    def set_pos(self, x, y):
+    def DEPRECATED_set_pos(self, x, y):
         self.__pos = x,y
         s = min(self.WHEEL_RADIUS, sqrt(x*x+y*y))/self.WHEEL_RADIUS
         v = self.__vmin*(1-s) + s
@@ -534,23 +543,23 @@ class ColorWeelHarmonies2(pymui.Area):
         return self.__hsv
         
     def set_square_pos(self, x, y):
-        r = hypot(x, y)
-        a = get_angle(x, y)
-        if a:
-            a -= self.__angle
-        else:
-            a = 0.
-        x, y = get_pos(r, a)
-        w = self.__rect.get_width()-1
-        h = self.__rect.get_height()-1
-        x = min(max(0., x+w/2.), float(w))
-        y = min(max(0., y+h/2.), float(h))
+        w = self.__rmax-1
+        x = max(-w, min(x, w))
+        y = max(-w, min(y, w))
+        
         self.__pos = x, y
-        x /= w
-        y /= w
-        y = 1-y
-        s = x*y
-        self.hsv = self.__hsv[0], s, (1-x)*(1+y)/2+s
+        
+        x = float(x)/(2*w) + .5
+        y = float(y)/(2*w) + .5
+        
+        if (1-x)*(1-y) <= 0.1:
+            v = (1-x)*.5 - y + 1
+            s = ((1-y)/v if v else 0)
+        else:
+            s = x
+            v = y / (s - 2) + 1
+            
+        self.hsv = self.__hsv[0], s, v
         return self.__hsv
 
     def get_hsv(self):
@@ -564,7 +573,6 @@ class ColorWeelHarmonies2(pymui.Area):
             self.Redraw()
         
     hsv = property(fget=get_hsv, fset=set_hsv)
-
 
 class ColorBox(pymui.Rectangle):
     _MCC_ = True
@@ -591,19 +599,18 @@ class ColorBox(pymui.Rectangle):
         
     rgb = property(fget=_get_rgb, fset=_set_rgb)
 
-
 class DropColorBox(pymui.Rectangle):
     _MCC_ = True
     _rgb = None
     
     def __init__(self, width, height):
-        super(DropColorBox, self).__init__(Frame='ImageButton',
-                                            Background='ImageButtonBack',
-                                            Selected=False,
-                                            Dropable=True,
-                                            Draggable=True,
-                                            FixWidth=width, FixHeight=height,
-                                            InputMode='RelVerify')
+        super(DropColorBox, self).__init__(Frame='None',
+                                           InnerSpacing=(0,)*4,
+                                           Selected=False,
+                                           Dropable=True,
+                                           Draggable=True,
+                                           FixWidth=width, FixHeight=height,
+                                           InputMode='RelVerify')
                                             
     @pymui.muimethod(pymui.MUIM_DragQuery)
     def _mcc_DragQuery(self, msg):
@@ -633,12 +640,17 @@ class DropColorBox(pymui.Rectangle):
         
     rgb = property(fget=_get_rgb, fset=_set_rgb)
 
-    
 class ColorHarmoniesWindow(pymui.Window):
-    def __init__(self):
+    __palettes = {'default': model.palette.DefaultPalette}
+    _current_pal = None
+    _predefpal_list = ['default']
+    _predefpallister = None
+    
+    def __init__(self, name):
         super(ColorHarmoniesWindow, self).__init__(ID='CHRM',
-                                                   Title='Color Harmonies',
+                                                   Title=_T('Color Harmonies'),
                                                    CloseOnReq=True)
+        self.name = name
 
         self.RootObject = top = pymui.VGroup()
         self.widgets = {}
@@ -677,23 +689,34 @@ class ColorHarmoniesWindow(pymui.Window):
         
         ld_pal = pymui.SimpleButton(_T("Load"), CycleChain=True)
         sv_pal = pymui.SimpleButton(_T("Save"), CycleChain=True)
-        grp.AddChild(pymui.HGroup(Child=(ld_pal, sv_pal)))
+        del_pal = pymui.SimpleButton(_T("Delete"), CycleChain=True)
+        grp.AddChild(pymui.HGroup(Child=(ld_pal, sv_pal, del_pal)))
         
-        vgrp = pymui.Virtgroup(SameSize=True, Columns=8, Spacing=0, HorizWeight=100, Horiz=False)
+        self._predefpallister = pymui.List(SourceArray=self.palettes_list)
+        pal_name_bt = pymui.Text(Frame='Text', CycleChain=True, ShortHelp=_T('Predefined palettes'))
+        popup = pymui.Popobject(Object=pymui.Listview(List=self._predefpallister),
+                                String=pal_name_bt,
+                                Button=pymui.Image(Frame='ImageButton',
+                                                   Spec=pymui.MUII_PopUp,
+                                                   InputMode='RelVerify',
+                                                   CycleChain=True))
+                                                     
+        grp.AddChild(pymui.HGroup(Child=(pymui.Label(_T('Avails')+':'), popup)))
+        sort_luma = pymui.SimpleButton(_T('Luminance'), CycleChain=True)
+        sort_hue = pymui.SimpleButton(_T('Hue'), CycleChain=True)
+        sort_sat = pymui.SimpleButton(_T('Saturation'), CycleChain=True)
+        sort_value = pymui.SimpleButton(_T('Value'), CycleChain=True)
+        grp.AddChild(pymui.HGroup(Child=(pymui.Label(_T('Sort by')+':'), sort_luma, sort_hue, sort_sat, sort_value)))
+        grp.AddChild(pymui.HBar(0))
+        
+        vgrp = pymui.Virtgroup(SameSize=True, Columns=16, Spacing=1, HorizWeight=100, Horiz=False, Background='2:00000000,00000000,00000000')
         sgrp = pymui.Scrollgroup(Contents=vgrp, AutoBars=True, FreeHoriz=False)
         grp.AddChild(pymui.HGroup(Child=(pymui.HSpace(0, HorizWeight=1), sgrp, pymui.HSpace(1, HorizWeight=1))))
         self._pal_bt = []
         for i in xrange(256):
-            bt = DropColorBox(10, 10)
+            bt = DropColorBox(12, 12)
             vgrp.AddChild(bt)
             bt.Notify('Pressed', self._on_palbt, when=False)
-            
-            # Default colors: first = black, second = white
-            if i == 0:
-                bt.rgb = (0,0,0)
-            elif i == 1:
-                bt.rgb = (1,1,1)
-                
             self._pal_bt.append(bt)
 
         # Notifications        
@@ -707,34 +730,84 @@ class ColorHarmoniesWindow(pymui.Window):
 
         ld_pal.Notify('Pressed', self._on_ld_pal_pressed, when=False)
         sv_pal.Notify('Pressed', self._on_sv_pal_pressed, when=False)
+        del_pal.Notify('Pressed', self._on_del_pal_pressed, when=False)
 
+        self._predefpallister.Notify('DoubleClick', self._on_popup_predef_sel, popup)
+        self._predefpallister.Notify('Active', self._on_predef_list_active, pal_name_bt, del_pal)
+        
+        sort_luma.Notify('Pressed', lambda evt, cmp: self.sort_palette(cmp), self._cmp_luma, when=False)
+        sort_hue.Notify('Pressed', lambda evt, cmp: self.sort_palette(cmp), self._cmp_hue, when=False)
+        sort_sat.Notify('Pressed', lambda evt, cmp: self.sort_palette(cmp), self._cmp_sat, when=False)
+        sort_value.Notify('Pressed', lambda evt, cmp: self.sort_palette(cmp), self._cmp_value, when=False)
+        
+        # final setup
+        self._use_palette('default')
+
+    def _load_palette(self, filename):
+        name = os.path.splitext(os.path.basename(filename))[0]
+        ColorHarmoniesWindow.__palettes[name] = model.Palette(name, filename)
+                            
+        def icmp(x,y):
+            return cmp(x.lower(), y.lower())
+            
+        keys = ColorHarmoniesWindow.__palettes.keys()
+        keys.remove('default')
+        self._predefpal_list = sorted(keys, cmp=icmp)
+        self._predefpal_list.insert(0, 'default')
+        
+        if self._predefpallister:
+            self._predefpallister.Clear()
+            map(lambda x: self._predefpallister.InsertSingleString(x), self._predefpal_list)
+        
+        return name
+                    
+    def _use_palette(self, name):
+        if name not in ColorHarmoniesWindow.__palettes:
+            return
+            
+        # Set buttons
+        for i, data in enumerate(ColorHarmoniesWindow.__palettes[name]):
+            self._pal_bt[i].rgb = data.rgb
+            
+        # Reset the rest
+        for i in xrange(i+1, 256):
+            self._pal_bt[i].rgb = None
+
+        self._predefpallister.Active = self._predefpal_list.index(name)
+        self._current_pal = name
+    
     def set_hsv_callback(self, cb):
         self._hsv_cb = cb
 
     def _on_ld_pal_pressed(self, evt):
-        filename = pymui.GetApp().get_filename('Select palette filename for loading', parent=self, pat='#?.pal')
+        filename = pymui.GetApp().get_filename(_T('Select palette filename for loading'), parent=self, pat=PAL_PAT)
         if filename:
-            # Reset palette
-            for bt in self._pal_bt:
-                bt.rgb = None
-                
-            # Load and set
-            with open(filename, 'r') as fd:
-                for line in fd.readlines():
-                    i, rgb = line.split(':')
-                    try:
-                        self._pal_bt[int(i)].rgb = [ int(x)/255. for x in rgb.split() ]
-                    except IndexError:
-                        pass
-        
+            name = self._load_palette(filename)
+            self._use_palette(name)
+            
     def _on_sv_pal_pressed(self, evt):
-        filename = pymui.GetApp().get_filename('Select palette filename for saving', parent=self, pat='#?.pal', read=False)
+        filename = pymui.GetApp().get_filename(_T('Select palette filename for saving'), parent=self, pat=PAL_PAT, read=False)
         if filename:
-            with open(filename, 'w') as fd:
-                for i, bt in enumerate(self._pal_bt):
-                    if bt.rgb is None: continue
-                    fd.write("%u: %u %u %u\n" % ((i,)+tuple(int(x*255) for x in bt.rgb)))
+            palette = model.Palette(os.path.splitext(os.path.basename(filename))[0])
+            for i, bt in enumerate(self._pal_bt):
+                if bt.rgb is not None:
+                    palette[i].rgb = bt.rgb
+                
+            try:
+                palette.savetofile(filename)
+            except NotImplementedError:
+                pymui.DoRequest(app=pymui.GetApp(), title="Error", format="Unkown palette file type", gadgets='*_Ok')
 
+    def _on_del_pal_pressed(self, evt):
+        i = self._predefpallister.Active.value
+        name = self._predefpal_list[i]
+        if name == "default":
+            return # not possible to remove the default palette
+            
+        self._predefpal_list.pop(i)
+        self._predefpallister.Remove(i)
+        self._use_palette("default")
+    
     def _on_palbt(self, evt):
         bt = evt.Source
         if bt.rgb is not None:
@@ -742,6 +815,17 @@ class ColorHarmoniesWindow(pymui.Window):
         else:
             bt.rgb = self.rgb
 
+    def _on_popup_predef_sel(self, evt, popup):
+        popup.Close(0)
+        i = self._predefpallister.Active.value
+        self._use_palette(self._predefpal_list[i])
+        
+    def _on_predef_list_active(self, evt, bt, del_bt):
+        name = self._predefpal_list[evt.value.value]
+        del_bt.Disabled = name == 'default'
+        bt.Contents = name
+        self._use_palette(name)
+            
     def _set_hsv_channel(self, value, index):
         hsv = list(self.colorwheel.hsv)
         hsv[index] = value
@@ -776,82 +860,43 @@ class ColorHarmoniesWindow(pymui.Window):
     def _set_rgb(self, rgb):
         self.hsv = rgb_to_hsv(*rgb)
 
+    def sort_palette(self, cmp):
+        for i, rgb in enumerate(sorted((data.rgb for data in self.palette if data.rgb is not None), cmp=cmp)):
+            self._pal_bt[i].rgb = rgb
+
+    @staticmethod
+    def _cmp_luma(c1, c2):
+        l1 = 0.2126*c1[0] + 0.7152*c1[1] + 0.0722*c1[2]
+        l2 = 0.2126*c2[0] + 0.7152*c2[1] + 0.0722*c2[2]
+        return cmp(l1, l2)
+        
+    @staticmethod
+    def _cmp_hue(c1, c2):
+        return cmp(rgb_to_hsv(*c1)[0], rgb_to_hsv(*c2)[0])
+        
+    @staticmethod
+    def _cmp_sat(c1, c2):
+        return cmp(rgb_to_hsv(*c1)[1], rgb_to_hsv(*c2)[1])
+        
+    @staticmethod
+    def _cmp_value(c1, c2):
+        return cmp(rgb_to_hsv(*c1)[2], rgb_to_hsv(*c2)[2])
+
+    @property
+    def palettes_list(self):
+        path = 'PROGDIR:palettes'
+        res = []
+        for x in (glob.glob(os.path.join(path, '*'+ext)) for ext in model.palette.SUPPORTED_EXTENSIONS):
+            res += x
+        for filename in res:
+            self._load_palette(filename)
+            
+        return self._predefpal_list
+
+    @property
+    def palette(self):
+        return self.__palettes[self._current_pal]
+        
     hsv = property(fget=_get_hsv, fset=_set_hsv)
     rgb = property(fget=_get_rgb, fset=_set_rgb)
 
-
-class ColorHarmoniesWindowMediator(utils.Mediator):
-    NAME = "ColorHarmoniesWindowMediator"
-
-    #### Private API ####
-
-    __mode = 'idle'
-    __brush = None
-    _appmediator = None
-
-    def __init__(self, component):
-        assert isinstance(component, ColorHarmoniesWindow)
-        super(ColorHarmoniesWindowMediator, self).__init__(ColorHarmoniesWindowMediator.NAME, component)
-
-        self._appmediator = self.facade.retrieveMediator(view.ApplicationMediator.NAME)
-
-        component.colorwheel.add_watcher('mouse-button', self._on_mouse_button, component.colorwheel)
-        component.colorwheel.add_watcher('mouse-motion', self._on_mouse_motion, component.colorwheel)
-        component.widgets['AsBgBt'].Notify('Pressed', self._on_color_as_bg, when=False)
-        component.set_hsv_callback(self._set_hsv)
-        
-    def _set_hsv(self, hsv):
-        model.DocumentProxy.get_active().set_brush_color_hsv(*hsv)
-
-    def _on_mouse_button(self, evt, widget):
-        rawkey = evt.RawKey
-        if rawkey == IECODE_LBUTTON:
-            if evt.Up:
-                if self.__mode == 'idle': return
-                widget.enable_mouse_motion(False)
-                self.__mode = 'idle'
-                hsv = widget.hsv
-            else:
-                if not evt.InObject: return
-                pos = widget.mouse_to_user(evt.MouseX, evt.MouseY)
-                if widget.hit_hue(*pos):
-                    hsv = widget.set_hue_pos(*pos)
-                    widget.enable_mouse_motion(True)
-                    self.__mode = 'hue-move'
-                elif widget.hit_square(*pos):
-                    hsv = widget.set_square_pos(*pos)
-                    widget.enable_mouse_motion(True)
-                    self.__mode = 'square-move'
-                else:
-                    return
-                    #hsv = widget.hit_harmony(*pos)
-                    #if hsv is None: return
-
-            self.viewComponent.hev = hsv
-            model.DocumentProxy.get_active().set_brush_color_hsv(*hsv)
-            return pymui.MUI_EventHandlerRC_Eat
-
-    def _on_mouse_motion(self, evt, widget):
-        pos = widget.mouse_to_user(evt.MouseX, evt.MouseY)
-        if self.__mode == 'hue-move':
-            hsv = widget.set_hue_pos(*pos)
-        else:
-            hsv = widget.set_square_pos(*pos)
-        self.viewComponent.hsv = hsv
-        model.DocumentProxy.get_active().set_brush_color_hsv(*hsv)
-        return pymui.MUI_EventHandlerRC_Eat
-
-    def _on_color_as_bg(self, evt):
-        self._appmediator.set_background_rgb(self.viewComponent.rgb)
-
-    ### notification handlers ###
-
-    @mvcHandler(main.Gribouillis.DOC_ACTIVATE)
-    def _on_activate_document(self, docproxy):
-        self.__brush = docproxy.document.brush
-        self.viewComponent.hsv = self.__brush.hsv
-
-    @mvcHandler(main.Gribouillis.BRUSH_PROP_CHANGED)
-    def _on_brush_prop_changed(self, brush, name):
-        if self.__brush is brush and name == 'color':
-            self.viewComponent.hsv = brush.hsv

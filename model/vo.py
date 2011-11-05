@@ -25,6 +25,7 @@
 ###############################################################################
 
 import document
+from utils import _T
 
 __all__ = [ 'DocumentConfigVO', 'FileDocumentConfigVO',
             'EmptyDocumentConfigVO', 'LayerConfigVO',
@@ -60,8 +61,8 @@ class FileDocumentConfigVO(DocumentConfigVO):
 
 
 class EmptyDocumentConfigVO(DocumentConfigVO):
-    def __init__(self, name, colorspace='RGB', **k):
-        super(EmptyDocumentConfigVO, self).__init__(name, colorspace=colorspace, **k)
+    def __init__(self, colorspace='RGB', **k):
+        super(EmptyDocumentConfigVO, self).__init__(name=_T('New document'), colorspace=colorspace, **k)
 
 
 class LayerCommandVO(GenericVO):

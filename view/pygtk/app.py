@@ -23,12 +23,12 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import pygtk
-pygtk.require('2.0')
 import gtk
 
-import main, view, utils
-from utils import mvcHandler
+import view, utils, main
+
+from utils import _T
+from view.contexts import action
 
 from layermgr import *
 from cmdhistoric import *
@@ -36,7 +36,7 @@ from brusheditor import *
 from brushhouse import *
 from colorwindow import *
 
-__all__ = ['Application', 'ApplicationMediator']
+__all__ = ['Application']
 
 
 class Application(view.mixin.ApplicationMixin):
@@ -72,9 +72,39 @@ class Application(view.mixin.ApplicationMixin):
 
     def open_cmdhistoric(self):
         self.cmdhist.present()
-
+        
     def open_colorwin(self):
         self.colorwin.present()
+
+    def toggle_cmdhistoric(self):
+        if self.cmdhist.get_visible():
+            self.cmdhist.hide()
+        else:
+            self.cmdhist.present()
+        
+    def toggle_brush_editor(self):
+        if self.brusheditor.get_visible():
+            self.brusheditor.hide()
+        else:
+            self.brusheditor.present()
+        
+    def toggle_brush_house(self):
+        if self.brushhouse.get_visible():
+            self.brushhouse.hide()
+        else:
+            self.brushhouse.present()
+        
+    def toggle_color_mgr(self):
+        if self.colorwin.get_visible():
+            self.colorwin.hide()
+        else:
+            self.colorwin.present()
+            
+    def toggle_layer_mgr(self):
+        if self.layermgr.get_visible():
+            self.layermgr.hide()
+        else:
+            self.layermgr.present()
 
     def select_filename(self, title, parent=None, read=True):
         if read:
@@ -138,74 +168,61 @@ class Application(view.mixin.ApplicationMixin):
 
         dlg.destroy()
         return vo
+    
+    def close_all_non_drawing_windows(self):
+        self.layermgr.hide()
+        self.cmdhist.hide()
+        self.brusheditor.hide()
+        self.brushhouse.hide()
+        self.colorwin.hide()
 
+# Actions
+#
 
-from docviewer import *
+@action(_T('open color manager window'))
+def action_open_colorwin(context, evt):
+    context.app.open_colorwin()
 
-class ApplicationMediator(utils.Mediator):
-    NAME = "ApplicationMediator"
+@action(_T('open brush house window'))
+def action_open_brush_house(context, evt):
+    context.app.open_brush_house()
 
-    document_mediator = None
+@action(_T('open brush editor window'))
+def action_open_brush_editor(context, evt):
+    context.app.open_brush_editor()
 
-    #### Private API ####
+@action(_T('open commands historic window'))
+def action_open_cmdhist(context, evt):
+    context.app.open_cmdhistoric()
 
-    def __init__(self, component):
-        assert isinstance(component, Application)
-        super(ApplicationMediator, self).__init__(ApplicationMediator.NAME, component)
+@action(_T('open layer manager window'))
+def action_open_layer_mgr(context, evt):
+    context.app.open_layer_mgr()
 
-    def onRegister(self):
-        self.facade.registerMediator(DialogMediator(self.viewComponent))
-        self.facade.registerMediator(LayerManagerMediator(self.viewComponent.layermgr))
-        self.facade.registerMediator(CommandsHistoryListMediator(self.viewComponent.cmdhist))
-        self.facade.registerMediator(BrushHouseWindowMediator(self.viewComponent.brushhouse))
-        self.facade.registerMediator(BrushEditorWindowMediator(self.viewComponent.brusheditor))
-        self.facade.registerMediator(ColorWindowMediator(self.viewComponent.colorwin))
+@action(_T('open preferences window'))
+def action_open_preferences(context, evt):
+    context.app.open_preferences()
 
-        self.document_mediator = DocumentMediator(self.viewComponent)
-        self.facade.registerMediator(self.document_mediator)
+@action(_T('toggle color manager window'))
+def action_toggle_colorwin(context, evt):
+    context.app.toggle_color_mgr()
 
-    def get_document_filename(self, parent=None):
-        return self.viewComponent.get_filename(parent)
+@action(_T('toggle brush house window'))
+def action_toggle_brush_house(context, evt):
+    context.app.toggle_brush_house()
 
-    ### notification handlers ###
+@action(_T('toggle brush editor window'))
+def action_toggle_brush_editor(context, evt):
+    context.app.toggle_brush_editor()
 
-    @mvcHandler(main.Gribouillis.QUIT)
-    def _on_quit(self, note):
-        # TODO: check for modified documents
-        self.viewComponent.quit()
+@action(_T('toggle commands historic window'))
+def action_toggle_cmdhist(context, evt):
+    context.app.toggle_cmdhistoric()
 
-    #### Public API ####
+@action(_T('toggle layer manager window'))
+def action_toggle_layer_mgr(context, evt):
+    context.app.toggle_layer_mgr()
 
-    def delete_docproxy(self, docproxy):
-        self.document_mediator.delete_docproxy(docproxy)
-
-        # Close the application on last document close event.
-        if len(self.document_mediator) == 0:
-            self.viewComponent.quit()
-
-
-class DialogMediator(utils.Mediator):
-    NAME = "DialogMediator"
-
-    def show_dialog(self, type, msg):
-        dlg = gtk.MessageDialog(self.viewComponent,
-                                type=type,
-                                buttons=gtk.BUTTONS_OK,
-                                message_format=msg)
-        dlg.run()
-        dlg.destroy()
-
-    #### notification handlers ####
-
-    @mvcHandler(main.Gribouillis.SHOW_ERROR_DIALOG)
-    def on_show_error(self, msg):
-        self.show_dialog(gtk.MESSAGE_ERROR, msg)
-
-    @mvcHandler(main.Gribouillis.SHOW_WARNING_DIALOG)
-    def on_show_warning(self, msg):
-        self.show_dialog(gtk.MESSAGE_WARNING, msg)
-
-    @mvcHandler(main.Gribouillis.SHOW_INFO_DIALOG)
-    def on_show_info(self, msg):
-        self.show_dialog(gtk.MESSAGE_INFO, msg)
-
+@action(_T('cleanup workspace'))
+def cleanup_workspace(context, evt):
+    context.app.close_all_non_drawing_windows()

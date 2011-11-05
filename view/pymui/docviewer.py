@@ -1,3 +1,5 @@
+# -*- coding: latin-1 -*-
+
 ###############################################################################
 # Copyright (c) 2009-2011 Guillaume Roguez
 #
@@ -23,58 +25,91 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import pymui, cairo, time
+import pymui, time, math, cairo, sys
+import traceback as tb
 
-import model, view, main
+from pymui.mcc.betterbalance import BetterBalance
+from math import ceil
+from random import random
+
+import model, view, main, utils
 
 from model.devices import *
-from utils import Mediator, mvcHandler, RECORDABLE_COMMAND, idle_cb
+from view import viewport, contexts
+from view import cairo_tools as tools
+
 from .app import Application
+from .widgets import Ruler
+from eventparser import *
+from const import *
 
-__all__ = [ 'DocViewer', 'DocumentMediator' ]
 
-IECODE_UP_PREFIX = 0x80
-IECODE_LBUTTON   = 0x68
-IECODE_RBUTTON   = 0x69
-IECODE_MBUTTON   = 0x6A
+__all__ = [ 'DocWindow' ]
 
-IEQUALIFIER_LSHIFT   = 0x0001
-IEQUALIFIER_RSHIFT   = 0x0002
-IEQUALIFIER_CONTROL  = 0x0008
-IEQUALIFIER_LALT     = 0x0010
-IEQUALIFIER_RALT     = 0x0020
-IEQUALIFIER_LCOMMAND = 0x0040
-IEQUALIFIER_RCOMMAND = 0x0080
+class DocDisplayArea(pymui.Rectangle, viewport.BackgroundMixin):
+    """DocDisplayArea class.
 
-IEQUALIFIER_SHIFT = IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT
-
-ALL_QUALIFIERS  = IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT | IEQUALIFIER_CONTROL
-ALL_QUALIFIERS |= IEQUALIFIER_LALT | IEQUALIFIER_RALT | IEQUALIFIER_LCOMMAND
-ALL_QUALIFIERS |= IEQUALIFIER_RCOMMAND
-
-NM_WHEEL_UP      = 0x7a
-NM_WHEEL_DOWN    = 0x7b
-
-PRESSURE_MAX     = 0x7ffff800
-ANGLE_MAX        = 4294967280.0
-
-TABLETA_ToolType = pymui.TABLETA_Dummy + 20
-
-class ViewPort(pymui.Rectangle, view.ViewPort):
+    This class is responsible to display a given document.
+    It owns and handles display properties like affine transformations,
+    background, and so on.
+    It handles user events from input devices to modify the document.
+    This class can also dispay tools and cursor.
+    """
+    
     _MCC_ = True
-    docproxy = None
-    __viewFormat = 'ARGB'
-    _redraw_area = None
+    width = height = 0
+    _clip = None
+    _cur_area = None
+    _cur_pos = (0,0)
+    _cur_on = False
+    _filter = None
+    _swap_x = _swap_y = None
+    _focus = False
+    _debug = 0
+    selpath = None
+    ctx = None
+    
+    # Tools
+    line_guide = None
+    ellipse_guide = None
+    
+    # Class only
+    __focus_lock = None
 
-    EVENTMAP = {
-        pymui.IDCMP_MOUSEBUTTONS : 'mouse-button',
-        pymui.IDCMP_MOUSEMOVE    : 'mouse-motion',
-        pymui.IDCMP_RAWKEY       : 'rawkey',
-        }
+    def __init__(self, win, docproxy):
+        super(DocDisplayArea, self).__init__(InnerSpacing=0, FillArea=False, DoubleBuffer=False)
 
+        fill = docproxy.document.fill or resolve_path(main.Gribouillis.TRANSPARENT_BACKGROUND)
+        self.set_background(fill)
+
+        self._win = win
+        self.docproxy = docproxy
+        self.device = InputDevice()
+        
+        # Viewport's
+        self._docvp = view.DocumentViewPort(docproxy)
+        self._toolsvp = view.ToolsViewPort()
+
+        self._curvp = tools.Cursor()
+        self._curvp.set_radius(docproxy.document.brush.radius_max)
+
+        self.line_guide = tools.LineGuide(300, 200)
+        self.ellipse_guide = tools.EllipseGuide(300, 200)
+
+        # Aliases
+        self.get_view_area = self._docvp.get_view_area
+        self.enable_fast_filter = self._docvp.enable_fast_filter
+        self.get_handler_at_pos = self._toolsvp.get_handler_at_pos
+        
+        self._ev = pymui.EventHandler()
+
+    # MUI interface
+    #
+    
     @pymui.muimethod(pymui.MUIM_Setup)
     def MCC_Setup(self, msg):
-        self._ev.install(self, pymui.IDCMP_RAWKEY | pymui.IDCMP_MOUSEBUTTONS)
+        self._ev.install(self, pymui.IDCMP_RAWKEY | pymui.IDCMP_MOUSEBUTTONS | pymui.IDCMP_MOUSEOBJECTMUI)
+        self.mediator.active = self
         return msg.DoSuper()
 
     @pymui.muimethod(pymui.MUIM_Cleanup)
@@ -84,561 +119,658 @@ class ViewPort(pymui.Rectangle, view.ViewPort):
 
     @pymui.muimethod(pymui.MUIM_HandleEvent)
     def MCC_HandleEvent(self, msg):
-        self._ev.readmsg(msg)
-        t = self._watchers.get(ViewPort.EVENTMAP.get(self._ev.Class))
-        if t: return t[0](self._ev, *t[1])
+        try:
+            self._ev.readmsg(msg)
+            cl = self._ev.Class
+            if cl == pymui.IDCMP_MOUSEMOVE:
+                if self.focus:
+                    self._hruler.set_pos(self._ev.MouseX)
+                    self._vruler.set_pos(self._ev.MouseY)
+                    event = CursorMoveEvent(self._ev, self)
+                else:
+                    return
+            elif cl == pymui.IDCMP_MOUSEOBJECTMUI:
+                if self._ev.InObject:
+                    self.focus = True
+                    if self.focus:
+                        event = GetFocusEvent(self._ev, self)
+                    else:
+                        return
+                else:
+                    self.focus = False
+                    if not self.focus:
+                        event = LooseFocusEvent(self._ev, self)
+                    else:
+                        return
+            elif cl == pymui.IDCMP_MOUSEBUTTONS or cl == pymui.IDCMP_RAWKEY:
+                if self._ev.Up:
+                    event = KeyReleasedEvent(self._ev, self)
+                elif self._ev.InObject:
+                    event = KeyPressedEvent(self._ev, self)
+                else:
+                    return
+            else:
+                return
+
+            eat, self.ctx = self.ctx.process(event)
+            return eat and pymui.MUI_EventHandlerRC_Eat
+            
+        except:
+            tb.print_exc(limit=20)
 
     @pymui.muimethod(pymui.MUIM_AskMinMax)
     def _mcc_AskMinMax(self, msg):
         msg.DoSuper()
-
-        minmax = msg.MinMaxInfo.contents
-
-        minmax.MinWidth = 100
-        minmax.MinHeight = 100
-        minmax.MaxWidth = pymui.MUI_MAXMAX
-        minmax.MaxHeight = pymui.MUI_MAXMAX
+        mmi = msg.MinMaxInfo.contents
+        mmi.MaxWidth = mmi.MaxWidth.value + pymui.MUI_MAXMAX
+        mmi.MaxHeight = mmi.MaxHeight.value + pymui.MUI_MAXMAX
 
     @pymui.muimethod(pymui.MUIM_Draw)
     def _mcc_Draw(self, msg):
         msg.DoSuper()
+        if not (msg.flags.value & pymui.MADF_DRAWOBJECT): return
+        
+        self.AddClipping()
+        try:
+            width = self.MWidth
+            height = self.MHeight
+                        
+            # Update and redraw everything when size has changed
+            if self.width != width or self.height != height:
+                self.width = width
+                self.height = height
+                
+                # Now viewport has a size we can initialize gfx elements
+                self._docvp.set_view_size(width, height)
+                self._toolsvp.set_view_size(width, height)
+                
+                # Repaint all viewports
+                self._docvp.repaint()
+                self._toolsvp.repaint()
 
-        if msg.flags.value & pymui.MADF_DRAWOBJECT:
-            area = self._redraw_area and map(int, self._redraw_area) or (0,0,self.MWidth,self.MHeight)
-            self._redraw_area = None
+                # As we are doing the double buffering ourself we create
+                # a pixel buffer suitable to be blitted on the window RastPort (ARGB no-alpha premul)
+                self._drawbuf = model._pixbuf.Pixbuf(model._pixbuf.FORMAT_ARGB8_NOA, width, height)
+                self._drawsurf = cairo.ImageSurface.create_for_data(self._drawbuf, cairo.FORMAT_ARGB32, width, height)
+                self._drawcr = cairo.Context(self._drawsurf)
+                
+                if self._clip:
+                    x, y, w, h = self._clip
+                    self._clip = None
+                else:
+                    x = y = 0
+                    w = width
+                    h = height
+                    
+                # Redraw the internal pixels buffer
+                self._redraw(x, y, w, h)
+                
+                # Set HRuler range
+                self._do_rulers()
+                
+                if not self.ctx:
+                    self.ctx = self._win.ctx.enter_context('Viewport', viewport=self)
+
+            elif self._clip:
+                x, y, w, h = self._clip
+                self._clip = None
+            else:
+                x = y = 0
+                w = width
+                h = height
             
-            cr = self.cairo_context
-            cr.reset_clip()
-            cr.identity_matrix()
-            area = self.repaint(cr, self._docproxy, area, self.MWidth, self.MHeight)
-            self.ClipCairoPaintArea(*area)
+            # Blit the internal buffer using computed/requested clip area
+            self._rp.Blit8(self._drawbuf, self._drawbuf.stride, self.MLeft + x, self.MTop + y, w, h, x, y)
+            
+            if self._debug:
+                self._rp.Rect(int(random()*255), self.MLeft + x, self.MTop + y, self.MLeft + x + w - 1, self.MTop + y + h - 1, 0)
+                
+        except:
+            tb.print_exc(limit=20)
+       
+        finally:
+            self.RemoveClipping()
+       
+    # Public API
+    #
 
-    def __init__(self, dv):
-        super(ViewPort, self).__init__(InnerSpacing=(0,)*4,
-                                       FillArea=False,
-                                       DoubleBuffer=True)
-        self.dv = dv
-        self._docproxy = dv.docproxy
-        self._ev = pymui.EventHandler()
-        self._watchers = {}
-
-        self.set_background(main.Gribouillis.DEFAULT_BACKGROUND)
-
-    def _set_background(self, filename):
-        self.Background = '5:'+filename
-
-    def set_watcher(self, name, cb, *args):
-        self._watchers[name] = (cb, args)
-
-    def enable_mouse_motion(self, state=True):
+    def split(self, *args):
+        return self._win.add_viewport(self, *args)
+        
+    def remove(self):
+        self._win.rem_viewport(self)
+        
+    def get_model_distance(self, *a):
+        return self._docvp.get_model_distance(*a)
+        
+    def get_model_point(self, *a):
+        return self._docvp.get_model_point(*a)
+    
+    def enable_motion_events(self, state=True):
         self._ev.uninstall()
         if state:
             idcmp = self._ev.idcmp | pymui.IDCMP_MOUSEMOVE
         else:
             idcmp = self._ev.idcmp & ~pymui.IDCMP_MOUSEMOVE
         self._ev.install(self, idcmp)
+    
+    def lock_focus(self):
+        cl = self.__class__
+        if self._focus and cl.__focus_lock is None:
+            cl.__focus_lock = self
+        
+    def unlock_focus(self):
+        cl = self.__class__
+        if cl.__focus_lock is self:
+            cl.__focus_lock = None
+        
+    def set_focus(self, focus):
+        """Set focus on viewport
+        
+        Viewport with focus is able to process events during MCC_HandleEvent call.
+        But this fonction works only if another viewport doens't have lock it
+        by a call to lock_focus.
+        When a Viewport has the focus, Viewport mediator active attribute is set.
+        """
+        
+        cl = self.__class__
+        if focus:
+            if cl.__focus_lock is not None:
+                return
+            self._focus = True
+            self.mediator.active = self
+        elif self._focus and cl.__focus_lock is None:
+            self._focus = False
+            
+    def is_tool_hit(self, tool, *pos):
+        return self._toolsvp.is_tool_hit(tool, *pos)
+        
+    def pick_mode(self, state):
+        if state:
+            self._win.pointer = DocWindow.POINTERTYPE_PICK
+        else:
+            self._win.pointer = DocWindow.POINTERTYPE_NORMAL
+            
+    @property
+    def scale(self):
+        return self._docvp.scale
+        
+    focus = property(fget=lambda self: self._focus, fset=set_focus)
+            
+    #### Rendering ####
 
-    def get_view_mouse(self, x, y):
-        return x-self.MLeft, y-self.MTop
+    def _check_clip(self, x, y, w, h):
+        # Check for RastPort boundaries
+        if x < 0: x = 0; w += x
+        if y < 0: y = 0; h += y
+        return x, y, w, h
+    
+    def _redraw(self, x, y, w, h):
+        # For each viewport convert to the correct pixels format and blit result on rastport
+        args = (self._drawbuf, x, y, x, y, w, h)
+        self._docvp.pixbuf.compose(*args)
+        self._toolsvp.pixbuf.compose(*args)
+        
+        # Blit a cursor?
+        if self._cur_on:
+            self._curvp.pixbuf.compose(self._drawbuf, self._cur_area[0], self._cur_area[1], 0, 0, self._cur_area[2], self._cur_area[3])
 
-    def redraw(self, area=None, model=True, tools=True, cursor=True):
-        self.set_repaint(model, tools, cursor)
-        self._redraw_area = area
+    def redraw(self, clip=None):
+        # Compute the redraw area (user/full clip + cursor clip to remove)
+        if clip and self._cur_area:
+            clip = utils.join_area(clip, self._cur_area)
+            self._cur_area = None
+                
+        # new cursor clip
+        if self._cur_on:
+            self._curvp.render()
+            self._cur_area = self._get_cursor_clip(*self._cur_pos)
+            if clip:
+                clip = utils.join_area(clip, self._cur_area)
+        
+        if clip:
+            self._clip = self._check_clip(*clip)
+        else:
+            self._clip = (0, 0, self.width, self.height)
+            
+        self._redraw(*self._clip)
         self.Redraw()
+            
+    def repaint(self, clip=None, redraw=True):
+        self._docvp.repaint(clip)
+        if redraw:
+            self.redraw(clip)
 
+    def repaint_tools(self, clip=None, redraw=False):
+        self._toolsvp.repaint(clip)
+        if redraw:
+            self.redraw(clip)
+    
+    def repaint_cursor(self, *pos):
+        if self._focus:
+            # Draw the new one
+            self._cur_on = True
+            self._cur_pos = pos
+            self.redraw(self._get_cursor_clip(*pos))
+    
+    def clear_tools_area(self, clip, redraw=False):
+        self._toolsvp.clear_area(clip)
+        if redraw:
+            self.redraw(clip)
+    
+    def enable_passepartout(self, state=True):
+        self._docvp.passepartout = state
+        self.repaint()
+        
+    #### Cursor related ####
+
+    def _get_cursor_clip(self, dx, dy):
+        w = self._curvp.width
+        h = self._curvp.height
+        dx -= w/2
+        dy -= h/2
+        return dx, dy, w, h
+    
+    def set_cursor_radius(self, r):
+        self._curvp.set_radius(r)
+        self.repaint_cursor(*self._cur_pos)
+
+    def show_brush_cursor(self, state=True):
+        if state and self.device.current:
+            self.repaint_cursor(*self.device.current.cpos)
+        else:
+            self._cur_on = False
+            # Remove the cursor if was blit and not needed
+            if self._cur_area:
+                self.redraw(self._cur_area)
+        return self._cur_pos
+      
+    #### Document viewport methods ####
+
+    def _do_rulers(self):
+        x0, y0 = self.get_model_point(0, 0)
+        x1, y1 = self.get_model_point(self.width, self.height)
+        
+        # Set HRuler range
+        self._hruler.lo = x0
+        self._hruler.hi = x1
+        self._hruler.Redraw()
+        
+        # Set VRuler range
+        self._vruler.lo = y0
+        self._vruler.hi = y1
+        self._vruler.Redraw()
+        
+    def get_view_pos(self, mx, my):
+        "Convert Mouse coordinates from intuition event into viewport coordinates"
+        return mx-self.MLeft, my-self.MTop
+
+    def reset_transforms(self):
+        self._swap_x = self._swap_y = None
+        self._docvp.reset_view()
+        self._curvp.set_scale(self._docvp.scale)
+        self.repaint()
+        self._do_rulers()
+        
+        # Unlock rulers display
+        self._win.permit_rulers = True
+
+    def reset_translation(self):
+        dvp = self._docvp
+        if dvp.reset_translation():
+            dvp.update_matrix()
+            self.repaint()
+            self._do_rulers()
+            
+    def reset_scaling(self, cx=0, cy=0):
+        dvp = self._docvp
+        x, y = dvp.get_model_point(cx, cy)
+        
+        # Reset scaling
+        if dvp.reset_scale():
+            dvp.update_matrix()
+        
+            # Sync cursor size
+            self._curvp.set_scale(dvp.scale)
+        
+            # Center vp on current cursor position
+            x, y = dvp.get_view_point(x, y)
+            self.scroll(cx-x, cy-y)
+    
+    def reset_rotation(self, cx=0, cy=0):
+        dvp = self._docvp
+        x, y = dvp.get_model_point(cx, cy)
+        
+        if dvp.reset_rotation():
+            dvp.update_matrix()
+            
+            # Center vp on current cursor position
+            x, y = dvp.get_view_point(x, y)
+            self.scroll(cx-x, cy-y)
+            
+        # Unlock rulers display
+        self._win.permit_rulers = True
+    
     def scale_up(self, cx=.0, cy=.0):
-        x, y = self.get_model_point(cx, cy)
-        if view.ViewPort.scale_up(self):
-            self.update_model_matrix()
-            x, y = self.get_view_point(x, y)
+        x, y = self._docvp.get_model_point(cx, cy)
+        if self._docvp.scale_up():
+            self._curvp.set_scale(self._docvp.scale)
+            self._docvp.update_matrix()
+            x, y = self._docvp.get_view_point(x, y)
             self.scroll(cx-x, cy-y)
-            self.redraw(tools=False)
-
+            
     def scale_down(self, cx=.0, cy=.0):
-        x, y = self.get_model_point(cx, cy)
-        if view.ViewPort.scale_down(self):
-            self.update_model_matrix()
-            x, y = self.get_view_point(x, y)
+        x, y = self._docvp.get_model_point(cx, cy)
+        if self._docvp.scale_down():
+            self._curvp.set_scale(self._docvp.scale)
+            self._docvp.update_matrix()
+            x, y = self._docvp.get_view_point(x, y)
             self.scroll(cx-x, cy-y)
-            self.redraw(tools=False)
 
     def scroll(self, *delta):
-        view.ViewPort.scroll(self, *delta)
-        self.update_model_matrix()
-        self.redraw(tools=False)
+        self._docvp.scroll(*delta)
+        self._docvp.update_matrix()
+        self.repaint()
+        self._do_rulers()
 
-    def rotate(self, dr):
-        view.ViewPort.rotate(self, dr)
-        self.update_model_matrix()
-        self.redraw() ## redraw tools also for the rotation helper
+    def rotate(self, angle):
+        self._win.permit_rulers = False
+        if self._win.rulers:
+            self._win.toggle_rulers()
+            
+        self._docvp.rotate(angle)
+        self._docvp.update_matrix()
+        self.repaint()
+        
+    def swap_x(self, x):
+        if self._swap_x is None:
+            self._swap_x = x
+            self._docvp.swap_x(self._swap_x)
+        else:
+            self._docvp.swap_x(self._swap_x)
+            self._swap_x = None
+            
+        self._docvp.update_matrix()
+        self.repaint()
+        self._do_rulers()
+        
+    def swap_y(self, y):
+        if self._swap_y is None:
+            self._swap_y = y
+            self._docvp.swap_y(self._swap_y)
+        else:
+            self._docvp.swap_y(self._swap_y)
+            self._swap_y = None
+            
+        self._docvp.update_matrix()
+        self.repaint()
+        self._do_rulers()
+        
+    def get_exact_color(self, *pos):
+        try:
+            return self._docvp.pixbuf.get_pixel(*pos)[:-1] # alpha last
+        except:
+            return
+            
+    def get_average_color(self, *pos):
+        try:
+            return self._docvp.pixbuf.get_average_pixel(self._curvp.radius, *pos)[:-1] # alpha last
+        except:
+            return
+    
+    #### Device state handling ####
+    
+    def get_device_state(self, event):
+        state = DeviceState()
+        
+        state.time = event.get_time()
 
-    def reset(self):
-        view.ViewPort.reset(self)
-        self.update_model_matrix()
-        self.redraw(tools=False)
+        # Get raw device position
+        state.cpos = event.get_cursor_position()
+        state.vpos = state.cpos
+        
+        # Tablet stuffs
+        state.pressure = event.get_pressure()
+        state.xtilt = event.get_cursor_xtilt()
+        state.ytilt = event.get_cursor_ytilt()
 
+        # Filter view pos by tools
+        if self._filter:
+            self._filter(state)
 
-class DocViewer(pymui.Window):
+        # Translate to surface coordinates (using layer offset) and record
+        pos = self._docvp.get_model_point(*state.vpos)
+        state.spos = self.docproxy.get_layer_pos(*pos)
+        self.device.add_state(state)
+        return state
+    
+    #### Tools/Handlers ####
+
+    def add_tool(self, tool):
+        if tool.added:
+            return
+            
+        if hasattr(tool, 'filter'):
+            self._filter = tool.filter
+        self._toolsvp.add_tool(tool)
+        tool.added = True
+        self.redraw(tool.area)
+
+    def rem_tool(self, tool):
+        if not tool.added:
+            return
+            
+        if hasattr(tool, 'filter') and self._filter == tool.filter:
+            self._filter = None
+        area = tool.area # saving because may be destroyed during rem_tool
+        self._toolsvp.rem_tool(tool)
+        tool.added = False
+        self.redraw(area)
+        
+    def toggle_tool(self, tool):
+        if tool.added:
+            self.rem_tool(tool)
+        else:
+            self.add_tool(tool)
+        return tool.added
+            
+    def toggle_guide(self, name):
+        if name == 'line':
+            if self.toggle_tool(self.line_guide) and self.ellipse_guide.added:
+                self.rem_tool(self.ellipse_guide)
+        elif name == 'ellipse':
+            if self.toggle_tool(self.ellipse_guide) and self.line_guide.added:
+                self.rem_tool(self.line_guide)
+        
+    @property
+    def tools(self):
+        return self._toolsvp.tools
+    
+    def to_front(self):
+        self.WindowObject.contents.Activate = True
+
+class DocWindow(pymui.Window):
 
     # Pointers type from C header file 'intuition/pointerclass.h'
     POINTERTYPE_NORMAL = 0
     POINTERTYPE_DRAW   = 6
     POINTERTYPE_PICK   = 5
 
-    _mode = 'idle'
-    _qualifier = 0
-    _new_states = None
-    _old_states = None
-    _shift = False
-    _t0 = None
-    _tool = None # the one who has the focus
+    focus = 0 # used by viewport objects
+    permit_rulers = True
+    _name = None
+    _scale = 1.0
+    
+    # Private API
+    #
 
-    #### Private API ####
-
-    def __init__(self, docproxy):
-        self.title_header = 'Document: '
-        super(DocViewer, self).__init__('',
+    def __init__(self, ctx, docproxy):
+        self.title_header = 'Document: %s @ %u%%'
+        super(DocWindow, self).__init__('',
                                         ID=0,       # The haitian power
-                                        LeftEdge=0,
-                                        TopDeltaEdge=0,
-                                        WidthScreen=70,
-                                        HeightScreen=90,
+                                        LeftEdge='centered',
+                                        TopEdge='centered',
+                                        WidthVisible=50,
+                                        HeightVisible=50,
+                                        #WidthScreen=70,
+                                        #HeightScreen=90,
+                                        #Backdrop=True,
+                                        #Borderless=True,
                                         TabletMessages=True, # enable tablet events support
                                         )
 
+        self.disp_areas = []
         self._watchers = {'pick': None}
-        self._on_motion = idle_cb
-        self.dev = InputDevice()
+        self.ctx = ctx.enter_context('Document', docproxy=docproxy, window=self)
 
         self.docproxy = docproxy
         name = docproxy.docname
 
-        self.vp = ViewPort(self)
-        self.RootObject = self.vp
+        root = pymui.ColGroup(2, InnerSpacing=0, Spacing=0)
+        self.RootObject = root
+        
+        # Rulers space
+        obj = pymui.List(SourceArray=[ Ruler.METRICS[k][0] for k in Ruler.METRIC_KEYS ],
+                         AdjustWidth=True,
+                         MultiSelect=pymui.MUIV_List_MultiSelect_None)
+        pop = pymui.Popobject(Object=obj,
+                              Button=pymui.Image(Frame='ImageButton',
+                                                 Spec=pymui.MUII_PopUp,
+                                                 InputMode='RelVerify'))
+        obj.Notify('DoubleClick', self._on_ruler_metric, pop, obj)
+        root.AddChild(pop)
+        self._popruler = pop
+        
+        # Top ruler
+        self._hruler = Ruler(Horiz=True)
+        root.AddChild(self._hruler)
+        
+        # Left ruler
+        self._vruler = Ruler(Horiz=False)
+        root.AddChild(self._vruler)
+        
+        self._vpgrp = pymui.HGroup(InnerSpacing=0, Spacing=0)
+        root.AddChild(self._vpgrp)
+        
+        # Default editor area
+        da, _ = self.add_viewport()
+        
+        # Status bar - TODO
+        #root.AddChild(pymui.HVSpace())
+        #self._status = pymui.Text(Frame='Text', Background='Text')
+        #root.AddChild(self._status)
 
+        self.Notify('Activate', self._on_activate)
         self.set_doc_name(name)
+        
+        # defaults
+        self._popruler.ShowMe = False
+            
+    def _on_activate(self, evt):
+        if evt.value:
+            self.pointer = self.POINTERTYPE_DRAW
+            #self.Opacity = -1
+        else:
+            self.pointer = self.POINTERTYPE_NORMAL
+            #self.Opacity = 128
+        
+    def _on_ruler_metric(self, evt, pop, lister):
+        pop.Close(0)
+        k = Ruler.METRIC_KEYS[lister.Active.value]
+        self._hruler.set_metric(k)
+        self._vruler.set_metric(k)
+        
+    def add_viewport(self, master=None, horiz=False):
+        da = DocDisplayArea(self, self.docproxy)
+        da._hruler = self._hruler
+        da._vruler = self._vruler
+        self.disp_areas.append(da)
 
-        # pointer is a PyMUI r233 feature
-        if 'pointer' in pymui.Window.__dict__:
-            self.Notify('Activate', self.__on_activate)
-
-        self.mode = 'idle'
+        if not master:
+            if len(self.disp_areas) > 1:
+                self._vpgrp.AddChild(BetterBalance())
+                da.location = 1
+            else:
+                da.location = 0
+            self._vpgrp.AddChild(da)
+            da.group = self._vpgrp
+            da.other = da2 = None
+            self._vpgrp.da = [da, da2]
+        else:
+            parent = master.group
+            if horiz:
+                grp = pymui.VGroup(InnerSpacing=0, Spacing=0)
+            else:
+                grp = pymui.HGroup(InnerSpacing=0, Spacing=0)
+            
+            parent.InitChange()
+            try:
+                grp.location = master.location
+                da2 = DocDisplayArea(self, self.docproxy)
+                self.disp_areas.append(da2)
+                grp.AddChild(da, BetterBalance(), da2)
+                da.location = 0
+                da.group = grp
+                da.other = da2
+                da2.location = 1
+                da2.group = grp
+                da2.other = da
+                grp.da = [da, da2]
+                if master.location == 0:
+                    parent.AddHead(grp)
+                else:
+                    parent.AddTail(grp)
+                parent.RemChild(master)
+                self.disp_areas.remove(master)
+            finally:
+                parent.ExitChange()
+                
+        return da, da2
 
     def set_watcher(self, name, cb, *args):
         self._watchers[name] = (cb, args)
 
-    def __on_activate(self, evt):
-        if evt.value:
-            self.pointer = self.POINTERTYPE_DRAW
-            self.vp.enable_mouse_motion(True)
-        else:
-            self.pointer = self.POINTERTYPE_NORMAL
-            self.vp.enable_mouse_motion(False)
-
-    def _set_mode(self, mode):
-        if mode != self._mode:
-            if mode.startswith('drag'):
-                self._on_motion = self._drag_on_motion
-            elif mode == 'draw':
-                self._on_motion = self._draw_on_motion
-            elif mode == 'rotation':
-                self._on_motion = self._rotate_on_motion
-            elif mode == 'tool-hit':
-                self._on_motion = self._tool_on_motion
-            else:
-                self._on_motion = idle_cb
-                if self.vp.draw_rot:
-                    self.vp.draw_rot = False
-                    self.vp.redraw() ## redraw all
-
-                if mode == 'pick':
-                    self.pointer = self.POINTERTYPE_PICK
-
-            #self.vp.enable_mouse_motion(self._on_motion is not idle_cb)
-            self._mode = mode
-
-    def _action_start(self, evt, mode):
-        self.mode = mode
-        self.update_dev_state(evt)
-
-        if mode == 'rotation':
-            self.__rox, self.__roy = self.vp.get_view_point(0, 0)
-            x, y = self.dev.current.vpos
-            self.__angle = self.vp.compute_angle(x - self.__rox, self.__roy - y)
-            self.vp.draw_rot = True
-            self.vp.redraw() ## redraw all
-        elif mode == 'draw':
-            self.docproxy.draw_start(self.dev)
-
-        self.mode = mode
-
-    def _action_cancel(self, evt):
-        if self.mode == 'rotation':
-            del self.__angle, self.__rox, self.__roy
-        elif self.mode == 'draw':
-            self.docproxy.draw_end()
-            self.vp.stroke_end()
-        elif self.mode == 'pick':
-            self.pointer = self.POINTERTYPE_NORMAL
-        self.mode = 'idle'
-
-    def _action_ok(self, evt):
-        mode = self.mode
-        if mode == 'draw':
-            self.on_mouse_motion(evt)
-            self.docproxy.draw_end()
-            self.vp.stroke_end()
-        elif mode == 'rotation':
-            del self.__angle, self.__rox, self.__roy
-        elif mode == 'scale-up':
-            pos = self.vp.get_view_mouse(evt.MouseX, evt.MouseY)
-            self.vp.scale_up(*pos)
-        elif mode == 'scale-down':
-            pos = self.vp.get_view_mouse(evt.MouseX, evt.MouseY)
-            self.vp.scale_down(*pos)
-        elif mode == 'pick':
-            pos = self.vp.get_view_mouse(evt.MouseX, evt.MouseY)
-            cb, args = self._watchers['pick']
-            cb(self.vp.get_model_point(*pos), *args)
-            self.pointer = self.POINTERTYPE_NORMAL
-
-        self.mode = 'idle'
-
-    def _drag_on_motion(self):
-        delta = self.vp.compute_motion(self.dev)
-        if self.mode == 'drag-view':
-            self.vp.scroll(*delta)
-        else:
-            self.docproxy.scroll_layer(*self.vp.get_model_distance(*delta))
-
-    def _draw_on_motion(self):
-        area = self.docproxy.draw_stroke()
-        if area:
-            self.vp.redraw(self.vp.get_view_area(*area), tools=False, cursor=False)
-
-    def _rotate_on_motion(self):
-        x, y = self.dev.current.vpos
-        a = self.vp.compute_angle(x-self.__rox, self.__roy-y)
-        da = self.__angle - a
-        self.__angle = a
-        self.vp.rotate(da)
-
-    def _tool_on_motion(self):
-        if self.vp.tool_motion(self._tool, self.dev.current):
-            self._tool = None
-            self.mode = 'idle'
-
-    #### Public API ####
-
-    mode = property(fget=lambda self: self._mode, fset=_set_mode)
+    def _refresh_title(self):
+        self.Title = self.title_header % (self._name, self._scale*100)
+        
+    # Public API
+    #
 
     def set_doc_name(self, name):
-        self.Title = self.title_header + name
-
-    def reset_view(self):
-        self.vp.reset()
+        self._name = name
+        self._refresh_title()
+        
+    def set_scale(self, scale):
+        self._scale = scale
+        self._refresh_title()
 
     def confirm_close(self):
-        # TODO
-        return True
-
-    def update_dev_state(self, evt, t0=int(time.time())-252460800.):
-        state = DeviceState()
-
-        # Get raw device position
-        state.vpos = self.vp.get_view_mouse(evt.MouseX, evt.MouseY)
-
-        if evt.td_Tags:
-            td = evt.td_Tags
-            state.pressure = float(td.get(pymui.TABLETA_Pressure, PRESSURE_MAX/2)) / PRESSURE_MAX
-
-            # Get device tilt
-            state.xtilt = 2.0 * float(td.get(pymui.TABLETA_AngleX, 0)) / ANGLE_MAX - 1.0
-            state.ytilt = 1.0 - 2.0 * float(td.get(pymui.TABLETA_AngleY, 0)) / ANGLE_MAX
-        else:
-            state.pressure = .5
-            state.xtilt = state.ytilt = .0
-
-        # timestamp
-        state.time = evt.Seconds - t0 + evt.Micros*1e-6
-
-        if self._tool and self.mode == 'draw':
-            self._tool.filter(state)
-
-        # Translate to surface coordinates (using layer offset) and record
-        state.spos = self.vp.get_model_point(*state.vpos)
-        self.dev.add_state(state)
-        self.vp.move_cursor(*state.vpos)
+        return pymui.DoRequest(pymui.GetApp(),
+                               gadgets= "_Yes|*_No",
+                               title  = "Need confirmation",
+                               format = "This document is modified and not saved yet.\nSure to close it?")
 
     def set_cursor_radius(self, r):
-        self.vp.set_cursor_radius(r)
-
-    def toggle_line_ruler(self):
-        self._tool = self.vp.toggle_line_ruler()
-
-    def toggle_ellipse_ruler(self):
-        self._tool = self.vp.toggle_ellipse_ruler()
-
-    def on_mouse_button(self, evt):
-        rawkey = evt.RawKey
-        if self._mode == 'idle':
-            if not evt.InObject: return
-            if rawkey == IECODE_LBUTTON:
-                if not evt.Up:
-                    self.update_dev_state(evt)
-                    tool = self.vp.tool_hit(self.dev.current)
-                    if tool:
-                        self._tool = tool
-                        self._action_start(evt, 'tool-hit')
-                    else:
-                        self._action_start(evt, 'draw')
-                    return pymui.MUI_EventHandlerRC_Eat
-            elif rawkey == IECODE_MBUTTON:
-                if not evt.Up:
-                    q = self._qualifier
-                    if q & IEQUALIFIER_CONTROL:
-                        self._action_start(evt, 'rotation')
-                    elif q & (IEQUALIFIER_LSHIFT|IEQUALIFIER_RSHIFT):
-                        self._action_start(evt, 'drag-layer')
-                    else:
-                        self._action_start(evt, 'drag-view')
-                    return pymui.MUI_EventHandlerRC_Eat
-        elif self._mode == 'draw':
-            if rawkey == IECODE_LBUTTON:
-                if evt.Up:
-                    self._action_ok(evt)
-                    return pymui.MUI_EventHandlerRC_Eat
-        elif self._mode.startswith('drag-'):
-            if rawkey == IECODE_MBUTTON:
-                if evt.Up:
-                    self._action_ok(evt)
-                    return pymui.MUI_EventHandlerRC_Eat
-            elif rawkey == IECODE_RBUTTON:
-                if not evt.Up:
-                    self._action_cancel(evt)
-                    return pymui.MUI_EventHandlerRC_Eat
-        elif self._mode == 'pick':
-            if rawkey == IECODE_LBUTTON:
-                if evt.Up:
-                    self._action_ok(evt)
-                    return pymui.MUI_EventHandlerRC_Eat
-            elif rawkey == IECODE_RBUTTON:
-                if evt.Up:
-                    self._action_cancel(evt)
-                    return pymui.MUI_EventHandlerRC_Eat
-        elif self._mode == 'rotation':
-            if rawkey == IECODE_MBUTTON:
-                if evt.Up:
-                    self._action_ok(evt)
-                    return pymui.MUI_EventHandlerRC_Eat
-            elif rawkey == IECODE_RBUTTON:
-                if not evt.Up:
-                    self._action_cancel(evt)
-                    return pymui.MUI_EventHandlerRC_Eat
-        elif self._mode == 'tool-hit':
-            if rawkey == IECODE_LBUTTON:
-                if evt.Up:
-                    self._action_ok(evt)
-                    return pymui.MUI_EventHandlerRC_Eat
-
-    def on_mouse_motion(self, evt):
-        # Constrained mode?
-        self._shift = bool(evt.Qualifier & IEQUALIFIER_SHIFT)
-
-        # Transform device dependent data into independent data
-        self.update_dev_state(evt)
-
-        # Call the mode dependent motion callback
-        self._on_motion()
-
-    def on_key(self, evt, docproxy):
-        self._qualifier = evt.Qualifier & ALL_QUALIFIERS
-        if evt.InObject and self.mode == 'idle':
-            key = evt.Key or evt.RawKey
-            if evt.Up:
-                if key == '+':
-                    docproxy.add_brush_radius(3)
-                    self.vp.redraw(model=False, tools=False)
-                    return pymui.MUI_EventHandlerRC_Eat
-                elif key == '-':
-                    docproxy.add_brush_radius(-3)
-                    self.vp.redraw(model=False, tools=False)
-                    return pymui.MUI_EventHandlerRC_Eat
-                elif key == 'p':
-                    self.mode = 'pick'
-                    return pymui.MUI_EventHandlerRC_Eat
-            else:
-                if key == NM_WHEEL_UP:
-                    self.mode = 'scale-up'
-                    self._action_ok(evt)
-                    return pymui.MUI_EventHandlerRC_Eat
-                elif key == NM_WHEEL_DOWN:
-                    self.mode = 'scale-down'
-                    self._action_ok(evt)
-                    return pymui.MUI_EventHandlerRC_Eat
-
-
-class DocumentMediator(Mediator):
-    NAME = "DocumentMediator"
-
-    __docproxy = None
-
-    #### Private API ####
-
-    def __init__(self, component):
-        assert isinstance(component, Application)
-        super(DocumentMediator, self).__init__(viewComponent=component)
-
-        self.__doc_proxies = {}
-
-    def __create_viewer(self, docproxy):
-        dv = DocViewer(docproxy)
-        self.viewComponent.AddChild(dv)
-
-        dv.Notify('CloseRequest', lambda e: self._safe_close_viewer(e.Source), when=True)
-        dv.Notify('Activate', self._on_activate, when=True)
-
-        # Inputs comes from the ViewPort
-        dv.vp.set_watcher('mouse-button', dv.on_mouse_button)
-        dv.vp.set_watcher('mouse-motion', dv.on_mouse_motion)
-        dv.vp.set_watcher('rawkey', dv.on_key, docproxy)
-        dv.set_watcher('pick', self._on_color_pick, dv, docproxy)
-
-        dv.Open = True
-
-        self.__doc_proxies[dv] = docproxy
-
-        return dv
-
-    def __len__(self):
-        return len(self.__doc_proxies)
-
-    def _get_viewer(self, docproxy):
-        for dv, proxy in self.__doc_proxies.iteritems():
-            if proxy == docproxy:
-                return dv
-
-    def _safe_close_viewer(self, dv):
-        docproxy = self.__doc_proxies[dv]
-        if not docproxy.document.empty and not dv.confirm_close():
-            return
-        self.sendNotification(main.Gribouillis.DOC_DELETE, docproxy)
-
-    def _on_color_pick(self, pos, dv, docproxy):
-        #color = docproxy.read_pixel_rgb(pos)
-        for layer in docproxy.iter_visible_layers():
-            color = layer.surface.read_pixel(*pos)
-            if color:
-                docproxy.set_brush_color_rgb(*color)
-                return
-
-    ### UI events handlers ###
-
-    def _on_activate(self, evt):
-        self.sendNotification(main.Gribouillis.DOC_ACTIVATE, self.__doc_proxies[evt.Source])
-
-    ### notification handlers ###
-
-    @mvcHandler(main.Gribouillis.NEW_DOCUMENT_RESULT)
-    def _on_new_document_result(self, docproxy):
-        if not docproxy:
-            self.sendNotification(main.Gribouillis.SHOW_ERROR_DIALOG,
-                                  "Failed to create document.")
-            return
-
-        self.__create_viewer(docproxy)
-
-    @mvcHandler(main.Gribouillis.DOC_SAVE_RESULT)
-    def _on_save_document_result(self, docproxy, result):
-        dv = self._get_viewer(docproxy)
-        dv.set_doc_name(docproxy.document.name)
-
-    @mvcHandler(main.Gribouillis.DOC_ACTIVATED)
-    def _on_activate_document(self, docproxy):
-        dv = self._get_viewer(docproxy)
-        if dv is None:
-            # Act as NEW_DOCUMENT_RESULT command
-            dv = self.__create_viewer(docproxy)
-        else:
-            if not dv.Activate:
-                dv.NNSet('Activate', True)
-            dv.ToFront()
+        for da in self.disp_areas:
+            da.set_cursor_radius(r)
             
-    @mvcHandler(main.Gribouillis.DOC_LAYER_ADDED)
-    def _on_doc_layer_added(self, docproxy, layer, *args):
-        dv = self._get_viewer(docproxy)
-        dv.vp.update_model_matrix(layer.x, layer.y)
-        if not layer.empty:
-            dv.vp.redraw(tools=False)
-            
-    @mvcHandler(main.Gribouillis.DOC_LAYER_MOVED)
-    @mvcHandler(main.Gribouillis.DOC_LAYER_UPDATED)
-    @mvcHandler(main.Gribouillis.DOC_LAYER_DELETED)
-    @mvcHandler(main.Gribouillis.DOC_UPDATED)
-    def _on_doc_layer_updated(self, docproxy, layer=None, *args):
-        dv = self._get_viewer(docproxy)
-        if layer is None:
-            layer = docproxy.active_layer
-        dv.vp.update_model_matrix(layer.x, layer.y)
-        dv.vp.redraw(tools=False)
-        
-    @mvcHandler(main.Gribouillis.DOC_LAYER_ACTIVATED)
-    def _on_doc_layer_activate(self, docproxy, layer):
-        dv = self._get_viewer(docproxy)
-        dv.vp.update_model_matrix(layer.x, layer.y)
-
-    @mvcHandler(main.Gribouillis.BRUSH_PROP_CHANGED)
-    def _on_doc_brush_prop_changed(self, brush, name):
-        if name is 'color': return
-        for docproxy in self.__doc_proxies.itervalues():
-            if docproxy.brush is brush:
-                setattr(docproxy.document.brush, name, getattr(brush, name))
-
-    #### Public API ####
-
-    def delete_docproxy(self, docproxy):
-        dv = self._get_viewer(docproxy)
-        del self.__doc_proxies[dv]
-        dv.Open = False
-        self.viewComponent.RemChild(dv)
-
-    def load_background(self):
-        docproxy = model.DocumentProxy.get_active()
-        dv = self._get_viewer(docproxy)
-        filename = self.viewComponent.get_image_filename(parent=dv, pat='#?.png')
-        if filename:
-            try:
-                dv.vp.set_background(filename)
-            except:
-                self.sendNotification(main.Gribouillis.SHOW_ERROR_DIALOG,
-                                      "Failed to load background image %s.\n" % filename +
-                                      "(Note: Only PNG files are supported as background).")
-            else:
-                dv.vp.redraw(tools=False)
-
-    def reset_view(self):
-        docproxy = model.DocumentProxy.get_active()
-        dv = self._get_viewer(docproxy)
-        dv.reset_view()
-
-    def load_image_as_layer(self):
-        docproxy = model.DocumentProxy.get_active()
-        dv = self._get_viewer(docproxy)
-        filename = self.viewComponent.get_image_filename(parent=dv)
-        if filename:
-            self.sendNotification(main.Gribouillis.DOC_LOAD_IMAGE_AS_LAYER,
-                                  model.vo.LayerConfigVO(docproxy=docproxy, filename=filename),
-                                  type=RECORDABLE_COMMAND)
-
     def set_background_rgb(self, rgb):
-        dv = self._get_viewer(model.DocumentProxy.get_active())
-        dv.vp.set_background_rgb(rgb)
-        dv.vp.redraw()
+        for da in self.disp_areas:
+            da.set_background_rgb(rgb)
+            
+    def toggle_rulers(self):
+        state = self.permit_rulers and not self._popruler.ShowMe.value
+        root = self.RootObject.contents
+        root.InitChange()
+        try:
+            self._popruler.ShowMe = state
+            # I don't know why... but hidding only the pop, hiding all rulers...
+        finally:
+            root.ExitChange()
 
-    def toggle_line_guide(self):
-        dv = self._get_viewer(model.DocumentProxy.get_active())
-        dv.toggle_line_ruler()
-        
-    def toggle_ellipse_guide(self):
-        dv = self._get_viewer(model.DocumentProxy.get_active())
-        dv.toggle_ellipse_ruler()
+    def set_status(self, **kwds):
+        pass # TODO
+
+    @property
+    def rulers(self):
+        return self._popruler.ShowMe.value

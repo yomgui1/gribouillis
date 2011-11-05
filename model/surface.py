@@ -48,59 +48,74 @@ Channel: logical view of one component of a 2D pixels array surface.
 Pixel: a object to represent one surface's pixel color in the 2D pixels array.
 """
 
-import _pixbuf, _tilemgr, png, cairo
-from cStringIO import StringIO
+import _pixbuf, _tilemgr, cairo, sys
 
 from utils import virtualmethod
 
-__all__ = [ 'Surface', 'UnboundedTiledSurface',
-            'BoundedPlainSurface' ]
+__all__ = [ 'Surface', 'UnboundedTiledSurface', 'BoundedPlainSurface', 'TILE_SIZE' ]
 
+TILE_SIZE = 64
 
-class _IntegerBuffer(object):
-    def __init__(self, buf):
-        self.b = buffer(buf)
-
-    def __getslice__(self, start, stop):
-        return tuple(ord(c) for c in self.b[start:stop])
-
-
-class TileSurfaceSnapshot:
+class TileSurfaceSnapshot(dict):
+    # These values are set in order to dirty_area returns 0 sized area
+    dirty_area = (0, 0, 0, 0)
+    
     def __init__(self, tiles):
-        self.old = tiles.copy()
-        self.new = {}
+        dict.__init__(self, tiles)
+        self._mod = {} # will contains added tiles after reduce()
+        
+        # mark all tiles as readonly:
+        # any modifications will replace this tiles by new ones with ro set to False
         for tile in tiles.itervalues():
             tile.ro = True
 
     def reduce(self, surface):
-        # Keep only non touched tiles
-        n = {}
-        for k, tile in surface.tiles.iteritems():
-            if tile.ro:
-                del self.old[k]
-            else:
-                n[k] = tile
-        self.new = n
+        "Split modified and unmodified tiles by make a difference with the given surface content"
+                
+        # Set dirty area to invalid values (but usefull with min/max computations)
+        xmin = ymin = sys.maxint
+        xmax = ymax = -sys.maxint - 1
+    
+        # Search for modifications (and additions!)
+        for pos, tile in surface.tiles.iteritems():
+            if not tile.ro:
+                # Move added tiles into the other dict,
+                # and update the dirty area
+                
+                self._mod[pos] = tile
 
-    def blit(self, tiles, invert):
-        if invert:
-            # Redo
-            for k in self.old:
-                tiles.pop(k)
-            for k,v in self.new.iteritems():
-                tiles[k] = v
+                x = tile.x
+                if xmin > x: xmin = x
+                
+                x += tile.width
+                if xmax < x: xmax = x
+                
+                y = tile.y
+                if ymin > y: ymin = y
+                
+                y += tile.height
+                if ymax < y: ymax = y
+            else:
+                del self[pos]
+
+        if self._mod or self:
+            self.dirty_area = xmin, ymin, xmax-xmin+1, ymax-ymin+1
+            return True
+
+    def blit(self, tiles, redo):
+        if redo:
+            # Redo: remove touched tiles and restore modified/added ones
+            map(tiles.pop, self)
+            tiles.update(self._mod)
         else:
-            # Undo
-            for k in self.new:
-                tiles.pop(k)
-            for k,v in self.old.iteritems():
-                tiles[k] = v
+            # Undo: remove modified tiles and restore old contents
+            map(tiles.pop, self._mod)
+            tiles.update(self)
 
     @property
     def size(self):
-        return sum(t.memsize for t in self.new.itervalues()) + \
-               sum(t.memsize for t in self.old.itervalues())
-
+        return sum(t.memsize for t in self.itervalues()) + \
+               sum(t.memsize for t in self._mod.itervalues())
         
 class Tile(_pixbuf.Pixbuf):
     def __new__(cls, pixfmt, x, y, s, *args):
@@ -122,34 +137,20 @@ class Tile(_pixbuf.Pixbuf):
 
     def as_cairo_surface(self, cfmt=cairo.FORMAT_ARGB32, pfmt=_pixbuf.FORMAT_ARGB8):
         s = cairo.ImageSurface(cfmt, *self.size)
-        self.blit(pfmt, s.get_data(), s.get_stride(), *self.size)
+        assert 0 # need a row blit
+        #self.blit(pfmt, s.get_data(), s.get_stride(), *self.size)
         s.mark_dirty()
         return s
-        
 
 class Surface(object):
     def __init__(self, pixfmt, writeprotect=False):
         self.pixfmt = pixfmt
-        self.__writable = writeprotect
 
     def _set_pixel(self, buf, pos, v):
         if isinstance(v, PixelAccessorMixin) and v.format == self.pixfmt:
             buf.set_from_pixel(pos, v)
         else:
             buf.set_from_tuple(pos, v)
-
-    def __get_wp(self):
-        self.lock() # READ lock
-        v = self.__writable
-        self.unlock()
-        return v
-
-    def __set_wp(self, v):
-        self.lock(True) # WRITE lock
-        self.__writable = v
-        self.unlock()
-
-    writeprotect = property(fget=__get_wp, fset=__set_wp)
 
     #### Virtual API ####
 
@@ -211,7 +212,11 @@ class Surface(object):
     def copy(self, surface):
         "Copy content from another surface"
         pass
-
+        
+    @virtualmethod
+    def get_pixbuf(self, x, y):
+        "Return the pixel buffer at given location"
+        pass
 
 class BoundedPlainSurface(Surface):
     """BoundedPlainSurface class.
@@ -223,22 +228,13 @@ class BoundedPlainSurface(Surface):
     may reside in the user RAM, like preview or picture thumbnails.
     """
     
-    def __init__(self, pixfmt, width, height, writeprotect=True, fill=False):
+    def __init__(self, pixfmt, width, height, writeprotect=True):
         super(BoundedPlainSurface, self).__init__(pixfmt, writeprotect)
         self.__buf = _pixbuf.Pixbuf(pixfmt, width, height)
+        self.clear = self.__buf.clear
+        self.clear_white = self.__buf.clear_white
+        self.clear_value = self.__buf.clear_value
         self.clear()
-
-    def lock(self, *a, **k):
-        self.__buf.lock(*a, **k)
-
-    def unlock(self, *a, **k):
-        self.__buf.unlock(*a, **k)
-        
-    def clear(self):
-        self.__buf.clear()
-        
-    def clear_white(self):
-        self.__buf.clear_white()
         
     def rasterize(self, area, *args):
         args[0](self.__buf, *args[1:])
@@ -248,6 +244,9 @@ class BoundedPlainSurface(Surface):
         if x >= buf.x and y >= buf.y and x < buf.width and y < buf.height:
             return buf
 
+    def get_rawbuf(self):
+        return self.__buf
+
     @property
     def size(self):
         """Give the total size of the surface as 2-tuple (width, height).
@@ -256,35 +255,38 @@ class BoundedPlainSurface(Surface):
         """
         return self.__buf.size
 
-
 class UnboundedTiledSurface(Surface):
-    def __init__(self, pixfmt, writeprotect=True, fill=False):
+    _lock = False
+    
+    def __init__(self, pixfmt, writeprotect=True):
         super(UnboundedTiledSurface, self).__init__(pixfmt, writeprotect)
-
+            
         self.__tilemgr = _tilemgr.UnboundedTileManager(Tile, pixfmt, writeprotect)
         self.from_buffer = self.__tilemgr.from_buffer
-
+        self.get_tiles = self.__tilemgr.get_tiles
+        self.get_pixbuf = self.get_tile
+        self.get_row_tile = self.__tilemgr.get_tile
+        
     def clear(self):
-        self.__tilemgr.tiles = {}
-
+        self.__tilemgr.tiles.clear()
+        
     @property
     def empty(self):
         return not bool(self.__tilemgr.tiles)
+        
+    def _set_lock(self, lock):
+        self._lock = lock
+        
+    lock = property(fget=lambda self: self._lock, fset=_set_lock)
 
     def snapshot(self):
         return TileSurfaceSnapshot(self.__tilemgr.tiles)
 
-    def unsnapshot(self, snapshot, invert=False):
-        return snapshot.blit(self.__tilemgr.tiles, invert)
+    def unsnapshot(self, snapshot, *args):
+        return snapshot.blit(self.__tilemgr.tiles, *args)
 
     def rasterize(self, area, *args):
         self.__tilemgr.rasterize(area, args)
-
-    def lock(self, *a, **k):
-        self.__tilemgr.lock(*a, **k)
-
-    def unlock(self, *a, **k):
-        self.__tilemgr.unlock(*a, **k)
 
     def get_tile(self, *pos):
         t = self.__tilemgr.get_tile(*pos)
@@ -292,12 +294,6 @@ class UnboundedTiledSurface(Surface):
             t = t.copy()
             self.__tilemgr.set_tile(t, *pos)
         return t
-
-    def get_tiles(self, area):
-        return self.__tilemgr.get_tiles(area)
-
-    def get_pixbuf(self, *pos):
-        return self.get_tile(*pos)
         
     def from_png_buffer(self, *a, **k):
         self.from_buffer(_pixbuf.FORMAT_RGBA8_NOA, *a, **k)
@@ -310,64 +306,28 @@ class UnboundedTiledSurface(Surface):
         buf.clear()
         
         def blit(tile):
-            tile.blit(pfmt, buf, buf.stride, w, h, tile.x-x, tile.y-y)
+            tile.blit(buf, tile.x-x, tile.y-y)
         self.rasterize((x,y,w,h), blit)
         
         return buf
-
-    def as_png_buffer(self, comp=4):
-        # Tiled surface -> buffer (PNG = RGBA8 format, no alpha-premul)
-        pix_buf = self.as_buffer(_pixbuf.FORMAT_RGBA8_NOA)
-
-        # Encode pixels data to PNG
-        png_buf = StringIO()
-        writer = png.Writer(pix_buf.width, pix_buf.height, alpha=True, bitdepth=8, compression=comp)
-        writer.write_array(png_buf, _IntegerBuffer(pix_buf))
-        
-        return png_buf.getvalue()
 
     def read_pixel(self, x, y):
         tile = self.__tilemgr.get_tile(x, y, False)
         if tile: return tile.get_pixel(int(x)-tile.x, int(y)-tile.y)
 
-    def merge_to(self, dst, operator=cairo.OPERATOR_OVER, opacity=1.0):
-        # Note: this version has a low mem profile, but consumes more the CPU.
-        
-        assert self.tile_size == dst.tile_size
-        
-        w = self.tile_size
-        fmt = _pixbuf.FORMAT_ARGB8 # for cairo FORMAT_ARGB32
-        
-        for stile in self.tiles.itervalues():
-            x = stile.x
-            y = stile.y
-            dtile = dst.get_tile(x, y)
-            
-            dsurf = dtile.as_cairo_surface(pfmt=fmt)
-            ssurf = stile.as_cairo_surface(pfmt=fmt)
-
-            cr = cairo.Context(dsurf)
-            cr.set_operator(operator)
-            cr.set_source_surface(ssurf, 0, 0)
-            cr.paint_with_alpha(opacity)
-
-            dtile.from_buffer(fmt,
-                              dsurf.get_data(),
-                              dsurf.get_stride(),
-                              x, y, w, w)
-
     def copy(self, surface):
         assert isinstance(surface, UnboundedTiledSurface)
-        d = surface.__tilemgr.tiles
-        self.__tilemgr.tiles = d.copy()
-        for tile in d.itervalues():
-            tile.ro = True
+        src = surface.__tilemgr
+        dst = self.__tilemgr
+        dst.tiles.clear()
+        for tile in src.tiles.itervalues():
+            dst.set_tile(tile.copy(), tile.x, tile.y)
             
     def cleanup(self):
         for k in tuple(k for k,v in self.__tilemgr.tiles.iteritems() if v.empty()):
             del self.__tilemgr.tiles[k]
 
-    def itertiles(self):
+    def __iter__(self):
         return self.__tilemgr.tiles.itervalues()
 
     @property
@@ -380,7 +340,6 @@ class UnboundedTiledSurface(Surface):
         if area:
             x,y,w,h = area
             return x,y,w-x+1,h-y+1
-        return 0,0,0,0
 
     @property
     def tiles(self):

@@ -31,8 +31,42 @@ from math import ceil
 
 __all__ = ('OpenRasterFileWriter', 'OpenRasterFileReader')
 
+_SVG_OP_2_GB = {
+    'src-over': 'normal',
+    'src-atop': 'mask',
+    'multiply': 'multiply',
+    'screen': 'screen',
+    'overlay': 'overlay',
+    'lighten': 'lighten',
+    'color-dodge': 'dodge',
+    'color-burn': 'burn',
+    'hard-light': 'hard-light',
+    'soft-light': 'soft-light',
+    'clear': 'clear',
+    'difference': 'difference',
+    'exclusion': 'exclusion',
+    'xor': 'xor',
+    'plus': 'add',
+    }
+    
+_GB_OP_2_SVG = {}
+for k, v in _SVG_OP_2_GB.iteritems():
+    _GB_OP_2_SVG[v] = k
+
 def ienumerate(iterable):
     return itertools.izip(itertools.count(), iterable)
+
+def svg_operator_to_gb(ope):
+    try:
+        return _SVG_OP_2_GB[ope[4:]]
+    except:
+        return 'normal'
+
+def gb_operator_to_svg(ope):
+    try:
+        return 'svg:' + _GB_OP_2_SVG[ope]
+    except:
+        return ope
 
 class OpenRasterFileWriter:
     def __init__(self, document, filename, **kwds):
@@ -40,35 +74,40 @@ class OpenRasterFileWriter:
         self.z = zipfile.ZipFile(filename, 'w', compression=zipfile.ZIP_STORED)
         self.z.writestr('mimetype', 'image/openraster')
         self.layers = []
-        self.comp = kwds.get('compression', 4)
+        self.compression = kwds.get('compression', 4)
         self.extra = kwds.get('extra', {})
-        self.ox, self.oy, self.width, self.height = document.get_bbox()
-        self.width -= self.ox - 1
-        self.height -= self.oy - 1
+        self.ox, self.oy, self.width, self.height = document.area
         self.layer_cnt = 1
+        self.doc_fill = document.fill
 
-    def AddLayer(self, layer):
+    def AddLayer(self, layer, layers2png):
         if not layer.empty:
-            lx, ly, w, h = layer.get_bbox()
-            w -= lx - 1
-            h -= ly - 1
+            lx, ly, w, h = layer.area
             srcpath = 'data/layer_%u.png' % self.layer_cnt
         else:
             lx = self.ox
             ly = self.oy
-            w=0
-            h=0
+            w = h = 0
             srcpath = ''
 
         self.layer_cnt += 1
-        xml_layer = ET.Element('layer', {}, name=layer.name, src=srcpath,
-                                x=str(lx-self.ox), y=str(ly-self.oy), # save position in image coordinates
-                                w=str(w), h=str(h),
-                                compositeOp=layer.operator)
+        xml_layer = ET.Element('layer',
+                                {'composite-op': gb_operator_to_svg(layer.operator)},
+                                name=layer.name,
+                                src=srcpath,
+                                visibility=('visible' if layer.visible else 'hidden'),
+                                opacity='%g' % layer.opacity,
+                                x=str(lx-self.ox),
+                                y=str(ly-self.oy), # save position in image coordinates
+                                w=str(w),
+                                h=str(h))
         self.layers.append(xml_layer)
 
-        if srcpath:
-            self.z.writestr(srcpath, layer.surface.as_png_buffer(self.comp))
+        if not layer.empty:
+            opa = layer.opacity # save opacity and force it to 1.0 for rasterizing
+            layer.opacity = 1.0
+            self.z.writestr(srcpath, layers2png(self.compression, [layer], all=True, back=False))
+            layer.opacity = opa
 
     def close(self):
         if not self.layers:
@@ -77,6 +116,7 @@ class OpenRasterFileWriter:
             return
 
         image = ET.Element('image')
+        
         self.top_stack = ET.SubElement(image, 'stack')
 
         a = image.attrib
@@ -99,7 +139,6 @@ class OpenRasterFileWriter:
 
     def __exit__(self, *args):
         self.close()
-
 
 class OpenRasterFileReader:
     def __init__(self, filename, **kwds):
@@ -127,6 +166,19 @@ class OpenRasterFileReader:
                 continue
 
             a = layer.attrib
+            
+            if 'visible' in a:
+                visible = bool(int(a['visible'])) # backware compability
+            else:
+                visible = a.get('visibility', 'visible') == 'visible'
+                
+            if 'compositeOp' in a:
+                cpop = a['compositeOp'] # backware compability
+            else:
+                cpop = svg_operator_to_gb(a.get('composite-op', 'svg:src-over'))
+            
+            opacity = float(a.get('opacity', "1.0"))
+            
             srcpath = a.get('src')
             if srcpath:
                 if not srcpath.lower().endswith('.png'):
@@ -143,9 +195,10 @@ class OpenRasterFileReader:
                 if w != int(a.get('w', w)) or h != int(a.get('h', h)):
                     print "[*DBG*] Warning: ignoring unwanted size (%lux%lu)" % (w, h)
                     continue
-                yield a['name'], a.get('compositeOp', 'normal'), (x, y, w, h), im.tostring()
+                    
+                yield a['name'], cpop, (x, y, w, h), visible, opacity, im.tostring()
             else:
-                yield a['name'], a.get('compositeOp', 'normal'), (0, 0, 0, 0), None
+                yield a['name'], cpop, (0, 0, 0, 0), visible, opacity, None
 
     def close(self):
         self.z.close()

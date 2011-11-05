@@ -25,43 +25,50 @@
 
 import pymui
 from pymui.mcc import laygroup
+from pymui.mcc import rawimage
 
 import main, model, utils, view
 
-from utils import mvcHandler, Mediator
-from model.brush import Brush
+from utils import _T
+from model.brush import Brush, DrawableBrush
+from model.document import Document
+from model import _pixbuf
 
-__all__ = [ 'BrushHouseWindow', 'BrushHouseWindowMediator' ]
+__all__ = [ 'BrushHouseWindow' ]
 
 MUIA_Group_PageMax = 0x8042d777 # /* V4  i.. BOOL              */ /* private */
 
 class BrushHouseWindow(pymui.Window):
     _current_cb = utils.idle_cb
 
-    def __init__(self):
-        super(BrushHouseWindow, self).__init__('Brush House',
+    def __init__(self, name):
+        super(BrushHouseWindow, self).__init__(_T('Brush House'),
                                                ID='BRHO',
-                                               Width=300, Height=200,
+                                               LeftEdge=0,
                                                TopDeltaEdge=0,
-                                               RightEdge=0,
                                                CloseOnReq=True)
+        self.name = name
 
         self._brushes = set()
         self._all = None
         self._current = None
         self._pages = []
+        self._drawbrush = DrawableBrush() # used for preview
 
         # UI
         self._top = topbox = self.RootObject = pymui.VGroup()
 
         # Brush context menu
         self._brushmenustrip = pymui.Menustrip()
-        menu = pymui.Menu('Brush actions')
+        menu = pymui.Menu(_T('Brush actions'))
         self._brushmenustrip.AddTail(menu)
 
         self._menuitems = {}
-        for k, text in [('change-icon', 'Change icon...'),
-                        ('delete', 'Delete')]:
+        for k, text in [('use-preview-icon', _T('Use preview icon')),
+                        ('use-image-icon', _T('Use image icon')),
+                        ('change-icon', _T('Change image icon...')),
+                        ('dup', _T('Duplicate')),
+                        ('delete', _T('Delete'))]:
             o = self._menuitems[k] = pymui.Menuitem(text)
             menu.AddChild(o)
 
@@ -69,19 +76,19 @@ class BrushHouseWindow(pymui.Window):
         box = pymui.HGroup()
         topbox.AddChild(box)
 
-        bt = pymui.SimpleButton('New page', Weight=0)
+        bt = pymui.SimpleButton(_T('New page'), Weight=0)
         box.AddChild(bt)
         bt.Notify('Pressed', self._on_add_page, when=False)
 
-        bt = self._del_page_bt = pymui.SimpleButton('Delete page', Weight=0, Disabled=True)
+        bt = self._del_page_bt = pymui.SimpleButton(_T('Delete page'), Weight=0, Disabled=True)
         box.AddChild(bt)
         bt.Notify('Pressed', self._on_del_page, when=False)
 
-        bt = pymui.SimpleButton('New brush', Weight=0)
+        bt = pymui.SimpleButton(_T('New brush'), Weight=0)
         box.AddChild(bt)
         bt.Notify('Pressed', self._on_new_brush, when=False)
 
-        bt = pymui.SimpleButton('Save all', Weight=0)
+        bt = pymui.SimpleButton(_T('Save all'), Weight=0)
         box.AddChild(bt)
         bt.Notify('Pressed', self._on_save_all, when=False)
 
@@ -91,19 +98,24 @@ class BrushHouseWindow(pymui.Window):
         nb = self._nb = pymui.VGroup(Frame='Register',
                                      PageMode=True,
                                      Background='RegisterBack',
+                                     CycleChain=True,
                                      muiargs=[(MUIA_Group_PageMax, False)])
         self._titles = pymui.Title(Closable=False, Newable=False)
         nb.AddChild(self._titles)
         nb.Notify('ActivePage', self._on_active_page)
         topbox.AddChild(nb)
+        
+        self._pagenamebt = pymui.String(Frame='String', Disabled=True, CycleChain=True)
+        self._pagenamebt.Notify('Acknowledge', lambda ev, v: self._change_page_name(v), pymui.MUIV_TriggerValue)
+        topbox.AddChild(pymui.HGroup(Child=[pymui.Label(_T('Page name')+':'), self._pagenamebt]))
 
         # Add the 'All brushes' page
-        self._all = self.add_page('All brushes', close=False)
+        self._all = self.add_page(_T('All brushes'), close=False)
 
-        # Add brushes
+        # Load saved brushes
         l =  Brush.load_brushes()
         for brush in l:
-            self.add_brush(brush, brush.page)
+            self.add_brush(brush, name=brush.page)
         self.active_brush = l[0]
 
         self._del_page_bt.Disable = True
@@ -114,13 +126,18 @@ class BrushHouseWindow(pymui.Window):
         self._current_cb = cb
 
     def add_page(self, name, close=True):
+        # page name is unique...
+        for page, title in self._pages:
+            if page.name == name:
+                return page
+                
         title = pymui.Text(name, Dropable=True)
         page = laygroup.LayGroup(SameSize=False, Spacing=1)
         page.name = name
 
         self._top.InitChange()
         self._titles.AddChild(title, lock=True)
-        self._nb.AddChild(page, lock=True)
+        self._nb.AddChild(pymui.Scrollgroup(Contents=page, NoHorizBar=True), lock=True)
         self._top.ExitChange()
 
         self._pages.append((page, title))
@@ -128,48 +145,76 @@ class BrushHouseWindow(pymui.Window):
 
         return page
 
-    def add_brush(self, brush, pagename=None):
+    def add_brush(self, brush, page=None, name=None):
         # Make 2 buttons: one for the "All brushes" page, and another for the current page
         # If current page is the All, only one button is created.
         bt = self._mkbrushbt(self._all, brush)
         bt.allbt = bt
         brush.bt = bt
-        self._brushes.add(brush)
-
-        if len(self._brushes) == 2:
-            self._menuitems['delete'].Enabled = True
-
-        page = None
-        if pagename:
-            for o,_ in self._pages:
-                if o.name == pagename:
-                    page = o
-            del o
-            if page is None:
-                page = self.add_page(pagename)
-
-        page = page or self._pages[self._nb.ActivePage.value][0]
+        self._brushes.add(bt)
+        
+        # Obtain a valid page object
+        if page is None:
+            if name:
+                page = self.add_page(name)
+            else:
+                page = self._all
+                
         if page != self._all:
             bt.bt2 = self._mkbrushbt(page, brush)
             bt.bt2.allbt = bt
             brush.page = page.name
         else:
             brush.page = None
+            
+        if len(self._brushes) == 2:
+            self._menuitems['delete'].Enabled = True
 
         self.ActiveObject = bt
         bt.Selected = True
 
+    def _preview_icon_buffer(self, brush):
+        self._drawbrush.set_from_brush(brush)
+        width = 128
+        height = 60
+        return self._drawbrush.paint_rgb_preview(width, height, fmt=_pixbuf.FORMAT_ARGB8_NOA)
+    
+    def _load_brush_icon_for_rawimage(self, brush):
+        buf, w, h, stride = Document.load_image(brush.icon, 'RGB')
+        brush.icon_preview = buf
+        data = rawimage.mkRawimageData(w, h, buf, rawimage.RAWIMAGE_FORMAT_RAW_RGB_ID)
+        return data
+        
     def _mkbrushbt(self, page, brush):
-        bt = pymui.Dtpic(Frame='ImageButton',
-                         Name=brush.icon,
-                         ShortHelp=brush.name,
-                         #FixWidth=48, FixHeight=48,
-                         InputMode='Toggle',
-                         CycleChain=True,
-                         Draggable=True,
-                         ContextMenu=self._brushmenustrip)
+        if brush.icon:
+            data = self._load_brush_icon_for_rawimage(brush)
+            bt = rawimage.Rawimage(long(data),
+                                   Frame='ImageButton',
+                                   ShortHelp=brush.name,
+                                   InputMode='Toggle',
+                                   CycleChain=True,
+                                   Draggable=True,
+                                   ContextMenu=self._brushmenustrip)
+            bt.ri_data = data
+        else:
+            if not brush.icon_preview:
+                brush.icon_preview = self._preview_icon_buffer(brush)
+            buf = brush.icon_preview
+            data = rawimage.mkRawimageData(buf.width, buf.height, str(buffer(buf)))
+            bt = rawimage.Rawimage(long(data),
+                                   Frame='ImageButton',
+                                   ShortHelp=brush.name,
+                                   InputMode='Toggle',
+                                   CycleChain=True,
+                                   Draggable=True,
+                                   ContextMenu=self._brushmenustrip)
+            bt.ri_data = data
+            
         bt.Notify('Selected', self._on_brush_bt_clicked)
+        bt.Notify('ContextMenuTrigger', self._on_preview_icon, when=self._menuitems['use-preview-icon']._object)
+        bt.Notify('ContextMenuTrigger', self._on_image_icon, when=self._menuitems['use-image-icon']._object)
         bt.Notify('ContextMenuTrigger', self._on_change_icon, when=self._menuitems['change-icon']._object)
+        bt.Notify('ContextMenuTrigger', self._on_dup_brush, when=self._menuitems['dup']._object)
         bt.Notify('ContextMenuTrigger', self._on_delete_brush, when=self._menuitems['delete']._object)
         bt.page = page
         bt.brush = brush
@@ -180,41 +225,41 @@ class BrushHouseWindow(pymui.Window):
         return bt
 
     def _on_add_page(self, evt):
-        self.add_page('New page')
+        self.add_page(name='New page')
 
     def _on_del_page(self, evt):
         n = self._nb.ActivePage.value
         page, title = self._pages.pop(n)
 
         self._top.InitChange()
-        self._nb.InitChange()
-        self._nb.RemChild(page)
-        self._titles.InitChange()
+        self._nb.RemChild(page.Parent.contents)
         self._titles.RemChild(title)
-        self._titles.ExitChange()
-        self._nb.ExitChange()
         self._top.ExitChange()
 
         self._nb.ActivePage = max(0, n-1)
 
         if page is not self._all:
-            for brush in self._brushes:
-                brush.page = None
-                brush.bt.bt2 = None
-
+            for bt in list(self._brushes):
+                if bt.page is page.name:
+                    self._brushes.remove(bt)
+        
     def _on_active_page(self, evt):
         page = self._pages[self._nb.ActivePage.value][0]
+        self._pagenamebt.NNSet('Contents', page.name)
         if self._all:
             if self._all is page:
+                self._pagenamebt.Disabled = True
                 self._del_page_bt.Disabled = True
             else:
+                self._pagenamebt.Disabled = False
                 self._del_page_bt.Disabled = False
 
     def _on_new_brush(self, evt):
-        self.add_brush(Brush())
+        i = self._nb.ActivePage.value
+        self.add_brush(Brush(), page=self._pages[i][0])
 
     def _on_save_all(self, evt):
-        Brush.save_brushes(self._brushes)
+        Brush.save_brushes(bt.brush for bt in self._brushes)
 
     def _on_brush_bt_clicked(self, evt):
         bt = evt.Source
@@ -243,10 +288,15 @@ class BrushHouseWindow(pymui.Window):
         filename = pymui.GetApp().get_image_filename(parent=self)
         if filename:
             self._top.InitChange()
-            bt.Name = filename
-            bt.brush.icon = filename
+            bt.brush.icon = filename.replace('PROGDIR:', '')
+            data = self._load_brush_icon_for_rawimage(bt.brush)
+            bt.ri_data = data
+            bt.Picture = long(data)
             if bt.bt2:
-                bt.bt2.Name = filename
+                bt = bt.bt2
+                data = self._load_brush_icon_for_rawimage(bt.brush)
+                bt.ri_data = data
+                bt.Picture = long(data)
             self._top.ExitChange()
 
     def _on_delete_brush(self, evt):
@@ -256,56 +306,41 @@ class BrushHouseWindow(pymui.Window):
         if bt.bt2:
             bt.bt2.page.RemChild(bt.bt2, lock=True)
         self._top.ExitChange()
-        self._brushes.remove(bt.brush)
+        self._brushes.remove(bt)
         if len(self._brushes) == 1:
             self._menuitems['delete'].Enabled = False
+
+    def _on_dup_brush(self, evt):
+        bt = evt.Source
+        brush = Brush()
+        brush.set_from_brush(bt.brush)
+        self.add_brush(brush, page=bt.page)
+
+    def _on_preview_icon(self, evt):
+        bt = evt.Source.allbt
+        buf = bt.brush.icon_preview = self._preview_icon_buffer(bt.brush)
+        bt.ri_data = rawimage.mkRawimageData(buf.width, buf.height, str(buffer((buf))))
+        bt.Picture = long(bt.ri_data)
+        if bt.bt2:
+            bt.bt2.Picture = long(bt.ri_data)
+        
+    def _on_image_icon(self, evt):
+        bt = evt.Source.allbt
+        if bt.brush.icon:
+            data = self._load_brush_icon_for_rawimage(bt.brush)
+            bt.ri_data = data
+            bt.Picture = long(data)
+            if bt.bt2:
+                bt.bt2.Picture = long(bt.ri_data)
+        else:
+            self._on_change_icon(evt)
 
     def _set_active_brush(self, brush):
         brush.bt.Selected =True
 
+    def _change_page_name(self, value):
+        page, title = self._pages[self._nb.ActivePage.value]
+        page.name = title.Contents = value.contents
+        
     active_brush = property(fget=lambda self: self._current.brush, fset=_set_active_brush)
-
-
-class BrushHouseWindowMediator(Mediator):
-    NAME = "BrushHouseWindowMediator"
-
-    #### Private API ####
-
-    def __init__(self, component):
-        assert isinstance(component, BrushHouseWindow)
-        super(BrushHouseWindowMediator, self).__init__(viewComponent=component)
-
-        self._docproxy = None # active document
-        component.set_current_cb(self._on_brush_selected)
-
-    def _on_brush_selected(self, brush):
-        #print "[BH] active brush:", brush
-        self._docproxy.brush = brush # this cause docproxy to copy brush data to the document drawable brush
-
-    ### notification handlers ###
-
-    @mvcHandler(main.Gribouillis.DOC_ACTIVATED)
-    def _on_activate_document(self, docproxy):
-        # keep silent if no change
-        if docproxy is self._docproxy: return
-        self._docproxy = docproxy
-
-        # Check if the document has a default brush, assign current default one if not
-        if not docproxy.brush:
-            #print "[BH] new doc, default brush is %s" % self.viewComponent.active_brush
-            docproxy.brush = self.viewComponent.active_brush
-        else:
-            # change current active brush by the docproxy one
-            self.viewComponent.active_brush = docproxy.brush
-
-    @mvcHandler(main.Gribouillis.DOC_DELETE)
-    def _on_delete_document(self, docproxy):
-        if docproxy is self._docproxy:
-            self._docproxy = None
-
-    @mvcHandler(main.Gribouillis.BRUSH_PROP_CHANGED)
-    def _on_brush_prop_changed(self, brush, name):
-        if name is 'color': return
-        setattr(self._docproxy.brush, name, getattr(brush, name))
-
 

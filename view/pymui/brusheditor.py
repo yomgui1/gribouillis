@@ -24,20 +24,20 @@
 ###############################################################################
 
 import pymui
-from math import log, exp, sin, pi
+from math import log, exp
 
 import model, view, main
-from utils import Mediator, mvcHandler
+
 from view.backend_cairo import SimpleViewPort
 from model.surface import BoundedPlainSurface
 from model.layer import Layer
 from model.colorspace import ColorSpaceRGB
 from model import _pixbuf
 from model.brush import DrawableBrush
-from model.devices import DeviceState
+from utils import _T, resolve_path
 
 
-__all__ = [ 'BrushEditorWindow', 'BrushEditorWindowMediator' ]
+__all__ = [ 'BrushEditorWindow' ]
 
 class BrushPreview(pymui.Area, SimpleViewPort):
     _MCC_ = True
@@ -75,51 +75,51 @@ class BrushPreview(pymui.Area, SimpleViewPort):
                                            Frame='Virtual',
                                            FillArea=False,
                                            DoubleBuffer=True)
-        self._gen_poslist()
         self._brush = DrawableBrush()
         self._brush.rgb = (0,0,0)
-        pixfmt = _pixbuf.format_from_colorspace(ColorSpaceRGB.type, _pixbuf.FLAG_15X | _pixbuf.FLAG_ALPHA_FIRST)
-        self._surface = BoundedPlainSurface(pixfmt,BrushPreview.WIDTH, BrushPreview.HEIGHT)
+        self._states = list(self._brush.gen_preview_states(BrushPreview.WIDTH,
+                                                           BrushPreview.HEIGHT))
+        self._surface = BoundedPlainSurface(_pixbuf.FLAG_RGB | _pixbuf.FLAG_15X | _pixbuf.FLAG_ALPHA_FIRST,
+                                            BrushPreview.WIDTH, BrushPreview.HEIGHT)
         layer = Layer(self._surface, "BrushPreviewLayer")
         self._layers = (layer,)
-        self.set_background_rgb([1,1,1])
-        
-    def _gen_poslist(self):
-        self._states = []
-        xmin = 32
-        xmax = BrushPreview.WIDTH-xmin
-        y = BrushPreview.HEIGHT / 2
-        r = BrushPreview.HEIGHT / 4
-        w = (xmax-xmin)-1
-        
-        for x in xrange(xmin, xmax):
-            state = DeviceState()
-            state.time = t = float(x-xmin)/w
-            state.pressure = 1.0 - (2*t-1)**2
-            state.vpos = (x, y + int(r*sin(2.*t*pi)))
-            state.xtilt = state.ytilt = 0.0
-            state.spos = self.get_model_point(*state.vpos)
-            self._states.append(state)
-        
-    def stroke(self):
-        self._surface.clear()
-        self._brush.surface = self._surface
-        self._brush.stroke_start(self._states[0])
-        for state in self._states:
-            self._brush.draw_stroke(state)
-        self._brush.stroke_end()
+        self.set_background(resolve_path(main.Gribouillis.TRANSPARENT_BACKGROUND))
+                
+    def stroke(self, v=1.0):
+        buf = self._brush.paint_rgb_preview(BrushPreview.WIDTH, BrushPreview.HEIGHT,
+                                            surface=self._surface, states=self._states)
         self.set_repaint(True)
         self.Redraw()
+        return buf
         
     def set_attr(self, name, v):
+        if name == 'smudge': return
         setattr(self._brush, name, v)
-        self.stroke()
+        self._curbrush.icon_preview = self.stroke()
         
     def set_from_brush(self, brush):
         self._brush.set_from_brush(brush)
-        self.stroke()
+        self._brush.smudge = 0.
+        self._curbrush = brush
+        brush.icon_preview = self.stroke()
         
-
+class FloatSlider(pymui.Slider):
+    _MCC_ = 1
+    
+    def __init__(self, fmin, frange, islog, **k):
+        super(FloatSlider, self).__init__(Min=0, Max=1000, CycleChain=True, **k)
+        self._fmin = fmin
+        self._frange = frange
+        self._islog = islog
+    
+    @pymui.muimethod(pymui.MUIM_Numeric_Stringify)
+    def MCC_Stringify(self, msg):
+        msg.DoSuper()
+        v = self._fmin + msg.value.value*self._frange
+        if self._islog:
+            v = exp(v)
+        return pymui.c_STRPTR('%.3f' % v)
+    
 class FloatValue(pymui.Group):
     def __init__(self, min, max, default=None, cb=None, cb_args=(), islog=False, **kwds):
         super(FloatValue, self).__init__(Horiz=True, **kwds)
@@ -131,18 +131,25 @@ class FloatValue(pymui.Group):
 
         self.islog = islog
         self._min = min
+        self._max = max
         self._range = (max - min)/1000.
         self._default = default
 
         self._cb = cb
         self._cb_args = cb_args
 
-        self._value = pymui.String(MaxLen=7, Accept="0123456789.", Format='r', FixWidthTxt="-#.###", Frame='String', Background=None)
+        self._value = pymui.String(MaxLen=7, Accept="0123456789.", Format='r', FixWidthTxt="-##.###",
+                                   Frame='String', Background=None, CycleChain=True)
         self._value.Notify('Acknowledge', self.OnStringValue)
-        self._slider = pymui.Slider(Min=0, Max=1000)
+        self._slider = FloatSlider(self._min, self._range, islog)
         self._slider.Notify('Value', self.OnSliderValue)
         self.AddChild(self._value, self._slider)
-
+        
+        reset = pymui.SimpleButton(_T('R'), ShortHelp=_T('Reset value'), CycleChain=True, Weight=0)
+        self.AddChild(reset)
+        
+        reset.Notify('Pressed', lambda *a: self.SetDefault())
+        
         self.value = default
 
     def _as_float(self, value):
@@ -169,7 +176,10 @@ class FloatValue(pymui.Group):
 
     def SetValue(self, value):
         if self.islog:
+            value = max(exp(self._min), min(value, exp(self._max)))
             value = log(value)
+        else:
+            value = max(self._min, min(value, self._max))
         self._slider.Value = min(1000, max(0, int((value-self._min)/self._range)))
 
     def SetDefault(self):
@@ -177,12 +187,13 @@ class FloatValue(pymui.Group):
 
     value = property(fget=lambda self: float(self), fset=SetValue, fdel=SetDefault)
 
-
 class BrushEditorWindow(pymui.Window):
     _brush = None
+    _lock = False # block prop change loop at MUI change
 
-    def __init__(self):
+    def __init__(self, name):
         super(BrushEditorWindow, self).__init__(ID='BEW', Width=320, Height=100, CloseOnReq=True)
+        self.name = name
 
         # UI
         self.RootObject = topbox = pymui.VGroup()
@@ -192,26 +203,38 @@ class BrushEditorWindow(pymui.Window):
         self.bprev = BrushPreview()
         topbox.AddChild(self.bprev)
         
+        self._namebt = pymui.String(Frame='String', CycleChain=True)
+        self._namebt.Notify('Contents', self._on_brush_name_changed)
+        topbox.AddChild(pymui.HGroup(Child=[pymui.Label(_T('Name')+':'), self._namebt ]))
+        
+        topbox.AddChild(pymui.HBar(2))
+        
         # Brush parameters
         table = pymui.ColGroup(2)
         topbox.AddChild(table)
 
         self.prop = {}
-        self.prop['radius_min'] = self._add_slider(table, 'radius_min', -2, 5, 3, .1, .5, islog=True)
-        self.prop['radius_max'] = self._add_slider(table, 'radius_max', -2, 5, 3, .1, .5, islog=True)
-        self.prop['yratio'] = self._add_slider(table, 'yratio', 1.0, 32., 1., 0.1, 2)
-        self.prop['spacing'] = self._add_slider(table, 'spacing', 0.01, 4.0, 0.25, .01, 0.1)
-        self.prop['opacity_min'] = self._add_slider(table, 'opacity_min', 0, 1, 1, 1/255., 10/255.)
-        self.prop['opacity_max'] = self._add_slider(table, 'opacity_max', 0, 1, 1, 1/255., 10/255.)
-        self.prop['opa_comp'] = self._add_slider(table, 'opa_comp', 0, 2, .9, 0.01, 0.1)
-        self.prop['hardness'] = self._add_slider(table, 'hardness', 0, 1, 1, .01, 0.1)
-        self.prop['erase'] = self._add_slider(table, 'erase', 0, 1, 1, .01, 0.1)
-        self.prop['grain'] = self._add_slider(table, 'grain', 0, 1, 1, .01, 0.1)
-        self.prop['radius_random'] = self._add_slider(table, 'radius_random', 0, 1, 0, .1, 0.2)
-        self.prop['motion_track'] = self._add_slider(table, 'motion_track', 0.0, 2.0, 1.0, .1, 1)
-        self.prop['hi_speed_track'] = self._add_slider(table, 'hi_speed_track', 0.0, 2.0, 0.0, .01, 0.1)
-        self.prop['smudge'] = self._add_slider(table, 'smudge', 0, 1, 1, .01, 0.1)
-        self.prop['smudge_var'] = self._add_slider(table, 'smudge_var', 0, 1, 1, .01, 0.1)
+        self.prop['radius_min']        = self._add_slider(table, 'radius_min', -2, 5, 3, .1, .5, islog=True)
+        self.prop['radius_max']        = self._add_slider(table, 'radius_max', -2, 5, 3, .1, .5, islog=True)
+        self.prop['yratio']            = self._add_slider(table, 'yratio', 1.0, 32., 1., 0.1, 2)
+        self.prop['angle']             = self._add_slider(table, 'angle', -180., 180.0, 0.0, 0.5, 1)
+        self.prop['spacing']           = self._add_slider(table, 'spacing', 0.01, 4.0, 0.25, .01, 0.1)
+        self.prop['opacity_min']       = self._add_slider(table, 'opacity_min', 0, 1, 1, 1/255., 10/255.)
+        self.prop['opacity_max']       = self._add_slider(table, 'opacity_max', 0, 1, 1, 1/255., 10/255.)
+        self.prop['opa_comp']          = self._add_slider(table, 'opa_comp', 0, 2, .9, 0.01, 0.1)
+        self.prop['hardness']          = self._add_slider(table, 'hardness', 0, 1, 1, .01, 0.1)
+        self.prop['erase']             = self._add_slider(table, 'erase', 0, 1, 1, .01, 0.1)
+        self.prop['grain']             = self._add_slider(table, 'grain', 0, 1, 1, .01, 0.1)
+        self.prop['motion_track']      = self._add_slider(table, 'motion_track', 0.0, 2.0, 1.0, .1, 1)
+        self.prop['hi_speed_track']    = self._add_slider(table, 'hi_speed_track', 0.0, 2.0, 0.0, .01, 0.1)
+        self.prop['smudge']            = self._add_slider(table, 'smudge', 0, 1, 0, .01, 0.1)
+        self.prop['smudge_var']        = self._add_slider(table, 'smudge_var', 0, 1, 0, .01, 0.1)
+        self.prop['color_shift_h']     = self._add_slider(table, 'color_shift_h', -.1, .1, 0, .01, 0.1)
+        self.prop['color_shift_s']     = self._add_slider(table, 'color_shift_s', -.1, .1, 0, .01, 0.1)
+        self.prop['color_shift_v']     = self._add_slider(table, 'color_shift_v', -.1, .1, 0, .01, 0.1)
+        self.prop['dab_radius_jitter'] = self._add_slider(table, 'dab_radius_jitter', 0.0, 1.0, 0.0, .01, 0.1)
+        self.prop['dab_pos_jitter']    = self._add_slider(table, 'dab_pos_jitter', 0.0, 5.0, 0.0, .01, 0.1)
+        self.prop['direction_jitter']  = self._add_slider(table, 'direction_jitter', 0.0, 1.0, 0.0, .01, 0.1)
 
         self.Title = 'Brush Editor'
 
@@ -237,10 +260,12 @@ class BrushEditorWindow(pymui.Window):
             self.bprev.set_attr(name, v)
 
             # FIXME: this call should be in a mediator or proxy, not in the component itself!
+            self._lock = True
             self.mediator.sendNotification(main.Gribouillis.BRUSH_PROP_CHANGED, (self._brush, name))
+            self._lock = False
 
     def brush_changed_prop(self, name, value):
-        if name == 'color': return
+        if self._lock or name == 'color': return
         if name in self.prop:
             hs = self.prop[name]
             hs.value = value
@@ -254,37 +279,10 @@ class BrushEditorWindow(pymui.Window):
 
         self._brush = brush
         self.bprev.set_from_brush(brush)
+        self._namebt.NNSet('Contents', brush.name)
 
+    def _on_brush_name_changed(self, evt):
+        self._brush.name = evt.value.contents
+        
     brush = property(fget=lambda self: self._brush, fset=_set_brush)
 
-
-class BrushEditorWindowMediator(Mediator):
-    NAME = "BrushEditorWindowMediator"
-
-    #### Private API ####
-
-    def __init__(self, component):
-        assert isinstance(component, BrushEditorWindow)
-        super(BrushEditorWindowMediator, self).__init__(viewComponent=component)
-
-        component.mediator = self
-
-    def _set_docproxy(self, docproxy):
-        #print "[BE] using brush BH=%s" % docproxy.brush
-        self.viewComponent.brush = docproxy.brush
-
-    ### notification handlers ###
-
-    @mvcHandler(main.Gribouillis.DOC_ACTIVATED)
-    def _on_activate_document(self, docproxy):
-        if docproxy.brush:
-            self._set_docproxy(docproxy)
-
-    @mvcHandler(main.Gribouillis.DOC_BRUSH_UPDATED)
-    def _on_activate_document(self, docproxy):
-        self._set_docproxy(docproxy)
-
-    @mvcHandler(main.Gribouillis.BRUSH_PROP_CHANGED)
-    def _on_doc_brush_prop_changed(self, brush, name):
-        if self.viewComponent.brush is not brush: return
-        self.viewComponent.brush_changed_prop(name, getattr(brush, name))

@@ -26,12 +26,9 @@
 import gtk
 import gtk.gdk as gdk
 
-import main, model, utils, view
-
-from utils import mvcHandler
 from .common import SubWindow
 
-__all__ = ['ColorWindow', 'ColorWindowMediator']
+__all__ = ['ColorWindow']
 
 class ColorWindow(SubWindow):
     def __init__(self):
@@ -51,26 +48,3 @@ class ColorWindow(SubWindow):
         color.green_float = rgb[1]
         color.blue_float = rgb[2]
         self.colorsel.set_current_color(color)
-
-
-class ColorWindowMediator(utils.Mediator):
-    NAME = "ColorWindowMediator"
-
-    #### Private API ####
-
-    def __init__(self, component):
-        assert isinstance(component, ColorWindow)
-        super(ColorWindowMediator, self).__init__(ColorWindowMediator.NAME, component)
-
-        component.colorsel.connect('color-changed', self._on_color_changed)
-
-    def _on_color_changed(self, widget):
-        color = widget.get_current_color()
-        model.DocumentProxy.get_active().set_brush_color_rgb(color.red_float, color.green_float, color.blue_float)
-
-    ### notification handlers ###
-
-    @mvcHandler(main.Gribouillis.DOC_ACTIVATE)
-    def _on_activate_document(self, docproxy):
-        brush = docproxy.document.brush
-        self.viewComponent.set_color_rgb(brush.rgb)

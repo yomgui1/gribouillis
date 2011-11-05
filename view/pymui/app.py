@@ -1,3 +1,4 @@
+# -*- coding: latin-1 -*-
 ###############################################################################
 # Copyright (c) 2009-2011 Guillaume Roguez
 #
@@ -23,58 +24,172 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import pymui, os
+# Python 2.5 compatibility
+from __future__ import with_statement
 
-import main, view, model, utils
-from model import vo
-from utils import Mediator, mvcHandler
+import pymui, os, sys, string, gc, glob, random
 
-from languages import lang_dict
+import main, view
+
+from view.contexts import new_context
+from utils import _T
+from model.document import LASTS_FILENAME
+from model.prefs import defaults, prefs
+
 from layermgr import *
 from cmdhistoric import *
 from colorharmonies import *
 from brushhouse import *
+from brusheditor import *
+from cms import *
+from prefwin import *
+from docinfo import *
 
-__all__ = [ 'Application', 'ApplicationMediator' ]
+__all__ = [ 'Application' ]
+
+defaults['pymui-window-open-at-startup'] = ['splash']
+prefs.update(defaults)
+
+BASE = "Gribouillis"
+COPYRIGHT = "\xa92009-2011, Guillaume ROGUEZ"
+DESCRIPTION = "Painting program for MorphOS"
+
+about_msg = string.Template(_T("""\033b$base-3\033n
+$description
+
+version $version.$build ($date)
+
+$copyright
+
+$base uses \033bPython2\033n, \033bPureMVC\033n, \033bLittleCMS\033n and \033bLayGroup.mcc\033n technologies.
+
+\033bVisiBone2\033n palette from \033ihttp://www.visibone.com/swatches/\033n
+\033bHighlander icons and splash image by Christophe Delorme\033n
+\033bExtras icons, splash image and header text by Sébastien Poelz\033n
+\033bBoomy icons by Milosz Wlazlo\033n
+
+\033c\033b~~~ Alpha testing, icons and design suggestions ~~~\033n\033l
+
+    Christophe 'highlander' Delorme
+    Sébastien Poelzl
+    Neal ROGUEZ (my son, 4 years old, the first tester!)
+    
+\033c\033b~~~ Thanks to ~~~\033n\033l
+
+    My familly for its patience.
+    The MorphOS Team to continue the dream.
+    Nicholai Benalal for Scribble (specially the Frankfur tennis club).
+    Dennis Ritchie (1941-2011) for the C.
+    Internet for the knownledge database.
+"""))
 
 class Application(pymui.Application, view.mixin.ApplicationMixin):
-    LANG = lang_dict['default']
-
     _open_doc = None # last open document filename
 
     def __init__(self):
-        menu_def = { self.LANG.MenuApp:     ((self.LANG.MenuAppNewDoc,  'N', 'new-doc'),
-                                             (self.LANG.MenuAppLoadDoc, 'O', 'load-doc'),
-                                             (self.LANG.MenuAppSaveDoc, 'S', 'save-doc'),
+        super(Application, self).__init__(
+            Title       = "Gribouillis",
+            Version     = "$VER: Gribouillis %s.%d (%s)" % (main.VERSION, main.BUILD, main.DATE),
+            Copyright   = COPYRIGHT,
+            Author      = "Guillaume ROGUEZ",
+            Description = DESCRIPTION,
+            Base        = BASE,
+            Menustrip   = self._create_menustrip())
+
+        self.ctx = new_context('Application', app=self, docproxy=None, viewport=None)
+
+        self.layermgr = LayerMgr(_T("Layer Manager"))
+        self.cmdhist = CommandsHistoryList(_T("Command Historic"))
+        self.colorhrm = ColorHarmoniesWindow(_T("Color Manager"))
+        self.brusheditor = BrushEditorWindow(_T("Brush Editor"))
+        self.brushhouse = BrushHouseWindow(_T("Brush House"))
+        #self.cms_assign_win = AssignICCWindow()
+        #self.cms_conv_win = ConvertICCWindow()
+        
+        self.splash = Splash(_T("Splash"))
+        self.about = AboutWindow()
+        self.docinfo = DocInfoWindow(_T("Document Info"))
+        
+        # List of window that can be automatically open at startup
+        self.startup_windows = {
+            'layermgr': self.layermgr,
+            'cmdhist': self.cmdhist,
+            'colormgr': self.colorhrm,
+            'brushhouse': self.brushhouse,
+            'brusheditor': self.brusheditor,
+            'splash': self.splash,
+            'docinfo': self.docinfo,
+            }
+        
+        # Should be created after startup-open-window list
+        self.appprefwin = AppPrefWindow()
+
+        self.AddChild(self.layermgr)
+        self.AddChild(self.cmdhist)
+        self.AddChild(self.colorhrm)
+        self.AddChild(self.brusheditor)
+        self.AddChild(self.brushhouse)
+        #self.AddChild(self.cms_assign_win)
+        #self.AddChild(self.cms_conv_win)
+        self.AddChild(self.appprefwin)
+        self.AddChild(self.splash)
+        self.AddChild(self.about)
+        self.AddChild(self.docinfo)
+
+    def _create_menustrip(self):
+        menu_def = { _T('Application'):     ((_T('New document'),  'N', 'new-doc'),
+                                             (_T('Load document...'), 'O', 'load-doc'),
+                                             (_T('Save document'), 'S', 'save-doc'),
+                                             (_T('Save as document...'), None, 'save-as-doc'),
                                              None, # Separator
-                                             ('Load image as layer...', None, 'load-layer-image'),
+                                             (_T('Load image as layer...'), None, 'load-layer-image'),
                                              None, # Separator
-                                             (self.LANG.MenuAppQuit,    'Q', None),
+                                             ('About', '?', lambda *a: self.about.OpenWindow()),
+                                             ('Quit', 'Q', 'quit'),
                                              ),
-                     self.LANG.MenuEdit:    (('Undo',   'Z', 'undo'),
-                                             ('Redo',   'Y', 'redo'),
-                                             ('Flush', None, 'flush'),
+                     _T('Edit'):            ((_T('Undo'),   'Z', 'undo'),
+                                             (_T('Redo'),   'Y', 'redo'),
+                                             (_T('Flush'), None, 'flush'),
                                              ),
-                     self.LANG.MenuView:    (('Reset',  '=', 'reset-view'),
-                                             ('Load background...', None, 'load-background'),
+                     _T('View'):            ((_T('Reset'),  '=', 'reset-view'),
+                                             (_T('Load background...'), None, 'load-background'),
+                                             (_T('Toggle rulers'), 'R', 'toggle-rulers'),
+                                             (_T('Rotate 90° clockwise'), None, 'rotate-90-clockwise'),
+                                             (_T('Rotate 90° anti-clockwise'), None, 'rotate-90-anticlockwise'),
+                                             (_T('Mirror X axis'), 'X', 'mirror-x'),
+                                             (_T('Mirror Y axis'), 'Y', 'mirror-y'),
+                                             #(_T('Split horizontally'), None, 'split-viewport-horiz'),
+                                             #(_T('Split vertically'), None, 'split-viewport-vert'),
+                                             #(_T('Remove'), None, 'remove-viewport'),
                                              ),
-                     self.LANG.MenuLayers:  (('Clear active', 'K', 'clear_layer'),
+                     _T('Layers'):          ((_T('Clear active'), 'K', 'clear_layer'),
                                              ),
-                     'Tools':               (('Toggle line guide', '1', 'line-guide'),
-                                             ('Toggle ellipse guide', '2', 'ellipse-guide'),
+                     _T('Color'):           ((_T('Lighten of 10%'), None, 'color-lighten'),
+                                             (_T('Darken of 10%'), None, 'color-darken'),
+                                             (_T('Saturate of 10%'), None, 'color-saturate'),
+                                             (_T('Desaturate of 10%'), None, 'color-desaturate'),
+                                             #(_T('Assign Color Profile...'), None, lambda *a: self.cms_assign_win.OpenWindow()),
+                                             #(_T('Convert to Color Profile...'), None, lambda *a: self.cms_conv_win.OpenWindow()),
                                              ),
-                     self.LANG.MenuWindows: (('Layers', 'L', lambda *a: self.layermgr.OpenWindow()),
-                                             ('Color Harmonies', 'C', lambda *a: self.colorhrm.OpenWindow()),
-                                             ('Commands historic', 'H', lambda *a: self.cmdhist.OpenWindow()),
-                                             ('Brush Editor', 'B', lambda *a: self.brusheditor.OpenWindow()),
-                                             ('Brush House', None, lambda *a: self.brushhouse.OpenWindow()),
+                     _T('Tools'):           ((_T('Toggle line guide'), '1', 'toggle-line-guide'),
+                                             (_T('Toggle ellipse guide'), '2', 'toggle-ellipse-guide'),
                                              ),
-                     }
+                     _T('Windows'):         ((_T('Document Information'), None, self.open_docinfo),
+                                             (_T('Layers'), 'L', self.open_layer_mgr),
+                                             (_T('Color Harmonies'), 'C', self.open_color_mgr),
+                                             (_T('Commands historic'), 'H', self.open_cmdhistoric),
+                                             (_T('Brush Editor'), 'B', self.open_brush_editor),
+                                             (_T('Brush House'), None, self.open_brush_house),
+                                             (_T('Application Preferences'), 'P', self.open_preferences),
+                                             (_T('Splash'), None, self.open_splash),
+                                             ),
+                     _T('Debug'):           ((_T('GC Collect'), None, lambda *a: self._do_gc_collect()),
+                                             ),
+            }
                      
         self.menu_items = {}
         menustrip = pymui.Menustrip()
-        order = (self.LANG.MenuApp, self.LANG.MenuEdit, self.LANG.MenuLayers,
-                 self.LANG.MenuView, 'Tools', self.LANG.MenuWindows)
+        order = (_T('Application'), _T('Edit'), _T('View'), _T('Layers'), _T('Color'), _T('Tools'), _T('Windows'), _T('Debug'))
         for k in order:
             v = menu_def[k]
             menu = pymui.Menu(k)
@@ -92,43 +207,51 @@ class Application(pymui.Application, view.mixin.ApplicationMixin):
                     item = pymui.Menuitem(t[0], t[1])
                 if callable(t[2]):
                     item.Bind(*t[2:])
-                else:
-                    self.menu_items[t[2]] = item
+                self.menu_items[t[2]] = item
                 menu.AddTail(item)
+                
+        return menustrip
 
-        super(Application, self).__init__(
-            Title       = "Gribouillis",
-            Version     = "$VER: Gribouillis %s (%s)" % (main.VERSION, main.DATE),
-            Copyright   = "\xa92009, Guillaume ROGUEZ",
-            Author      = "Guillaume ROGUEZ",
-            Description = self.LANG.AppliDescription,
-            Base        = "Gribouillis",
-            Menustrip   = menustrip)
+    # Internal API
+    #
+    def on_doc_activated(self, docproxy):
+        #self.cms_assign_win.docproxy = docproxy
+        #self.cms_conv_win.docproxy = docproxy
+        pass
 
-        self.layermgr = LayerMgr()
-        self.cmdhist = CommandsHistoryList()
-        self.colorhrm = ColorHarmoniesWindow()
-        self.brusheditor = BrushEditorWindow()
-        self.brushhouse = BrushHouseWindow()
-
-        self.AddChild(self.layermgr)
-        self.AddChild(self.cmdhist)
-        self.AddChild(self.colorhrm)
-        self.AddChild(self.brusheditor)
-        self.AddChild(self.brushhouse)
-
-        self.brushhouse.Open = True
-
+    def _do_gc_collect(self):
+        gc.set_debug(gc.DEBUG_LEAK)
+        print "=> %u collected" % gc.collect()
+        gc.set_debug(0)
+        
+    # Public API
+    #
+    # (Could be used by any other view components)
+    #
+    
     def run(self):
+        self.appprefwin.init_from_prefs()
+        self.appprefwin.apply_config()
+        
+        # Auto-open, usefull only if MUI remembers window position
+        open_splash = False
+        for name in prefs['pymui-window-open-at-startup']:
+            if name != 'splash':
+                self.startup_windows[name].Open = True
+            else:
+                # Splash window should be open after all others to be the front window
+                open_splash = True
+        self.splash.Open = open_splash
+        
         self.Run()
 
     def quit(self):
         self.Quit()
 
-    def get_filename(self, title, parent=None, read=True, pat='#?'):
+    def get_filename(self, title, parent=None, read=True, pat='#?', **kwds):
         filename = pymui.GetFilename(parent,
                                      title,
-                                     self._open_doc and os.path.dirname(self._open_doc),
+                                     kwds.get('drawer', self._open_doc and os.path.dirname(self._open_doc)),
                                      pat,
                                      not read)
         if filename:
@@ -136,160 +259,206 @@ class Application(pymui.Application, view.mixin.ApplicationMixin):
             return self._open_doc
 
     def get_image_filename(self, pat="#?.(png|jpeg|jpg|targa|tga|gif|ora)", *a, **k):
-        return self.get_filename(self.LANG.LoadImageReqTitle, pat=pat, *a, **k)
+        return self.get_filename(_T("Select image to load"), pat=pat, *a, **k)
 
     def get_document_filename(self, pat="#?.(png|jpeg|jpg|targa|tga|gif|ora)", *a, **k):
-        return self.get_filename("Select document filename", pat=pat, *a, **k)
+        return self.get_filename(_T("Select document filename"), pat=pat, *a, **k)
 
     def get_new_document_type(self, alltypes, parent=None):
         return 'RGB'
 
-    def open_brush_editor(self):
-        self.brusheditor.Open = True
-
-
-from docviewer import *
-from brusheditor import *
-
-class ApplicationMediator(Mediator):
-    """Application Mediator class.
-
-    Responsible to receive and handle all notifications at Application level, like:
-    - closing the application.
-    - create new documents on demand.
-    - etc
-    """
-
-    NAME = "ApplicationMediator"
-
-    document_mediator = None
-
-    #### Private API ####
-
-    def __init__(self, component):
-        assert isinstance(component, Application)
-        super(ApplicationMediator, self).__init__(ApplicationMediator.NAME, component)
-
-        component.menu_items['undo'].Bind(self._on_cmd_undo)
-        component.menu_items['redo'].Bind(self._on_cmd_redo)
-        component.menu_items['flush'].Bind(self._on_cmd_flush)
-        component.menu_items['new-doc'].Bind(self._on_new_doc)
-        component.menu_items['load-doc'].Bind(self._on_load_doc)
-        component.menu_items['save-doc'].Bind(self._on_save_doc)
-        component.menu_items['clear_layer'].Bind(self._on_clear_active_layer)
-        component.menu_items['load-background'].Bind(self._on_load_background)
-        component.menu_items['reset-view'].Bind(self._on_reset_view)
-        component.menu_items['load-layer-image'].Bind(self._on_load_image_as_layer)
-        component.menu_items['line-guide'].Bind(self._on_line_guide)
-        component.menu_items['ellipse-guide'].Bind(self._on_ellipse_guide)
-
-    def onRegister(self):
-        self.facade.registerMediator(DialogMediator(self.viewComponent))
-        self.facade.registerMediator(LayerMgrMediator(self.viewComponent.layermgr))
-        self.facade.registerMediator(CommandsHistoryListMediator(self.viewComponent.cmdhist))
-        self.facade.registerMediator(ColorHarmoniesWindowMediator(self.viewComponent.colorhrm))
-        self.facade.registerMediator(BrushEditorWindowMediator(self.viewComponent.brusheditor))
-        self.facade.registerMediator(BrushHouseWindowMediator(self.viewComponent.brushhouse))
-
-        self.document_mediator = DocumentMediator(self.viewComponent)
-        self.facade.registerMediator(self.document_mediator)
-
-    def get_document_filename(self, parent=None):
-        return self.viewComponent.get_document_filename(parent)
-
-    def _on_cmd_undo(self, evt):
-        self.sendNotification(main.Gribouillis.UNDO)
-
-    def _on_cmd_redo(self, evt):
-        self.sendNotification(main.Gribouillis.REDO)
-
-    def _on_cmd_flush(self, evt):
-        self.sendNotification(main.Gribouillis.FLUSH)
-
-    def _on_new_doc(self, evt):
-        vo = model.vo.EmptyDocumentConfigVO('New document')
-        if self.viewComponent.get_new_document_type(vo):
-            self.sendNotification(main.Gribouillis.NEW_DOCUMENT, vo)
-
-    def _on_load_doc(self, evt):
-        dv = self.document_mediator._get_viewer(model.DocumentProxy.get_active())
-        filename = self.viewComponent.get_document_filename(parent=dv, read=False)
-        if filename:
-            vo = model.vo.FileDocumentConfigVO(filename)
-            self.sendNotification(main.Gribouillis.NEW_DOCUMENT, vo)
-
-    def _on_save_doc(self, evt):
-        docproxy = model.DocumentProxy.get_active()
-        dv = self.document_mediator._get_viewer(docproxy)
-        filename = self.viewComponent.get_document_filename(parent=dv, read=False)
-        if filename:
-            self.sendNotification(main.Gribouillis.DOC_SAVE, (docproxy, filename))
-
-    def _on_clear_active_layer(self, evt):
-        docproxy = model.DocumentProxy.get_active()
-        self.sendNotification(main.Gribouillis.DOC_LAYER_CLEAR,
-                              vo.LayerCommandVO(docproxy, docproxy.active_layer),
-                              type=utils.RECORDABLE_COMMAND)
-
-    def _on_load_background(self, evt):
-        self.document_mediator.load_background()
-
-    def _on_reset_view(self, evt):
-        self.document_mediator.reset_view()
-
-    def _on_load_image_as_layer(self, evt):
-        self.document_mediator.load_image_as_layer()
+    def open_cmdhistoric(self, *a):
+        self.cmdhist.Open = True
         
-    def _on_line_guide(self, evt):
-        self.document_mediator.toggle_line_guide()
+    def open_brush_editor(self, *a):
+        self.brusheditor.Open = True
+        
+    def open_brush_house(self, *a):
+        self.brushhouse.Open = True
+        
+    def open_color_mgr(self, *a):
+        self.colorhrm.Open = True
+        
+    def open_layer_mgr(self, *a):
+        self.layermgr.Open = True
+        
+    def open_preferences(self, *a):
+        self.appprefwin.Open = True
+        
+    def open_docinfo(self, *a):
+        self.docinfo.Open = True
+        
+    def open_about(self, *a):
+        self.about.Open = True
+        
+    def open_splash(self, *a):
+        self.splash.Open = True
+        
+    def open_assign_icc_win(self):
+        self.cms_assign_win.Open = True
+        
+    def open_convert_icc_win(self):
+        self.cms_conv_win.Open = True
 
-    def _on_ellipse_guide(self, evt):
-        self.document_mediator.toggle_ellipse_guide()
+    def open_assign_icc_win(self):
+        self.cms_assign_win.Open = True
+        
+    def open_convert_icc_win(self):
+        self.cms_conv_win.Open = True
+        
+    def toggle_cmdhistoric(self):
+        self.cmdhist.Open = not self.cmdhist.Open.value
+        
+    def toggle_brush_editor(self):
+        self.brusheditor.Open = not self.brusheditor.Open.value
+        
+    def toggle_brush_house(self):
+        self.brushhouse.Open = not self.brushhouse.Open.value
+        
+    def toggle_color_mgr(self):
+        self.colorhrm.Open = not self.colorhrm.Open.value
+        
+    def toggle_layer_mgr(self):
+        self.layermgr.Open = not self.layermgr.Open.value
+
+    def close_all_non_drawing_windows(self):
+        for win in (self.layermgr,
+                    self.cmdhist,
+                    self.colorhrm,
+                    self.brusheditor,
+                    self.brushhouse,
+                    #self.cms_assign_win,
+                    #self.cms_conv_win,
+                    self.docinfo,
+                    self.splash,
+                    self.appprefwin):
+            win.Open = False
+
+class MyRoot(pymui.Group):
+    _MCC_=True
     
+    @pymui.muimethod(pymui.MUIM_Setup)
+    def MCC_Setup(self, msg):
+        self._ev.install(self, pymui.IDCMP_RAWKEY | pymui.IDCMP_MOUSEBUTTONS)
+        return msg.DoSuper()
 
-    ### notification handlers ###
+    @pymui.muimethod(pymui.MUIM_Cleanup)
+    def MCC_Cleanup(self, msg):
+        self._ev.uninstall()
+        return msg.DoSuper()
 
-    @mvcHandler( main.Gribouillis.QUIT)
-    def _on_quit(self, note):
-        # test here if some documents need to be saved
-        if len(self.document_mediator) > 0:
-            res = pymui.DoRequest(self,
-                                  gadgets= "*_No|_Yes",
-                                  title  = "Need confirmation",
-                                  format = "Some documents are not saved yet.\nSure to leave Gribouillis?")
-            if res == 1: return
-        self.viewComponent.quit()
+    @pymui.muimethod(pymui.MUIM_HandleEvent)
+    def MCC_HandleEvent(self, msg):
+        self.WindowObject.contents.CloseWindow()
+        
+    def __init__(self, *a, **k):
+        super(MyRoot, self).__init__(Horiz=False, *a, **k)
+        self._ev = pymui.EventHandler()
 
-    #### Public API ####
+class Splash(pymui.Window):
+    def __init__(self, name):
+        super(Splash, self).__init__(ID=0,
+                                     CloseOnReq=True,
+                                     Borderless=True,
+                                     DragBar=False,
+                                     CloseGadget=False,
+                                     SizeGadget=False,
+                                     DepthGadget=False,
+                                     Position=('centered', 'centered'))
+        self.name = name
+        
+        # Special root group with window auto-close on any events
+        root = MyRoot(Frame='Group',
+                      Background='2:00000000,00000000,00000000',
+                      InnerSpacing=(0,)*4)
+        self.RootObject = root
+        
+        top_bar = pymui.HGroup(Frame='None', Background='5:PROGDIR:data/internal/splash_header.png')
+        self.bottom_bar = bottom_bar = pymui.VGroup(Frame='None', InnerBottom=6)
+        
+        top_bar.AddChild(pymui.Dtpic('PROGDIR:data/internal/app_logo.png', InnerLeft=6, InnerRight=6))
+        top_bar.AddChild(pymui.HSpace(0))
+        top_bar.AddChild(pymui.Text(Frame='None',
+                                    HorizWeight=0,
+                                    PreParse=pymui.MUIX_C+pymui.MUIX_PH,
+                                    Font=pymui.MUIV_Font_Tiny,
+                                    Contents='v%.1f.%d\n%s' % (main.VERSION, main.BUILD, main.STATUS)))
+        
+        #hg = pymui.HGroup(InnerLeft=6, InnerRight=6)
+        #bottom_bar.AddChild(hg)
+        
+        #hg.AddChild(pymui.Text(Frame='None', InnerLeft=6,
+        #                       SetMax=True, PreParse=pymui.MUIX_PH,
+        #                       Contents=_T('Interaction')+':'))
+        #cycle = pymui.Cycle(['User', 'Default'], HorizWeight=0)
+        
+        #hg.AddChild(cycle)
+        #hg.AddChild(pymui.HSpace(0))
+        
+        recent_gp = pymui.VGroup(InnerLeft=6, InnerRight=6)
+        bottom_bar.AddChild(recent_gp)
+                
+        self.lasts_bt = []
+        if os.path.isfile(LASTS_FILENAME):
+            recent_gp.AddChild(pymui.Text(Frame='None',
+                               InnerLeft=6, InnerRight=6,
+                               PreParse=pymui.MUIX_L+pymui.MUIX_PH,
+                               Contents=_T('Recent')+':'))
+            with open(LASTS_FILENAME) as fd:
+                for i in xrange(5):
+                    path = fd.readline()[:-1]
+                    if path:
+                        logo = pymui.Dtpic('SYS:Prefs/Presets/Deficons/image/default.info',
+                                           Scale=32, InnerLeft=20)
+                        text = pymui.Text(Frame='None',
+                                          PreParse=pymui.MUIX_PH,
+                                          InputMode='RelVerify',
+                                          Contents=os.path.basename(path))
+                        text.path = path
+                        
+                        hg = pymui.HGroup()
+                        hg.AddChild(logo)
+                        hg.AddChild(text)
+                        recent_gp.AddChild(hg)
+                        
+                        self.lasts_bt.append(text)
+                        
+        bottom_bar.AddChild(pymui.HBar(1))
+        
+        bt = pymui.SimpleButton(_T('About'), Weight=0, InnerRight=6)
+        bt.Notify('Pressed', lambda *a: pymui.GetApp().about.OpenWindow(), when=False)
+        bottom_bar.AddChild(pymui.HGroup(Child=(pymui.HSpace(0), bt)))
+        
+        all_logos = glob.glob('PROGDIR:data/internal/app_intro*.png')
+        logo = pymui.Dtpic(random.choice(all_logos))
+        
+        root.AddChild(top_bar)
+        root.AddChild(logo)
+        root.AddChild(bottom_bar)
 
-    def delete_docproxy(self, docproxy):
-        self.document_mediator.delete_docproxy(docproxy)
-
-        # Close the application on last document close event.
-        if len(self.document_mediator) == 0:
-            self.viewComponent.quit()
-
-    def set_background_rgb(self, rgb):
-        self.document_mediator.set_background_rgb(rgb)
-
-
-class DialogMediator(Mediator):
-    NAME = 'DialogMediator'
-
-    def show_dialog(self, title, msg):
-        pymui.DoRequest(app=self.viewComponent, title=title, format=msg, gadgets='*_Ok')
-
-    #### notification handlers ####
-
-    @mvcHandler(main.Gribouillis.SHOW_ERROR_DIALOG)
-    def on_show_error(self, msg):
-        self.show_dialog('', msg)
-
-    @mvcHandler(main.Gribouillis.SHOW_WARNING_DIALOG)
-    def on_show_warning(self, msg):
-        self.show_dialog('', msg)
-
-    @mvcHandler(main.Gribouillis.SHOW_INFO_DIALOG)
-    def on_show_info(self, msg):
-        self.show_dialog('', msg)
-
+class AboutWindow(pymui.Window):
+    def __init__(self):
+        super(AboutWindow, self).__init__('GB3 - ' + _T('About'),
+                                          ID=0, # no position remembering
+                                          Position=('centered', 'centered'),
+                                          CloseOnReq=True)
+        root = pymui.VGroup()
+        self.RootObject = root
+        
+        top = pymui.HGroup()
+        root.AddChild(top)
+        
+        root.AddChild(pymui.HBar(0))
+        
+        okbt = pymui.SimpleButton(_T('Ok'))
+        okbt.Notify('Pressed', lambda *a: self.CloseWindow(), when=False)
+        root.AddChild(pymui.HCenter(okbt))
+        
+        top.AddChild(pymui.Dtpic('PROGDIR:data/internal/app_logo.png', InnerLeft=6, InnerRight=6))
+        top.AddChild(pymui.Text(about_msg.safe_substitute(base=BASE,
+                                                     description=DESCRIPTION,
+                                                     version=main.VERSION,
+                                                     build=main.BUILD,
+                                                     date=main.DATE,
+                                                     copyright=COPYRIGHT),
+                                Frame='Text'))

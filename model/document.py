@@ -26,10 +26,11 @@
 # Python 2.5 compatibility
 from __future__ import with_statement
 
-import _pixbuf, os, time, sys, cairo
-import PIL.Image, array
-from math import ceil
+import os, sys, cairo, png, PIL.Image, array
+from cStringIO import StringIO
+from math import floor, ceil
 
+import _pixbuf
 from .colorspace import ColorSpace
 from .layer import TiledLayer
 from .brush import DrawableBrush
@@ -37,7 +38,16 @@ from .openraster import OpenRasterFileWriter, OpenRasterFileReader
 
 __all__ = [ 'Document' ]
 
-class Document(object):
+LASTS_FILENAME = 'ENVARC:Gribouillis/lasts'
+
+class _IntegerBuffer(object):
+    def __init__(self, buf):
+        self.b = buffer(buf)
+
+    def __getslice__(self, start, stop):
+        return tuple(ord(c) for c in self.b[start:stop])
+
+class Document(list):
     """User drawing document.
 
     Document groups layers and handle their order.
@@ -49,27 +59,24 @@ class Document(object):
 
     BACKGROUND_PATH = 'backgrounds'
 
-    _debug = 0
+    __fill = None
+    __active = None
+    _dirty = False
+    filename = None
 
     #### Private API ####
 
-    def __init__(self, name, colorspace='RGB', fill='black'):
+    def __init__(self, name, colorspace='RGB', fill='white'):
         self.name = name
         self._colorspace = (colorspace if isinstance(colorspace, ColorSpace) else ColorSpace.from_name(colorspace))
-        self._layer_fmt = _pixbuf.format_from_colorspace(self._colorspace.type,
-                                                         _pixbuf.FLAG_15X | _pixbuf.FLAG_ALPHA_FIRST)
-        self._fill = (self._colorspace.get_color(fill) if isinstance(fill, basestring) else fill)
-        self.__active = None # active layer
+        self._layer_fmt = _pixbuf.format_from_colorspace(self._colorspace.type, _pixbuf.FLAG_15X | _pixbuf.FLAG_ALPHA_FIRST)
+        self.fill = fill
 
         # Create the drawing brush with default properties
         self.brush = DrawableBrush()
 
-        # set default values
+        # Default state
         self.clear()
-
-    def __len__(self):
-        "Return the number of document's layers"
-        return len(self._layers)
 
     #### Public API ####
 
@@ -80,81 +87,121 @@ class Document(object):
                 os.path.isfile(name)
 
     @staticmethod
-    def _load_image(filename):
-        print '*DBG* loading %s' % filename
+    def load_image(filename, mode='RGBA'):
+        """load_image(filename) -> 4-tuple
+        
+        Load given image by filename using PIL.Image.open method.
+        Convert it to given mode colorspace (default to RGBA).
+        
+        Returns 4-tuple: (image data as an array, width, height, row stride)
+        """
         im = PIL.Image.open(filename)
-        if im.format != 'RGBA':
-            im = im.convert('RGBA')
+        if im.format != mode:
+            im = im.convert(mode)
 
         a = array.array('B', im.tostring())
         w, h = im.size
-        stride = w * 4
+        stride = w * len(mode)
         del im
 
         return a,w,h,stride
+
+    def add_to_lasts(self, path):
+        try:
+            os.mkdir(os.path.dirname(LASTS_FILENAME))
+        except:
+            pass
+            
+        try:
+            data = [ path + '\n' ]
+            with open(LASTS_FILENAME) as fd:
+                for i in xrange(5):
+                    line = fd.readline()
+                    if line[:-1].strip() != path:
+                        data.append(line)
+        except:
+            pass
+
+        with open(LASTS_FILENAME, 'w') as fd:
+            fd.writelines(data[:5])
 
     ### Document methods ###
 
     @classmethod
     def new_from(cls, filename):
         doc = cls(name=filename)
-        doc.load_from(filename)
+        doc.load(filename)
         return doc
 
-    def load_from(self, filename):
+    def load(self, filename):
+        filename = os.path.abspath(filename)
         ext = os.path.splitext(filename)[1][1:].lower()
         if ext:
             loader = getattr(self, 'load_from_' + ext, self.load_from_unknown)
         else:
             loader = self.load_from_unknown
 
-        ## Save temporary current document state
-        layers = self._layers
+        ## Save temporary current document layers list
+        layers = list(self)
+        active = self.active
+        name = self.name
+        metadata = self.metadata.copy()
         try:
             self._clear()
             loader(filename)
             self.name = filename
-            self.active = self._layers[-1]
+            self.filename = filename
+            self.active = self[0]
+            self.add_to_lasts(filename)
+            self._dirty = False
         except:
-            ## restore old document state
-            self._layers = layers
+            ## restore old document layers
+            self[:] = layers
+            self.active = active
+            self.name = name
+            self.metadata = metadata
             raise
 
     def load_from_unknown(self, filename):
         layer = self.new_layer(os.path.basename(filename))
-        data = self._load_image(filename)
+        data = self.load_image(filename)
         if data:
             data, w, h, stride = data
             layer.surface.from_buffer(_pixbuf.FORMAT_RGBA8_NOA, data, stride, 0, 0, w, h)
 
     def load_from_ora(self, filename):
         with OpenRasterFileReader(filename) as ora:
-            for name, operator, area, data in ora.GetLayersContents():
-                layer = self._new_layer(name, operator=operator)
+            for name, operator, area, visible, opa, data in ora.GetLayersContents():
+                layer = self._create_layer(name, operator=operator, opacity=opa)
+                layer.visible = visible
                 if data:
                     layer.surface.from_buffer(_pixbuf.FORMAT_RGBA8_NOA, data, area[2]*4, *area)
-                self._layers.insert(0, layer)
+                self.insert(0, layer)
 
     def save_as(self, filename=None):
         # First be sure to have a clean document
         for layer in self.layers:
             layer.surface.cleanup()
             
-        filename = filename or self.name
+        filename = os.path.abspath(filename or self.name)
         ext = os.path.splitext(filename)[1].lower()
         if ext:
             saver = getattr(self, 'save_as_' + ext[1:], None)
             if saver:
                 saver(filename)
+                self.add_to_lasts(filename)
+                self.filename = filename
+                self._dirty = False
                 return
             raise TypeError("Unknown extension")
         raise TypeError("No extension given")
 
     def save_as_ora(self, filename):
         with OpenRasterFileWriter(self, filename) as ora:
-            layers = self.layers
-            layers.reverse() # ORA first layer is the top layer in stack
-            map(ora.AddLayer, layers)
+            layers = list(self)
+            layers.reverse() # ORA uses FG-to-BG layers order convention
+            for layer in layers:
+                ora.AddLayer(layer, self.as_png_buffer)
 
     def save_as_png(self, filename):
         surface = self.as_cairo_surface()
@@ -162,77 +209,97 @@ class Document(object):
             surface.write_to_png(filename)
 
     def _clear(self):
-        self._layers = []
-
+        del self[:]
+        self.metadata = {
+            'dimensions': None,
+            'densities': [300, 300],
+            }
+        
     def clear(self):
         self._clear()
 
         # Empty document = one background layer
-        self.new_layer(name='background', fill=self._fill)
-
-    @staticmethod
-    def _add_area(area1, area2):
-        return min(area1[0], area2[0]), min(area1[1], area2[1]), \
-               max(area1[2], area2[2]), max(area1[3], area2[3])
-
-    def _flush_motions(self):
-        area = None
-        a = sys.maxint, sys.maxint, -sys.maxint, -sys.maxint
-        for stroke in self._motions:
-            if not self._debug:
-                area = self.brush.draw_stroke(stroke)
-            else:
-                area = self.brush.drawdab_solid((stroke.sx, stroke.sy), stroke.pressure, 2.0, 1.0)
-            if area: a = self._add_area(a, area)
-        self._motions = []
-        self._stime = time.time()
-        if area: return (a[0],a[1],a[2]-a[0]+1,a[3]-a[1]+1), self._snapshot
-        return None, self._snapshot
-
+        self.new_layer(name='background')
+        self._dirty = False
+    
+    def get_fill(self):
+        return self.__fill
+        
+    def set_fill(self, fill):
+        if isinstance(fill, basestring):
+            if self.isBackgroundFile(fill):
+                surface = cairo.ImageSurface.create_from_png(fill)
+                self.__fill = cairo.SurfacePattern(surface)
+                self.__fill.set_extend(cairo.EXTEND_REPEAT)
+                self.__fill.set_filter(cairo.FILTER_FAST)
+            else: 
+                self.__fill = self._colorspace.get_color(fill)
+        else:
+            self.__fill = fill
+        self._dirty = True
+       
+    def get_pixel(self, *pt):
+        brush = self.brush
+        # search for a valid color from top to bottom layer
+        for layer in reversed(self):
+            color = layer.get_pixel(brush, *pt)
+            if color is not None:
+                return color
+        return (0.0,)*3
+        
     ### Document's layer methods ###
+    # Layers are ordered using a list using BG-to-FG convention
+    # Last item is the foreground layer
+    # First item is the background layer
+    # This converntion is easier for rastering
 
-    def _new_layer(self, name, pos=None, **options):
+    def _create_layer(self, name, **options):
         return TiledLayer(self._layer_fmt, name, **options)
 
     def new_layer(self, name, pos=None, **options):
-        layer = self._new_layer(name, pos, **options)
+        layer = self._create_layer(name, **options)
         self.insert_layer(layer, pos)
         self.active = layer
         return layer
 
     def insert_layer(self, layer, pos=None, activate=False):
-        if layer in self._layers:
-            raise KeyError("Already inserted layer '%s'" % layer.name)
         if pos is None:
-            self._layers.append(layer)
-        else:
-            self._layers.insert(pos, layer)
+            if self:
+                pos = len(self)
+            else:
+                pos = 0
+        assert pos >= 0
+        if layer in self:
+            raise KeyError("Already inserted layer '%s'" % layer.name)
+        self.insert(pos, layer)
         if activate:
             self.active = layer
+        self._dirty = True
 
     def remove_layer(self, layer):
-        i=self._layers.index(layer)
-        self._layers.remove(layer)
+        i = self.index(layer)
+        self.remove(layer)
+        self._dirty = True
+        
         if self.active is layer:
-            self.active = self._layers[max(0, i-1)]
+            # Activate the layer just before this one
+            self.active = self[min(i, len(self)-1)]
 
     def move_layer(self, layer, pos):
-        self._layers.remove(layer)
-        self._layers.insert(pos, layer)
+        self.remove(layer)
+        self.insert(pos, layer)
 
     def get_layer_index(self, layer=None):
-        layer = layer or self.active
-        if layer:
-            return self._layers.index(layer)
+        return self.index(layer or self.active)
 
     def clear_layer(self, layer=None):
-        layer = layer or self.active
-        layer.clear()
+        (layer or self.active).clear()
 
-    def get_bbox(self):
+    def get_bbox(self, layers=None, all=False):
         empty = True
-        for layer in self._layers:
-            if not layer.visible: continue
+        for layer in (layers or self):
+            if not layer.visible and not all:
+                continue
             a = layer.get_bbox()
             if a:
                 if empty:
@@ -246,63 +313,11 @@ class Document(object):
                     if ymax < y2: ymax = y2
         if empty: return
         return xmin,ymin,xmax,ymax
-
+        
     def get_size(self):
         area = self.get_bbox()
         if not area: return 0,0
         return area[1]-area[0]+1, area[3]-area[2]+1
-
-    def as_cairo_surface(self):
-        area = self.get_bbox()
-        if not area: return
-        dx, dy, dw, dh = area
-        dw -= dx-1
-        dh -= dy-1
-
-        # Destination surface/context
-        surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, dw, dh)
-        cr = cairo.Context(surface)
-        
-        for layer in self._layers:  
-            if not layer.visible: continue
-            
-            area = layer.get_bbox()
-            if not area: continue
-            
-            x,y,w,h = area
-            w -= x-1
-            h -= y-1
-            
-            rsurf = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
-            
-            # Remove layer offset (layer.get_bbox() has added it)
-            ox = x + int(layer.x)
-            oy = y + int(layer.y)
-            
-            def cb(tile):
-                tile.blit(_pixbuf.FORMAT_ARGB8,
-                          rsurf.get_data(),
-                          rsurf.get_stride(),
-                          w, h, tile.x-ox, tile.y-oy)
-            layer.surface.rasterize((x,y,w,h), cb)
-            rsurf.mark_dirty()
-
-            cr.set_source_surface(rsurf, x-dx, y-dy)
-            cr.set_operator(layer.OPERATORS[layer.operator])
-            cr.paint_with_alpha(layer.opacity)
-
-        return surface
-
-    ### Properties ###
-
-    @property
-    def empty(self):
-        return not bool(self._layers) or all(layer.empty for layer in self._layers)
-
-    @property
-    def layers(self):
-        "Return a copy of document's layers list"
-        return list(self._layers)
 
     def get_active(self):
         return self.__active
@@ -311,4 +326,130 @@ class Document(object):
         self.__active = layer
         self.brush.surface = layer.surface
 
+    ### Rendering API ###
+
+    def rasterize(self, cr, filter=cairo.FILTER_BEST, layers=None, all=False, back=True):
+        """Rasterize document on given cairo context.
+        
+        The context must have its matrix and clip set before calling this function.
+        Note: the clip must be set before setting the viewing matrix.
+        """
+        
+        mat = cr.get_matrix()
+        
+        new_surface = cairo.ImageSurface.create_for_data # shortcut for speed
+        fmt = _pixbuf.FORMAT_ARGB8 # cairo uses alpha-premul pixels buffers
+        
+        # Paint visible layers on the transparent raster
+        for layer in (layers or self):
+            if not layer.visible and not all: continue
+
+            # XXX: pycairo < 1.8.8 has inverted matrix multiply operation
+            # when done using '*' operator.
+            # So I use the multiply method here.
+            cr.set_matrix(layer.matrix.multiply(mat))
+            
+            x,y,w,h = cr.clip_extents()
+            
+            # Convert to integer and add an extra border pixel
+            # due to the cairo filtering.
+            x = int(floor(x)-1)
+            y = int(floor(y)-1)
+            w = int(ceil(w)+1) - x + 1
+            h = int(ceil(h)+1) - y + 1
+            model_area = x,y,w,h
+            
+            # render temporary buffer (sized by the model redraw area)
+            pb = _pixbuf.Pixbuf(fmt, w, h)
+            pb.clear()
+            rsurf = new_surface(pb, cairo.FORMAT_ARGB32, w, h)
+            
+            # Blit layer's tiles using over ope mode on the render surface
+            def blit(tile):
+                tile.blit(pb, tile.x - x, tile.y - y)
+                          
+            layer.surface.rasterize(model_area, blit)
+            rsurf.mark_dirty() # refresh cairo internal states
+            
+            # Now paint the render surface on the model surface
+            cr.set_source_surface(rsurf, x, y)
+            cr.get_source().set_filter(filter)
+            if not layers:
+                cr.set_operator(layer.OPERATORS[layer.operator])
+            cr.paint_with_alpha(layer.opacity)
+            
+        # Finish by rendering the background
+        if back and self.__fill:
+            #cr.set_matrix(mat)
+            cr.identity_matrix()
+            cr.set_operator(cairo.OPERATOR_DEST_OVER)
+            if isinstance(self.__fill, cairo.Pattern):
+                cr.set_source(self.__fill)
+            else:
+                cr.set_source_rgb(*self.__fill)
+            cr.paint()
+
+    def as_cairo_surface(self, layers=None, all=False, **kwds):
+        rect = self.get_bbox(layers, all)
+        if not rect: return
+        
+        dx, dy, dw, dh = rect
+        dw -= dx - 1
+        dh -= dy - 1
+
+        # Destination surface/context
+        surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, dw, dh)
+        cr = cairo.Context(surface)
+        cr.translate(-dx, -dy)
+        self.rasterize(cr, filter=cairo.FILTER_FAST, layers=layers, all=all, **kwds)
+        
+        return surface
+
+    def as_png_buffer(self, comp=4, layers=None, all=False, **kwds):
+        rect = self.get_bbox(layers, all)
+        if not rect: return
+        
+        x,y,w,h = rect
+        w -= x - 1
+        h -= y - 1
+        
+        # PNG buffer is need RGBA8 format (no alpha-premul)
+        pixelbuf = _pixbuf.Pixbuf(_pixbuf.FORMAT_RGBA8_NOA, w, h)
+        
+        # Rendering
+        surface = self.as_cairo_surface(layers, all, **kwds)
+        pixelbuf.from_buffer(_pixbuf.FORMAT_ARGB8,
+                             surface.get_data(),
+                             surface.get_stride(),
+                             0, 0,
+                             surface.get_width(), surface.get_height())
+
+        # Encode pixels data to PNG
+        pngbuf = StringIO()
+        writer = png.Writer(w, h, alpha=True, bitdepth=8, compression=comp)
+        writer.write_array(pngbuf, _IntegerBuffer(pixelbuf))
+        
+        return pngbuf.getvalue()
+        
+    ### Properties ###
+
+    @property
+    def empty(self):
+        return not bool(self) or all(layer.empty for layer in self)
+
+    @property
+    def layers(self):
+        return self
+
+    @property
+    def area(self):
+        bbox = self.get_bbox()
+        if not bbox: return 0,0,0,0
+        return bbox[0], bbox[1], bbox[2]-bbox[0]+1, bbox[3]-bbox[1]+1
+
+    @property
+    def modified(self):
+        return self._dirty or any(layer.modified for layer in self)
+        
     active = property(fget=get_active, fset=set_active)
+    fill = property(fget=get_fill, fset=set_fill)

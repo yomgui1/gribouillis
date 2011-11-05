@@ -25,12 +25,9 @@
 
 import gtk
 
-import main, utils
-
-from utils import mvcHandler
 from .common import SubWindow
 
-__all__ = [ 'CommandsHistoryList', 'CommandsHistoryListMediator' ]
+__all__ = [ 'CommandsHistoryList' ]
 
 class CommandsHistoryList(SubWindow):
     def __init__(self):
@@ -145,61 +142,3 @@ class CommandsHistoryList(SubWindow):
             self.enable_redo(True)
         else:
             self.enable_redo(False)
-
-
-class CommandsHistoryListMediator(utils.Mediator):
-    NAME = "CommandsHistoryListMediator"
-
-    cmdhistproxy = None
-
-    #### Private API ####
-
-    def __init__(self, component):
-        assert isinstance(component, CommandsHistoryList)
-        super(CommandsHistoryListMediator, self).__init__(CommandsHistoryListMediator.NAME, component)
-
-        self.__cur_hp = None
-
-        component.btn_undo.connect('clicked', self._on_undo)
-        component.btn_redo.connect('clicked', self._on_redo)
-        component.btn_flush.connect('clicked', self._on_flush)
-
-    #### Protected API ####
-
-    def _on_undo(self, *a):
-        self.sendNotification(main.Gribouillis.UNDO)
-
-    def _on_redo(self, *a):
-        self.sendNotification(main.Gribouillis.REDO)
-
-    def _on_flush(self, *a):
-        self.sendNotification(main.Gribouillis.FLUSH)
-
-    ### notification handlers ###
-
-    @mvcHandler(main.Gribouillis.DOC_ACTIVATED)
-    def _on_doc_activated(self, docproxy):
-        self.viewComponent.set_doc_name(docproxy.docname)
-        self.__cur_hp = utils.CommandsHistoryProxy.get_active()
-        self.viewComponent.from_stacks(self.__cur_hp.undo_stack, self.__cur_hp.redo_stack)
-
-    @mvcHandler(utils.CommandsHistoryProxy.CMD_HIST_ADD)
-    def _on_cmd_add(self, hp, cmd):
-        if hp is self.__cur_hp:
-            self.viewComponent.add_cmd(cmd)
-
-    @mvcHandler(utils.CommandsHistoryProxy.CMD_HIST_FLUSHED)
-    def _on_cmd_flush(self, hp):
-        if hp is self.__cur_hp:
-            self.viewComponent.flush()
-
-    @mvcHandler(utils.CommandsHistoryProxy.CMD_HIST_UNDO)
-    def _on_cmd_undo(self, hp, cmd):
-        if hp is self.__cur_hp:
-            self.viewComponent.undo(cmd)
-
-    @mvcHandler(utils.CommandsHistoryProxy.CMD_HIST_REDO)
-    def _on_cmd_redo(self, hp, cmd):
-        if hp is self.__cur_hp:
-            self.viewComponent.redo(cmd)
-

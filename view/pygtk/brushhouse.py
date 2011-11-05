@@ -26,13 +26,13 @@
 import gtk, gobject
 import gtk.gdk as gdk
 
-import main, model, utils, view
+import utils
 
-from utils import mvcHandler, Mediator
-from model.brush import Brush
+from model.brush import Brush, DrawableBrush
+from model import _pixbuf
 from .common import SubWindow
 
-__all__ = [ 'BrushHouseWindow', 'BrushHouseWindowMediator' ]
+__all__ = [ 'BrushHouseWindow' ]
 
 TABLE_WIDTH = 5
 
@@ -47,6 +47,7 @@ class BrushHouseWindow(SubWindow):
         self._brushes = set()
         self._all = None
         self._current = None
+        self._drawbrush = DrawableBrush() # used for preview
 
         # UI
         topbox = gtk.VBox()
@@ -58,6 +59,7 @@ class BrushHouseWindow(SubWindow):
 
         ui = '''<ui>
         <popup name="IconMenu">
+            <menuitem action='preview'/>
             <menuitem action='delete'/>
         </popup>
         </ui>
@@ -70,6 +72,7 @@ class BrushHouseWindow(SubWindow):
 
         actiongroup.add_actions([
             ('delete', gtk.STOCK_DELETE, 'Delete', None, None, lambda *a: self.del_brush(self._popup_bt)),
+            ('preview', gtk.STOCK_REFRESH, 'Preview Icon', None, None, lambda *a: self.refresh_brush(self._popup_bt)),
             ])
 
         uimanager.insert_action_group(actiongroup, 0)
@@ -171,6 +174,25 @@ class BrushHouseWindow(SubWindow):
     def del_brush(self, bt):
         pass # TODO
 
+    def refresh_brush(self, bt):
+        bt = bt.allbt
+        brush = bt.brush
+
+        self._drawbrush.set_from_brush(brush)
+        width = 128
+        height = 60
+            
+        buf = self._drawbrush.paint_rgb_preview(width, height, fmt=_pixbuf.FORMAT_RGBA8_NOA)
+        pixbuf = gdk.pixbuf_new_from_data(buf, gdk.COLORSPACE_RGB, True, 8,
+                                          buf.width, buf.height, buf.stride)
+        icon_image = gtk.image_new_from_pixbuf(pixbuf)
+        bt.set_image(icon_image)
+        bt.set_size_request(width+15, height+5)
+        if bt.bt2:
+            bt.bt2.set_image(icon_image)
+            bt.bt2.set_size_request(width+15, height+5)
+        bt.show_all()
+
     def _on_add_page(self, evt):
         self.add_page('New page')
 
@@ -184,9 +206,24 @@ class BrushHouseWindow(SubWindow):
             self._del_page_bt.set_sensitive(True)
 
     def _mkbrushbt(self, frame, brush):
+        if brush.icon:
+            icon_image = gtk.image_new_from_file(brush.icon)
+            pixbuf = icon_image.get_pixbuf()
+            width = pixbuf.get_property('width')
+            height = pixbuf.get_property('height')
+        else:
+            self._drawbrush.set_from_brush(brush)
+            width = 128
+            height = 60
+            
+            buf = self._drawbrush.paint_rgb_preview(width, height, fmt=_pixbuf.FORMAT_RGBA8_NOA)
+            pixbuf = gdk.pixbuf_new_from_data(buf, gdk.COLORSPACE_RGB, True, 8,
+                                              buf.width, buf.height, buf.stride)
+            icon_image = gtk.image_new_from_pixbuf(pixbuf)
+        
         bt = gtk.ToggleButton()
-        bt.set_image(gtk.image_new_from_file(brush.icon))
-        bt.set_size_request(60, 60)
+        bt.set_image(icon_image)
+        bt.set_size_request(width+15, height+5)
         bt.show_all()
         bt.connect('clicked', self._on_brush_bt_clicked)
         bt.connect('button-release-event', self._on_brush_bt_released)
@@ -236,46 +273,3 @@ class BrushHouseWindow(SubWindow):
 
     active_brush = property(fget=lambda self: self._current.brush,
                             fset=lambda self, brush: brush.bt.set_active(True))
-
-
-class BrushHouseWindowMediator(Mediator):
-    NAME = "BrushHouseWindowMediator"
-
-    #### Private API ####
-
-    def __init__(self, component):
-        assert isinstance(component, BrushHouseWindow)
-        super(BrushHouseWindowMediator, self).__init__(viewComponent=component)
-
-        self._docproxy = None # active document
-        component.set_current_cb(self._on_brush_selected)
-
-    def _on_brush_selected(self, brush):
-        #print "[BH] active brush:", brush
-        self._docproxy.brush = brush # this cause docproxy to copy brush data to the document drawable brush
-
-    ### notification handlers ###
-
-    @mvcHandler(main.Gribouillis.DOC_ACTIVATED)
-    def _on_activate_document(self, docproxy):
-        # keep silent if no change
-        if docproxy is self._docproxy: return
-        self._docproxy = docproxy
-
-        # Check if the document has a default brush, assign current default one if not
-        if not docproxy.brush:
-            #print "[BH] new doc, default brush is %s" % self.viewComponent.active_brush
-            docproxy.brush = self.viewComponent.active_brush
-        else:
-            # change current active brush by the docproxy one
-            self.viewComponent.active_brush = docproxy.brush
-
-    @mvcHandler(main.Gribouillis.DOC_DELETE)
-    def _on_delete_document(self, docproxy):
-        if docproxy is self._docproxy:
-            self._docproxy = None
-
-    @mvcHandler(main.Gribouillis.BRUSH_PROP_CHANGED)
-    def _on_brush_prop_changed(self, brush, name):
-        if name is 'color': return
-        setattr(self._docproxy.brush, name, getattr(brush, name))

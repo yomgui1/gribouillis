@@ -58,6 +58,7 @@ static PyTypeObject PyPixbuf_Type;
 
 /* Used for display */
 #define PyPixbuf_PIXFMT_ARGB_8 (PyPixbuf_PIXFMT_RGB_8 | PyPixbuf_FLAG_ALPHA_FIRST)
+#define PyPixbuf_PIXFMT_ARGB_8_NOA (PyPixbuf_PIXFMT_ARGB_8 | PyPixbuf_FLAG_NO_ALPHA_PREMUL)
 
 /* Used for drawing */
 #define PyPixbuf_PIXFMT_RGBA_15X (PyPixbuf_FLAG_RGB | PyPixbuf_FLAG_15X | PyPixbuf_FLAG_ALPHA_LAST)
@@ -65,6 +66,7 @@ static PyTypeObject PyPixbuf_Type;
 #define PyPixbuf_PIXFMT_CMYKA_15X (PyPixbuf_FLAG_CMYK | PyPixbuf_FLAG_15X | PyPixbuf_FLAG_ALPHA_LAST)
 
 typedef void (*writefunc)(void * pixel, float opacity, float erase, unsigned short * color);
+typedef void (*write2func)(void * pixel, unsigned short * color);
 typedef void (*readfunc)(void * pixel, unsigned short * color);
 typedef void (*colfloat2natif)(float from, void *to);
 typedef float (*colnatif2float)(void *from);
@@ -75,6 +77,7 @@ typedef struct PyPixbuf_STRUCT {
     int            pixfmt;        /* Pixel Format */
     int            x, y;          /* Buffers positions */
     int            width, height; /* Pixels array size */
+    char           readonly;      /* True if the buffer is protected against write */
     char           damaged;       /* True if written but not displayed */
     unsigned char  nc;            /* Number of components per pixels */
     unsigned char  bpc;           /* Number of bits for each components */
@@ -82,6 +85,7 @@ typedef struct PyPixbuf_STRUCT {
     colfloat2natif cfromfloat;    /* Function to convert a color channel value given in float to natif value */
     colnatif2float ctofloat;      /* Function to convert a color channel value given in natif to float value */
     writefunc      writepixel;    /* Function to change one pixel for given opacity and color */
+    write2func     write2pixel;   /* Function to change one pixel using all color information */
     readfunc       readpixel;     /* Function to get color of specific pixel */
     uint8_t *      data_alloc;    /* Pixels data (from malloc) */
     uint8_t *      data;          /* Pixels data (aligned) */

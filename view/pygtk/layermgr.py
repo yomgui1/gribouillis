@@ -26,12 +26,11 @@
 import gtk, gobject
 import gtk.gdk as gdk
 
-import main, model, utils, view
+import model
 
-from utils import mvcHandler
 from .common import SubWindow
 
-__all__ = [ 'LayerManager', 'LayerCtrl', 'LayerManagerMediator' ]
+__all__ = [ 'LayerManager', 'LayerCtrl' ]
 
 def _new_signal(name):
     return gobject.signal_new(name, gtk.Object,
@@ -302,128 +301,3 @@ class LayerManager(SubWindow):
                 return
 
     active = property(fget=get_active, fset=set_active)
-
-
-class LayerManagerMediator(utils.Mediator):
-    NAME = "LayerManagerMediator"
-
-    def __init__(self, component):
-        assert isinstance(component, LayerManager)
-        super(LayerManagerMediator, self).__init__(viewComponent=component)
-
-        self.__docproxy = None
-
-        component.btn['add'   ].connect('clicked', self._on_add_layer)
-        component.btn['del'   ].connect('clicked', self._on_delete_layer)
-        component.btn['up'    ].connect('clicked', self._on_up_layer)
-        component.btn['down'  ].connect('clicked', self._on_down_layer)
-        component.btn['top'   ].connect('clicked', self._on_top_layer)
-        component.btn['bot'   ].connect('clicked', self._on_bottom_layer)
-        component.btn['dup'   ].connect('clicked', self._on_duplicate_layer)
-        component.btn['merge' ].connect('clicked', self._on_merge_layer)
-
-        component.connect('layer-active-event', self._on_layer_active_event)
-        component.connect('layer-name-changed', self._on_layer_name_changed)
-        component.connect('layer-visibility-event', self._on_layer_visibility_event)
-        component.connect('layer-operator-event', self._on_layer_operator_event)
-
-    #### UI event handlers ####
-
-    def _on_layer_active_event(self, w, layer):
-        self.__docproxy.document.active = layer
-
-    def _on_layer_name_changed(self, w, data):
-        layer, name = data
-        if layer.name != name:
-            vo = model.vo.LayerCommandVO(docproxy=self.__docproxy, layer=layer, name=name)
-            self.sendNotification(main.Gribouillis.DOC_LAYER_RENAME, vo, type=utils.RECORDABLE_COMMAND)
-
-    def _on_layer_visibility_event(self, w, data):
-        layer, state = data
-        self.__docproxy.set_layer_visibility(layer, state)
-
-    def _on_layer_operator_event(self, w, ctrl):
-        layer = ctrl.layer
-        layer.operator = ctrl.operator.get_active_text()
-        self.sendNotification(main.Gribouillis.DOC_LAYER_UPDATED, (self.__docproxy, layer))
-
-    def _on_add_layer(self, *a):
-        pos = self.viewComponent.get_active_position() + 1
-        vo = model.vo.LayerConfigVO(docproxy=self.__docproxy, pos=pos)
-        self.sendNotification(main.Gribouillis.DOC_LAYER_ADD, vo, type=utils.RECORDABLE_COMMAND)
-
-    def _on_delete_layer(self, *a):
-        layer = self.viewComponent.active
-        vo = model.vo.LayerCommandVO(docproxy=self.__docproxy, layer=layer)
-        self.sendNotification(main.Gribouillis.DOC_LAYER_DEL, vo, type=utils.RECORDABLE_COMMAND)
-
-    def _on_up_layer(self, *a):
-        self.sendNotification(main.Gribouillis.DOC_LAYER_MOVE,
-                              (self.__docproxy, self.viewComponent.active, self.viewComponent.get_active_position()+1),
-                              type=utils.RECORDABLE_COMMAND)
-
-    def _on_down_layer(self, *a):
-        self.sendNotification(main.Gribouillis.DOC_LAYER_MOVE,
-                              (self.__docproxy, self.viewComponent.active, self.viewComponent.get_active_position()-1),
-                              type=utils.RECORDABLE_COMMAND)
-
-    def _on_top_layer(self, *a):
-        self.sendNotification(main.Gribouillis.DOC_LAYER_MOVE,
-                              (self.__docproxy, self.viewComponent.active, len(self.viewComponent)-1),
-                              type=utils.RECORDABLE_COMMAND)
-
-    def _on_bottom_layer(self, *a):
-        self.sendNotification(main.Gribouillis.DOC_LAYER_MOVE,
-                              (self.__docproxy, self.viewComponent.active, 0),
-                              type=utils.RECORDABLE_COMMAND)
-
-    def _on_duplicate_layer(self, *a):
-        layer = self.viewComponent.active
-        vo = model.vo.LayerCommandVO(docproxy=self.__docproxy, layer=layer)
-        self.sendNotification(main.Gribouillis.DOC_LAYER_DUP, vo, type=utils.RECORDABLE_COMMAND)
-
-    def _on_merge_layer(self, *a):
-        self.sendNotification(main.Gribouillis.DOC_LAYER_MERGE_DOWN,
-                              (self.__docproxy, self.viewComponent.get_active_position()),
-                              type=utils.RECORDABLE_COMMAND)
-
-    #### notification handlers ####
-
-    @mvcHandler(main.Gribouillis.DOC_DELETE)
-    def _on_doc_delete(self, docproxy):
-        if docproxy is self.__docproxy:
-            self.viewComponent.clear()
-            self.viewComponent.hide()
-            self.__docproxy = None
-
-    @mvcHandler(main.Gribouillis.NEW_DOCUMENT_RESULT)
-    @mvcHandler(main.Gribouillis.DOC_UPDATED)
-    def _on_new_doc_result(self, docproxy):
-        if self.__docproxy is docproxy:
-            self.viewComponent.set_layers(docproxy.layers, docproxy.document.active)
-    
-    @mvcHandler(main.Gribouillis.DOC_ACTIVATED)
-    def _on_doc_activated(self, docproxy):
-        if self.__docproxy is not docproxy:
-            self.__docproxy = docproxy
-            self.viewComponent.set_layers(docproxy.layers, docproxy.document.active)
-
-    @mvcHandler(main.Gribouillis.DOC_LAYER_ADDED)
-    def _on_doc_layer_added(self, docproxy, layer ,pos):
-        if self.__docproxy is docproxy:
-            self.viewComponent.add_layer(layer, pos)
-
-    @mvcHandler(main.Gribouillis.DOC_LAYER_DELETED)
-    def _on_doc_layer_deleted(self, docproxy, layer):
-        if self.__docproxy is docproxy:
-            self.viewComponent.del_layer(layer)
-            
-    @mvcHandler(main.Gribouillis.DOC_LAYER_MOVED)
-    def _on_doc_layer_moved(self, docproxy, layer, pos):
-        if self.__docproxy is docproxy:
-            self.viewComponent.move_layer(layer, pos)
-
-    @mvcHandler(main.Gribouillis.DOC_LAYER_ACTIVATED)
-    def _on_doc_layer_activated(self, docproxy, layer):
-        if self.__docproxy is docproxy and layer is not self.viewComponent.active:
-            self.viewComponent.active = layer

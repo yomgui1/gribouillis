@@ -383,6 +383,9 @@ class DocumentMediator(Mediator):
     def del_doc(self, docproxy):
         component = self.__docmap.pop(docproxy)
         map(self.viewport_mediator.remove_viewport, component.disp_areas)
+        if len(self.__docmap):
+            docproxy = self.__docmap.keys()[-1]
+            self.sendNotification(main.Gribouillis.DOC_ACTIVATE, docproxy)
         return component
     
     def load_background(self):

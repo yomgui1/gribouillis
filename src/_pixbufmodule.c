@@ -1325,10 +1325,16 @@ initialize_pixbuf(PyPixbuf *self, int width, int height, int pixfmt, PyPixbuf *s
 {
     const PA_InitValue *init_values = get_init_values(pixfmt);
 
+    if ((width == 0) || (height == 0))
+    {
+        PyErr_SetString(PyExc_ValueError, "Null dimensions");
+        return 1;
+    }
+        
     if (NULL == init_values)
     {
         PyErr_Format(PyExc_ValueError, "Invalid pixel format (0x%x)", pixfmt);
-        return 0;
+        return 1;
     }
 
     self->bpc = init_values->bpc;
@@ -1338,6 +1344,7 @@ initialize_pixbuf(PyPixbuf *self, int width, int height, int pixfmt, PyPixbuf *s
     self->data_alloc = AllocVecTaskPooled((self->bpr*height)+15);
     if (NULL != self->data_alloc)
     {
+        /* 16-bytes alignment */
         self->data = (void*)((((unsigned long)self->data_alloc)+15) & ~15);
         if (NULL != src)
             memcpy(self->data, src->data, self->bpr * height);
@@ -1353,12 +1360,12 @@ initialize_pixbuf(PyPixbuf *self, int width, int height, int pixfmt, PyPixbuf *s
         self->write2pixel = init_values->write2pixel;
         self->readpixel = init_values->readpixel;
 
-        return 1;
+        return 0;
     }
     else
         PyErr_NoMemory();
 
-    return 0;
+    return 1;
 }
 
 static PyObject *
@@ -1371,13 +1378,14 @@ pixbuf_new(PyTypeObject *type, PyObject *args)
     if (!PyArg_ParseTuple(args, "IHH|O!:__new__", &pixfmt, &w, &h, &PyPixbuf_Type, &src)) /* BR */
         return NULL;
 
+    /* Is src buffer valid? */
     if ((NULL != src) && ((src->pixfmt != pixfmt) || (src->width != w) || (src->height != h)))
         return PyErr_Format(PyExc_TypeError, "Source pixbuf is not of the same type");
 
     self = (PyPixbuf *)type->tp_alloc(type, 0); /* NR */
     if (NULL != self)
     {
-        if (!initialize_pixbuf(self, w, h, pixfmt, src))
+        if (initialize_pixbuf(self, w, h, pixfmt, src))
             Py_CLEAR(self);
     }
 

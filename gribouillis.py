@@ -33,7 +33,7 @@ if __name__ == '__main__':
     import main
     
     # XXX: change me before any public release
-    main.version_str = "$VER: Gribouillis 3.0.0 (dd.mm.yyyy) Guillaume Roguez"
+    main.version_str = "$VER: Gribouillis 3.0.490 (06.11.2011) Guillaume Roguez"
     
     data = main.version_str.split()
     main.VERSION = float('.'.join(data[2].split('.')[:2]))

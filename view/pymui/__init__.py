@@ -319,7 +319,6 @@ class DocumentMediator(Mediator):
         if not win.Activate:
             win.NNSet('Activate', True)
         win.set_doc_name(docproxy.docname)
-        win.ToFront()
         win.set_cursor_radius(docproxy.document.brush.radius_max)
 
     @mvcHandler(main.Gribouillis.BRUSH_PROP_CHANGED)

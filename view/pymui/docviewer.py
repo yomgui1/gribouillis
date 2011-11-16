@@ -585,9 +585,6 @@ class DocDisplayArea(pymui.Rectangle, viewport.BackgroundMixin):
     @property
     def tools(self):
         return self._toolsvp.tools
-    
-    def to_front(self):
-        self.WindowObject.contents.Activate = True
 
 class DocWindow(pymui.Window):
 
@@ -669,10 +666,8 @@ class DocWindow(pymui.Window):
     def _on_activate(self, evt):
         if evt.value:
             self.pointer = self.POINTERTYPE_DRAW
-            #self.Opacity = -1
         else:
             self.pointer = self.POINTERTYPE_NORMAL
-            #self.Opacity = 128
         
     def _on_ruler_metric(self, evt, pop, lister):
         pop.Close(0)

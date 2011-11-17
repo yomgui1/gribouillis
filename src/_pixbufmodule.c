@@ -383,12 +383,12 @@ argb15x_to_argb8_row(uint16_t *src, uint8_t *dst, unsigned int w)
             uint8_t r,g,b;
 
             /* Convert to range [0, 255], keep values alpha pre-multiplied */
-            r = ((uint32_t)src[1] * 255) >> 15;
-            g = ((uint32_t)src[2] * 255) >> 15;
-            b = ((uint32_t)src[3] * 255) >> 15;
+            r = ((uint32_t)src[1] * 255 + ROUND_ERROR_15BITS) >> 15;
+            g = ((uint32_t)src[2] * 255 + ROUND_ERROR_15BITS) >> 15;
+            b = ((uint32_t)src[3] * 255 + ROUND_ERROR_15BITS) >> 15;
 
             /* ARGB8 */
-            dst[0] = (alpha * 255) >> 15;
+            dst[0] = (alpha * 255 + ROUND_ERROR_15BITS) >> 15;
             dst[1] = r;
             dst[2] = g;
             dst[3] = b;
@@ -489,12 +489,12 @@ argb15x_to_argb8_noa(uint16_t *src1, uint8_t *dst1,
                 uint8_t r,g,b;
 
                 /* Un-multiply by alpha, rounding and convert to range [0, 255] */
-                r = ((((uint32_t)src[1]<<15) + alpha/2) / alpha * 255) >> 15;
-                g = ((((uint32_t)src[2]<<15) + alpha/2) / alpha * 255) >> 15;
-                b = ((((uint32_t)src[3]<<15) + alpha/2) / alpha * 255) >> 15;
+                r = ((((uint32_t)src[1]<<15) + alpha/2) / alpha * 255 + ROUND_ERROR_15BITS) >> 15;
+                g = ((((uint32_t)src[2]<<15) + alpha/2) / alpha * 255 + ROUND_ERROR_15BITS) >> 15;
+                b = ((((uint32_t)src[3]<<15) + alpha/2) / alpha * 255 + ROUND_ERROR_15BITS) >> 15;
 
                 /* ARGB8 */
-                dst[0] = (alpha * 255) >> 15;
+                dst[0] = (alpha * 255 + ROUND_ERROR_15BITS) >> 15;
                 dst[1] = r;
                 dst[2] = g;
                 dst[3] = b;
@@ -534,15 +534,15 @@ argb15x_to_bgra8(uint16_t *src1, uint8_t *dst1,
                 uint8_t r,g,b;
 
                 /* Convert to range [0, 255], keep values alpha pre-multiplied */
-                r = ((uint32_t)src[1] * 255) >> 15;
-                g = ((uint32_t)src[2] * 255) >> 15;
-                b = ((uint32_t)src[3] * 255) >> 15;
+                r = ((uint32_t)src[1] * 255 + ROUND_ERROR_15BITS) >> 15;
+                g = ((uint32_t)src[2] * 255 + ROUND_ERROR_15BITS) >> 15;
+                b = ((uint32_t)src[3] * 255 + ROUND_ERROR_15BITS) >> 15;
 
                 /* BGRA8 */
                 dst[0] = b;
                 dst[1] = g;
                 dst[2] = r;
-                dst[3] = (alpha * 255) >> 15;
+                dst[3] = (alpha * 255 + ROUND_ERROR_15BITS) >> 15;
             }
             else
                 *(uint32_t *)dst = 0;
@@ -579,15 +579,15 @@ argb15x_to_rgba8(uint16_t *src1, uint8_t *dst1,
                 uint8_t r,g,b;
 
                 /* Convert to range [0, 255], keep values alpha pre-multiplied */
-                r = ((uint32_t)src[1] * 255) >> 15;
-                g = ((uint32_t)src[2] * 255) >> 15;
-                b = ((uint32_t)src[3] * 255) >> 15;
+                r = ((uint32_t)src[1] * 255 + ROUND_ERROR_15BITS) >> 15;
+                g = ((uint32_t)src[2] * 255 + ROUND_ERROR_15BITS) >> 15;
+                b = ((uint32_t)src[3] * 255 + ROUND_ERROR_15BITS) >> 15;
 
                 /* RGBA8 */
                 dst[0] = r;
                 dst[1] = g;
                 dst[2] = b;
-                dst[3] = (alpha * 255) >> 15;
+                dst[3] = (alpha * 255 + ROUND_ERROR_15BITS) >> 15;
             }
             else
                 *(uint32_t *)dst = 0;
@@ -623,16 +623,18 @@ argb15x_to_rgba8_noa(uint16_t *src1, uint8_t *dst1,
             {
                 uint8_t r,g,b;
 
-                /* Un-multiply by alpha, rounding and convert to range [0, 255] */
-                r = ((((uint32_t)src[1]<<15) + alpha/2) / alpha * 255) >> 15;
-                g = ((((uint32_t)src[2]<<15) + alpha/2) / alpha * 255) >> 15;
-                b = ((((uint32_t)src[3]<<15) + alpha/2) / alpha * 255) >> 15;
+                /* Un-multiply by alpha, rounding and convert to range [0, 255]
+                 * TODO: No dithering used here!
+                 */
+                r = ((((uint32_t)src[1]<<15) + alpha/2) / alpha * 255 + ROUND_ERROR_15BITS) >> 15;
+                g = ((((uint32_t)src[2]<<15) + alpha/2) / alpha * 255 + ROUND_ERROR_15BITS) >> 15;
+                b = ((((uint32_t)src[3]<<15) + alpha/2) / alpha * 255 + ROUND_ERROR_15BITS) >> 15;
 
                 /* RGBA8_NOA */
                 dst[0] = r;
                 dst[1] = g;
                 dst[2] = b;
-                dst[3] = (alpha * 255) >> 15;
+                dst[3] = (alpha * 255 + ROUND_ERROR_15BITS) >> 15;
             }
             else
                 *(uint32_t *)dst = 0;
@@ -669,12 +671,12 @@ argb15x_to_abgr8(uint16_t *src1, uint8_t *dst1,
                 uint8_t r,g,b;
 
                 /* Convert to range [0, 255], keep values alpha pre-multiplied */
-                r = ((uint32_t)src[1] * 255) >> 15;
-                g = ((uint32_t)src[2] * 255) >> 15;
-                b = ((uint32_t)src[3] * 255) >> 15;
+                r = ((uint32_t)src[1] * 255 + ROUND_ERROR_15BITS) >> 15;
+                g = ((uint32_t)src[2] * 255 + ROUND_ERROR_15BITS) >> 15;
+                b = ((uint32_t)src[3] * 255 + ROUND_ERROR_15BITS) >> 15;
 
                 /* ABGR8 */
-                dst[0] = (alpha * 255) >> 15;
+                dst[0] = (alpha * 255 + ROUND_ERROR_15BITS) >> 15;
                 dst[1] = b;
                 dst[2] = g;
                 dst[3] = r;
@@ -714,9 +716,9 @@ argb15x_to_rgb8(uint16_t *src1, uint8_t *dst1,
                 uint8_t r,g,b;
 
                 /* Un-multiply by alpha, rounding and convert to range [0, 255] */
-                r = ((((uint32_t)src[1]<<15) + alpha/2) / alpha * 255) >> 15;
-                g = ((((uint32_t)src[2]<<15) + alpha/2) / alpha * 255) >> 15;
-                b = ((((uint32_t)src[3]<<15) + alpha/2) / alpha * 255) >> 15;
+                r = ((((uint32_t)src[1]<<15) + alpha/2) / alpha * 255 + ROUND_ERROR_15BITS) >> 15;
+                g = ((((uint32_t)src[2]<<15) + alpha/2) / alpha * 255 + ROUND_ERROR_15BITS) >> 15;
+                b = ((((uint32_t)src[3]<<15) + alpha/2) / alpha * 255 + ROUND_ERROR_15BITS) >> 15;
 
                 /* RGB8 */
                 dst[0] = r;
@@ -750,16 +752,45 @@ rgba8_noa_to_argb15x(uint8_t *src1, uint16_t *dst1,
 
         for (x=0; x < w; x++)
         {
-            uint32_t alpha = ((uint32_t)src[3] << 15) / 255;
+            /* 8bits -> 15Bits convertion using rouding error correction (the added 255/2) */
+            uint32_t alpha = (((uint32_t)src[3] << 15) + ROUND_ERROR_8BITS) / 255;
 
             if (alpha > 0)
             {
                 uint16_t r,g,b;
 
-                /* Convert to 15-bits value, pre-mul values by alpha */
-                r = (uint32_t)src[0] * alpha / 255;
-                g = (uint32_t)src[1] * alpha / 255;
-                b = (uint32_t)src[2] * alpha / 255;
+                /* Convert to 15-bits value, pre-mul values by alpha (with rounding error handling).
+                 *
+                 * Notes: Quality performance of this rounding algorithme:
+                 * I'm using python here to compute the number of unique values generated by each algo
+                 * for all possible combinaison of one channel values and alpha values.
+                 * In follwing lines, f = lambda x: ((x<<15) + 255/2) / 255
+                 *
+                 * >>> d0=[(r,a) for r in xrange(256) for a in xrange(256)]
+                 * >>> d1=[(r*a,a) for r in xrange(256) for a in xrange(256)]
+                 * >>> d2=[((f(r) * f(a) + (1<<15)/2) / (1<<15), a) for r in xrange(256) for a in xrange(256)]
+                 * >>> d3=[((r * f(a) + 255/2) / 255, a) for r in xrange(256) for a in xrange(256)]
+                 * >>> len(set(d0))
+                 * 65536
+                 * >>> len(set(d1))
+                 * 65281
+                 * >>> len(set(d2))
+                 * 65155
+                 * >>> len(set(d3))
+                 * 65155
+                 *
+                 * What we can see:
+                 *   - d0 is the best case: all combinaisons!
+                 *   - d1: 16bits buffer, no losses, the missing 255 values are all fully transparent data (a=0, r=any).
+                 *   - d2: 15bits buffer, algo from MyPaint, less than 0.2% of quality loss.
+                 *   - d3: 15bits buffer, my algo, same losses.
+                 *
+                 * Even if d2 and d3 are equals in term of quality, my algo don't use twice the f function!
+                 * => my algo is faster (timeit gives 30%).
+                 */
+                r = ((uint32_t)src[0] * alpha + ROUND_ERROR_8BITS) / 255;
+                g = ((uint32_t)src[1] * alpha + ROUND_ERROR_8BITS) / 255;
+                b = ((uint32_t)src[2] * alpha + ROUND_ERROR_8BITS) / 255;
 
                 /* ARGB15X */
                 dst[0] = alpha;
@@ -1026,9 +1057,9 @@ compose_argb8_to_argb8_noa(uint8_t *src1, uint8_t *dst1,
 
                 /* ARGB8_NOA */
                 dst[0] = MAX(dst[0], alpha);
-                dst[1] = (one_minus_alpha * dst[1] + r) / 255;
-                dst[2] = (one_minus_alpha * dst[2] + g) / 255;
-                dst[3] = (one_minus_alpha * dst[3] + b) / 255;
+                dst[1] = (one_minus_alpha * dst[1] + r + ROUND_ERROR_8BITS) / 255;
+                dst[2] = (one_minus_alpha * dst[2] + g + ROUND_ERROR_8BITS) / 255;
+                dst[3] = (one_minus_alpha * dst[3] + b + ROUND_ERROR_8BITS) / 255;
                 
             } /* else unchange the destination */
 

@@ -41,6 +41,9 @@ static PyTypeObject PyPixbuf_Type;
 
 #define MAX_CHANNELS 5 /* CYMKA */
 
+#define ROUND_ERROR_8BITS (255/2)
+#define ROUND_ERROR_15BITS (32768/2)
+
 #define PyPixbuf_FLAG_RGB         (1<<0)
 #define PyPixbuf_FLAG_CMYK        (1<<1)
 #define PyPixbuf_FLAG_15X         (1<<2)

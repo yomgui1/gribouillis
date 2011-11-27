@@ -446,9 +446,14 @@ class ViewPortCtx(Context):
     ## Brush modifying actions
     
     @action(_T('interactive set max radius'))
-    def interactive_radius(self, event):
+    def interactive_radius_max(self, event):
         self.viewport.get_device_state(event)
         self.enter_context('Max Radius Interactive')
+
+    @action(_T('interactive set both radius'))
+    def interactive_radius(self, event):
+        self.viewport.get_device_state(event)
+        self.enter_context('Both Radius Interactive')
 
     @action(_T('toggle erase mode'))
     def erase_mode(self, event):
@@ -787,6 +792,30 @@ class SetMaxRadiusModal(ModalContext):
         cpos = event.get_cursor_position()
         dr = self._cpos[1] - cpos[1]
         vp.docproxy.add_brush_radius_max(dr*.25)
+        vp.repaint_cursor(*self._first_cpos)
+        self._cpos = cpos
+
+class SetBothRadiusModal(ModalContext):
+    NAME = 'Both Radius Interactive'
+
+    def setup(self, event):
+        vp = self.viewport
+        vp.lock_focus()
+        vp.enable_motion_events()
+        self._cpos = self._first_cpos = vp.show_brush_cursor()
+        
+    def cleanup(self, event):
+        self.viewport.unlock_focus()
+        
+    # User trigged Actions
+    #
+    
+    @action(_T('resize brush'))
+    def resize_brush(self, event):
+        vp = self.viewport
+        cpos = event.get_cursor_position()
+        dr = self._cpos[1] - cpos[1]
+        vp.docproxy.add_brush_radius(dr*.25)
         vp.repaint_cursor(*self._first_cpos)
         self._cpos = cpos
 

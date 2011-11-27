@@ -44,7 +44,7 @@ from eventparser import *
 from const import *
 
 
-__all__ = [ 'DocWindow' ]
+__all__ = [ 'DocWindow', 'DocWindowFullscreen' ]
 
 class DocDisplayArea(pymui.Rectangle, viewport.BackgroundMixin):
     """DocDisplayArea class.
@@ -601,7 +601,7 @@ class DocWindow(pymui.Window):
     # Private API
     #
 
-    def __init__(self, ctx, docproxy):
+    def __init__(self, ctx, docproxy, **kwds):
         self.title_header = 'Document: %s @ %u%%'
         super(DocWindow, self).__init__('',
                                         ID=0,       # The haitian power
@@ -609,12 +609,8 @@ class DocWindow(pymui.Window):
                                         TopEdge='centered',
                                         WidthVisible=50,
                                         HeightVisible=50,
-                                        #WidthScreen=70,
-                                        #HeightScreen=90,
-                                        #Backdrop=True,
-                                        #Borderless=True,
                                         TabletMessages=True, # enable tablet events support
-                                        )
+                                        **kwds)
 
         self.disp_areas = []
         self._watchers = {'pick': None}
@@ -769,3 +765,14 @@ class DocWindow(pymui.Window):
     @property
     def rulers(self):
         return self._popruler.ShowMe.value
+        
+class DocWindowFullscreen(DocWindow):
+    # Private API
+    #
+
+    def __init__(self, ctx, docproxy):
+        super(DocWindowFullscreen, self).__init__(ctx, docproxy,
+                                                  #WidthScreen=100,
+                                                  #HeightScreen=100,
+                                                  Backdrop=True,
+                                                  Borderless=True)

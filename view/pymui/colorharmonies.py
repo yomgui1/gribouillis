@@ -304,14 +304,14 @@ class ColorWeelHarmonies2(pymui.Area):
     __pos = (0., 0.)
     __rect = None
 
-    WHEEL_RADIUS = 128.0
-
     HARMONIES_RADIUS = 20
     HARMONIES_PADDING = 10
     
-    WHEEL_HUE_RING_RADIUS = 64
+    WHEEL_HUE_RING_RADIUS = 128
     WHEEL_HUE_RING_WIDTH = 16
     WHEEL_HUE_RING_RADIUS_OUT = WHEEL_HUE_RING_RADIUS+WHEEL_HUE_RING_WIDTH
+    
+    WHEEL_RADIUS = WHEEL_HUE_RING_RADIUS * 2
 
     WHEEL_PADDING = HARMONIES_RADIUS + HARMONIES_PADDING + 5
 
@@ -540,6 +540,7 @@ class ColorWeelHarmonies2(pymui.Area):
     def set_hue_pos(self, x, y):
         self.__hsv[0] = ((get_angle(x,-y) or 0.) / pi2) % 1.0
         self.hsv = self.__hsv
+        self.Redraw()
         return self.__hsv
         
     def set_square_pos(self, x, y):
@@ -584,7 +585,7 @@ class ColorBox(pymui.Rectangle):
     @pymui.muimethod(pymui.MUIM_DragQuery)
     def _mcc_DragQuery(self, msg):
         msg.DoSuper()
-        obj = msg.obj.contents
+        obj = msg.obj.object
         return hasattr(obj, 'rgb') and obj.rgb is not None
 
     def _set_rgb(self, rgb):
@@ -615,13 +616,13 @@ class DropColorBox(pymui.Rectangle):
     @pymui.muimethod(pymui.MUIM_DragQuery)
     def _mcc_DragQuery(self, msg):
         msg.DoSuper()
-        obj = msg.obj.contents
+        obj = msg.obj.object
         return hasattr(obj, 'rgb') and obj.rgb is not None
                                             
     @pymui.muimethod(pymui.MUIM_DragDrop)
     def _mcc_Drop(self, msg):
         msg.DoSuper()
-        obj = msg.obj.contents
+        obj = msg.obj.object
         rgb = self.rgb
         self.rgb = obj.rgb
         if isinstance(obj, DropColorBox):
@@ -648,7 +649,7 @@ class ColorHarmoniesWindow(pymui.Window):
     
     def __init__(self, name):
         super(ColorHarmoniesWindow, self).__init__(ID='CHRM',
-                                                   Title=_T('Color Harmonies'),
+                                                   Title=name,
                                                    CloseOnReq=True)
         self.name = name
 
@@ -684,8 +685,19 @@ class ColorHarmoniesWindow(pymui.Window):
         
         top.AddChild(pymui.HBar(3))
         
+        toggle_pal = pymui.Text(_T("Toggle Palette panel"),
+                                InputMode='Toggle',
+                                Frame='Button',
+                                Background='ButtonSelectedBack',
+                                Font=pymui.MUIV_Font_Button,
+                                PreParse=pymui.MUIX_C,
+                                Selected=True)
+        top.AddChild(toggle_pal)
+        
         grp = pymui.VGroup(GroupTitle=_T('Palette'))
         top.AddChild(grp)
+        
+        toggle_pal.Notify('Selected', lambda evt: grp.SetAttr('ShowMe', evt.value.value))
         
         ld_pal = pymui.SimpleButton(_T("Load"), CycleChain=True)
         sv_pal = pymui.SimpleButton(_T("Save"), CycleChain=True)
@@ -709,9 +721,8 @@ class ColorHarmoniesWindow(pymui.Window):
         grp.AddChild(pymui.HGroup(Child=(pymui.Label(_T('Sort by')+':'), sort_luma, sort_hue, sort_sat, sort_value)))
         grp.AddChild(pymui.HBar(0))
         
-        vgrp = pymui.Virtgroup(SameSize=True, Columns=16, Spacing=1, HorizWeight=100, Horiz=False, Background='2:00000000,00000000,00000000')
-        sgrp = pymui.Scrollgroup(Contents=vgrp, AutoBars=True, FreeHoriz=False)
-        grp.AddChild(pymui.HGroup(Child=(pymui.HSpace(0, HorizWeight=1), sgrp, pymui.HSpace(1, HorizWeight=1))))
+        vgrp = pymui.VGroup(SameSize=True, Columns=16, Spacing=1, HorizWeight=100, Horiz=False, Background='2:00000000,00000000,00000000')
+        grp.AddChild(pymui.HCenter(vgrp))
         self._pal_bt = []
         for i in xrange(256):
             bt = DropColorBox(12, 12)
@@ -742,6 +753,8 @@ class ColorHarmoniesWindow(pymui.Window):
         
         # final setup
         self._use_palette('default')
+        
+        toggle_pal.Selected = False # start in no palette mode
 
     def _load_palette(self, filename):
         name = os.path.splitext(os.path.basename(filename))[0]

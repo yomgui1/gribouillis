@@ -98,8 +98,13 @@ class Application(pymui.Application, view.mixin.ApplicationMixin):
 
         self.ctx = new_context('Application', app=self, docproxy=None, viewport=None)
 
+        self._busywin = pymui.Window(ID=0, DepthGadget=False, CloseGadget=False, SizeGadget=False,
+                                     NoMenus=True, DragBar=False,
+                                     Position=('moused', 'moused'),
+                                     RootObject=pymui.Text(_T("Saving...")))
+
         self.layermgr = LayerMgr(_T("Layer Manager"))
-        self.cmdhist = CommandsHistoryList(_T("Command Historic"))
+        self.cmdhist = CommandsHistoryList(_T("Commands History"))
         self.colorhrm = ColorHarmoniesWindow(_T("Color Manager"))
         self.brusheditor = BrushEditorWindow(_T("Brush Editor"))
         self.brushhouse = BrushHouseWindow(_T("Brush House"))
@@ -108,7 +113,7 @@ class Application(pymui.Application, view.mixin.ApplicationMixin):
         
         self.splash = Splash(_T("Splash"))
         self.about = AboutWindow()
-        self.docinfo = DocInfoWindow(_T("Document Info"))
+        self.docinfo = DocInfoWindow(_T("Document Information"))
         
         # List of window that can be automatically open at startup
         self.startup_windows = {
@@ -124,6 +129,7 @@ class Application(pymui.Application, view.mixin.ApplicationMixin):
         # Should be created after startup-open-window list
         self.appprefwin = AppPrefWindow()
 
+        self.AddChild(self._busywin)
         self.AddChild(self.layermgr)
         self.AddChild(self.cmdhist)
         self.AddChild(self.colorhrm)
@@ -333,6 +339,9 @@ class Application(pymui.Application, view.mixin.ApplicationMixin):
                     self.splash,
                     self.appprefwin):
             win.Open = False
+            
+    def new_save_status_window(self):
+        return self._busywin
 
 class MyRoot(pymui.Group):
     _MCC_=True
@@ -349,7 +358,7 @@ class MyRoot(pymui.Group):
 
     @pymui.muimethod(pymui.MUIM_HandleEvent)
     def MCC_HandleEvent(self, msg):
-        self.WindowObject.contents.CloseWindow()
+        self.WindowObject.object.CloseWindow()
         
     def __init__(self, *a, **k):
         super(MyRoot, self).__init__(Horiz=False, *a, **k)

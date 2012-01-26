@@ -23,9 +23,13 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import pymui, math
+import pymui
+import math
+import os
 
-import main, model, utils
+import main
+import model
+import utils
 
 from utils import Mediator, mvcHandler, RECORDABLE_COMMAND, _T, resolve_path
 from model import vo
@@ -148,7 +152,7 @@ class ApplicationMediator(Mediator):
         self.document_mediator.add_doc(docproxy, component)
         
         component.Open = True
-        component.RootObject.contents.Redraw() # needed to force rulers to be redraw
+        component.RootObject.object.Redraw() # needed to force rulers to be redraw
 
     def rem_docproxy(self, docproxy):
         # Keep this order!
@@ -163,7 +167,7 @@ class ApplicationMediator(Mediator):
             self.viewComponent.quit()
 
     def _on_last_sel(self, evt, filename):
-        evt.Source.WindowObject.contents.Open = False
+        evt.Source.WindowObject.object.Open = False
         vo = model.vo.FileDocumentConfigVO(filename)
         self.sendNotification(main.Gribouillis.NEW_DOCUMENT, vo)
            
@@ -331,22 +335,40 @@ class DocumentMediator(Mediator):
             if docproxy.brush is brush:
                 setattr(docproxy.document.brush, name, v)
 
-        # For the cursor
-        if name == 'radius_max':
-            self.get_win(docproxy).set_cursor_radius(v)
+            # For the cursor
+            if name == 'radius_max':
+                self.get_win(docproxy).set_cursor_radius(v)
+
+    @mvcHandler(main.Gribouillis.DOC_LAYER_ACTIVATED)
+    @mvcHandler(main.Gribouillis.DOC_LAYER_RENAMED)
+    def _on_doc_layer_activated(self, docproxy, layer):
+        self.get_win(docproxy).refresh_title()
 
     @mvcHandler('pymui-toggle-erase')
     def _toggle_erase(self, docproxy):
         # Don't change the recorded brush setting, but a state of the drawing brush
         docproxy.drawbrush.erase = 1.0 - docproxy.drawbrush.erase
 
+
+    def _save_doc(self, docproxy, filename):
+        app = self.viewComponent
+        win = app.new_save_status_window()
+        win.OpenWindow()
+        app.Sleep = True
+        try:
+            self.sendNotification(main.Gribouillis.DOC_SAVE, (docproxy, filename))
+            win.CloseWindow()
+        finally:
+            app.Sleep = False
+
     #### Public API ####
     
     def save_document(self, docproxy=None):
         docproxy = docproxy or model.DocumentProxy.get_active()
-        if not docproxy.document.filename:
+        filename = docproxy.document.filename
+        if not filename:
             self.save_as_document()
-        self.sendNotification(main.Gribouillis.DOC_SAVE, (docproxy, docproxy.docname))
+        self._save_doc(docproxy, filename)
 
     def save_as_document(self, docproxy=None):
         docproxy = docproxy or model.DocumentProxy.get_active()
@@ -358,7 +380,7 @@ class DocumentMediator(Mediator):
         win = self.get_win(docproxy)
         filename = self.viewComponent.get_document_filename(parent=win, read=False)
         if filename:
-            self.sendNotification(main.Gribouillis.DOC_SAVE, (docproxy, filename))
+            self._save_doc(docproxy, filename)
             
     def has_doc(self, docproxy):
         return docproxy in self.__docmap
@@ -390,14 +412,13 @@ class DocumentMediator(Mediator):
     def load_background(self):
         docproxy = model.DocumentProxy.get_active()
         filename = self.viewComponent.get_image_filename(parent=self.get_win(docproxy), drawer=resolve_path(prefs['backgrounds-path']))
-        if filename:
+        if filename and os.path.isfile(filename):
             try:
                 docproxy.set_background(filename)
             except:
                 self.sendNotification(main.Gribouillis.SHOW_ERROR_DIALOG,
                                       "Failed to load background image %s.\n" % filename +
                                       "(Note: Only PNG files are supported as background).")
-                raise
 
     def set_background_rgb(self, rgb):
         docproxy = model.DocumentProxy.get_active()
@@ -410,7 +431,7 @@ class DocumentMediator(Mediator):
         
     def refresh_all(self):
         for win in self.__docmap.itervalues():
-            win.RootObject.contents.Redraw()
+            win.RootObject.object.Redraw()
             
     def toggle_rulers(self, docproxy=None):
         win = self.get_win(docproxy or model.DocumentProxy.get_active())
@@ -434,6 +455,7 @@ class LayerMgrMediator(Mediator):
         self.doc_mediator = self.facade.retrieveMediator(DocumentMediator.NAME)
         self.app_mediator = self.facade.retrieveMediator(ApplicationMediator.NAME)
 
+        component.mediator = self
         component.btn['add'].Notify('Pressed', self.add_layer, when=False)
         component.btn['del'].Notify('Pressed', lambda *a: self.remove_active_layer(), when=False)
         component.btn['up'].Notify('Pressed', self._on_up_layer, when=False)
@@ -442,7 +464,29 @@ class LayerMgrMediator(Mediator):
         component.btn['bottom'].Notify('Pressed', self._on_bottom_layer, when=False)
         component.btn['merge'].Notify('Pressed', self._on_merge_layer, when=False)
         component.btn['dup'].Notify('Pressed', self._on_dup_layer, when=False)
+        
+        component.opacity.Notify('Value', self._on_layer_opa_changed)
+        component.blending.Notify('Active', self._on_layer_ope_changed)
+        
+        self._last_active = None
+        component.Notify('ActiveObject', self._on_active_object)
 
+    def _on_active_object(self, evt):
+        # Permit to comfirm a in-modification layer name String object
+        obj = evt.value.object
+        if hasattr(obj, 'ctrl'):
+            if self._last_active:
+                ctrl = self._last_active.ctrl
+                self._change_ctrl_name(ctrl, ctrl.name.Contents.contents)
+            self._last_active = obj
+
+    def _change_ctrl_name(self, ctrl, name):
+        name = name.strip()
+        if not name:
+            ctrl.restore_name()
+        else:
+            self._on_layer_name_changed(ctrl.layer, name)
+    
     def _on_layer_name_changed(self, layer, name):
         if layer.name != name:
             vo = model.vo.LayerCommandVO(docproxy=self.__docproxy, layer=layer, name=name)
@@ -474,25 +518,29 @@ class LayerMgrMediator(Mediator):
                               type=utils.RECORDABLE_COMMAND)
 
     def _on_change_name(self, evt, ctrl):
-        name = evt.value.contents.strip()
-        if not name:
-            ctrl.restore_name()
-        else:
-            self._on_layer_name_changed(ctrl.layer, name)
+        self._change_ctrl_name(ctrl, evt.value.contents)
 
-    def _on_layer_activated(self, evt, win, docproxy, layer):
-        win.set_active(layer)
-        self.sendNotification(main.Gribouillis.DOC_LAYER_ACTIVATE, (docproxy, layer))
+    def _on_layer_activated(self, evt, ctrl):
+        if evt.value.value:
+            self.sendNotification(main.Gribouillis.DOC_LAYER_ACTIVATE, (self.__docproxy, ctrl.layer))
+        elif ctrl.layer == self.__docproxy.active_layer:
+            ctrl.activeBt.NNSet('Selected', True)
 
-    def _on_layer_ope_changed(self, evt, docproxy, layer):
+    def _on_layer_ope_changed(self, evt):
+        dp = self.__docproxy
+        layer = dp.active_layer
         layer.operator = model.Layer.OPERATORS_LIST[evt.value.value]
-        self.sendNotification(main.Gribouillis.DOC_LAYER_UPDATED, (docproxy, layer))
+        self.sendNotification(main.Gribouillis.DOC_LAYER_UPDATED, (dp, layer))
 
-    def _on_layer_vis_changed(self, evt, docproxy, layer):
-        self.__docproxy.set_layer_visibility(layer, evt.value.value)
+    def _on_layer_vis_changed(self, evt, ctrl):
+        visible = evt.value.value
+        self.__docproxy.set_layer_visibility(ctrl.layer, visible)
+        if visible:
+            self.sendNotification(main.Gribouillis.DOC_LAYER_ACTIVATE, (self.__docproxy, ctrl.layer))
         
-    def _on_layer_opa_changed(self, evt, docproxy, layer):
-        self.__docproxy.set_layer_opacity(layer, evt.value.value / 100.)
+    def _on_layer_opa_changed(self, evt):
+        dp = self.__docproxy
+        dp.set_layer_opacity(dp.active_layer, evt.value.value / 100.)
         
     def _on_merge_layer(self, e):
         self.sendNotification(main.Gribouillis.DOC_LAYER_MERGE_DOWN,
@@ -500,12 +548,13 @@ class LayerMgrMediator(Mediator):
                               type=utils.RECORDABLE_COMMAND)
 
     def _add_notifications(self, ctrl):
+        #ctrl.preview.Notify('Pressed', self._on_layer_activated, when=True,
+        #                    win=self.viewComponent, docproxy=self.__docproxy, layer=ctrl.layer)
+        #ctrl.vis.Notify('Selected', self._on_layer_vis_changed, docproxy=self.__docproxy, layer=ctrl.layer)
+        
         ctrl.name.Notify('Acknowledge', self._on_change_name, ctrl)
-        ctrl.actBt.Notify('Pressed', self._on_layer_activated, when=True,
-                          win=self.viewComponent, docproxy=self.__docproxy, layer=ctrl.layer)
-        ctrl.opebt.Notify('Active', self._on_layer_ope_changed, docproxy=self.__docproxy, layer=ctrl.layer)
-        ctrl.vis.Notify('Selected', self._on_layer_vis_changed, docproxy=self.__docproxy, layer=ctrl.layer)
-        ctrl.opaSl.Notify('Value', self._on_layer_opa_changed, docproxy=self.__docproxy, layer=ctrl.layer)
+        ctrl.activeBt.Notify('Selected', self._on_layer_activated, ctrl=ctrl)
+        ctrl.visBt.Notify('Selected', self._on_layer_vis_changed, ctrl=ctrl)
 
     #### notification handlers ####
 
@@ -550,7 +599,7 @@ class LayerMgrMediator(Mediator):
             
     @mvcHandler(main.Gribouillis.DOC_LAYER_UPDATED)
     def _on_doc_layer_updated(self, docproxy, layer):
-        if self.__docproxy is docproxy and layer is not self.viewComponent.active:
+        if self.__docproxy is docproxy:
             self.viewComponent.update_layer(layer)
 
     #### Public API ####
@@ -571,6 +620,11 @@ class LayerMgrMediator(Mediator):
             self.sendNotification(main.Gribouillis.DOC_LOAD_IMAGE_AS_LAYER,
                                   model.vo.LayerConfigVO(docproxy=docproxy, filename=filename, pos=self.viewComponent.get_active_position()+1),
                                   type=RECORDABLE_COMMAND)
+                                  
+    def exchange_layers(self, one, two):
+        self.sendNotification(main.Gribouillis.DOC_LAYER_STACK_CHANGE,
+                              (self.__docproxy, two, self.__docproxy.document.get_layer_index(one)),
+                              type=utils.RECORDABLE_COMMAND)
 
 class BrushEditorWindowMediator(Mediator):
     NAME = "BrushEditorWindowMediator"
@@ -706,7 +760,7 @@ class ColorHarmoniesWindowMediator(Mediator):
                     #hsv = widget.hit_harmony(*pos)
                     #if hsv is None: return
 
-            self.viewComponent.hev = hsv
+            self.viewComponent.hsv = hsv
             model.DocumentProxy.get_active().set_brush_color_hsv(*hsv)
             return pymui.MUI_EventHandlerRC_Eat
 
@@ -725,7 +779,7 @@ class ColorHarmoniesWindowMediator(Mediator):
 
     ### notification handlers ###
 
-    @mvcHandler(main.Gribouillis.DOC_ACTIVATE)
+    #@mvcHandler(main.Gribouillis.DOC_ACTIVATE)
     def _on_activate_document(self, docproxy):
         self.__brush = docproxy.document.brush
         self.viewComponent.hsv = self.__brush.hsv

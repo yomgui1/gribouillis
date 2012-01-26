@@ -19,6 +19,7 @@ elif os.name == 'posix':
     defines = ()
     link_opt = ['-llcms2']
 
+link_opt += ['-lpng']
 pb_srcs = pb_generic_srcs + pb_plat_srcs
 
 setup(name='Gribouillis',
@@ -37,7 +38,11 @@ setup(name='Gribouillis',
                                 define_macros=defines,
                                 extra_compile_args=opt,
                                 extra_link_args=link_opt),
-                       Extension('model/_lcms', [ 'src/_lcmsmodule.c' ] + pb_srcs,
+                      Extension('model/_lcms', [ 'src/_lcmsmodule.c' ] + pb_srcs,
+                                define_macros=defines,
+                                extra_compile_args=opt,
+                                extra_link_args=link_opt),
+                      Extension('model/_savers', [ 'src/_saversmodule.c' ] + pb_srcs,
                                 define_macros=defines,
                                 extra_compile_args=opt,
                                 extra_link_args=link_opt),

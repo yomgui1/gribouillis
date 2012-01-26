@@ -73,6 +73,7 @@ class Gribouillis(puremvc.patterns.facade.Facade):
     DOC_LAYER_ACTIVATED     = 'doc-layer-actived'
     DOC_LAYER_UPDATED       = 'doc-layer-updated'
     DOC_LAYER_RENAME        = 'doc-layer-rename' # undoable command
+    DOC_LAYER_RENAMED       = 'doc-layer-renamed'
     DOC_LAYER_ADD           = 'doc-layer-add'    # undoable command
     DOC_LAYER_ADDED         = 'doc-layer-added'
     DOC_LAYER_DEL           = 'doc-layer-del'    # undoable command
@@ -81,7 +82,7 @@ class Gribouillis(puremvc.patterns.facade.Facade):
     DOC_LAYER_STACK_CHANGE  = 'doc-layer-stack-change'   # undoable command
     DOC_LAYER_STACK_CHANGED = 'doc-layer-stack-changed'
     DOC_LAYER_CLEAR         = 'doc-layer-clear'   # undoable command
-    DOC_LAYER_SET_VISIBLE   = 'doc-layer-visible' # undoable command
+    DOC_LAYER_SET_VISIBLE   = 'doc-layer-visible'
     DOC_LAYER_SET_OPACITY   = 'doc-layer-opacity'
     DOC_LAYER_MERGE_DOWN    = 'doc-layer-merge-down' # undoable command
     DOC_RECORD_STROKE       = 'doc-record-stroke' # undoable command

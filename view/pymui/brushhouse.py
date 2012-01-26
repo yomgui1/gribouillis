@@ -42,7 +42,7 @@ class BrushHouseWindow(pymui.Window):
     _current_cb = utils.idle_cb
 
     def __init__(self, name):
-        super(BrushHouseWindow, self).__init__(_T('Brush House'),
+        super(BrushHouseWindow, self).__init__(name,
                                                ID='BRHO',
                                                LeftEdge=0,
                                                TopDeltaEdge=0,
@@ -232,7 +232,7 @@ class BrushHouseWindow(pymui.Window):
         page, title = self._pages.pop(n)
 
         self._top.InitChange()
-        self._nb.RemChild(page.Parent.contents)
+        self._nb.RemChild(page.Parent.object)
         self._titles.RemChild(title)
         self._top.ExitChange()
 

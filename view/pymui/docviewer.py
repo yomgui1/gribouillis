@@ -180,6 +180,9 @@ class DocDisplayArea(pymui.Rectangle, viewport.BackgroundMixin):
                 self.width = width
                 self.height = height
                 
+                # Rendering context
+                self._new_render_context(width, height)
+                
                 # Now viewport has a size we can initialize gfx elements
                 self._docvp.set_view_size(width, height)
                 self._toolsvp.set_view_size(width, height)
@@ -187,12 +190,6 @@ class DocDisplayArea(pymui.Rectangle, viewport.BackgroundMixin):
                 # Repaint all viewports
                 self._docvp.repaint()
                 self._toolsvp.repaint()
-
-                # As we are doing the double buffering ourself we create
-                # a pixel buffer suitable to be blitted on the window RastPort (ARGB no-alpha premul)
-                self._drawbuf = model._pixbuf.Pixbuf(model._pixbuf.FORMAT_ARGB8_NOA, width, height)
-                self._drawsurf = cairo.ImageSurface.create_for_data(self._drawbuf, cairo.FORMAT_ARGB32, width, height)
-                self._drawcr = cairo.Context(self._drawsurf)
                 
                 if self._clip:
                     x, y, w, h = self._clip
@@ -230,7 +227,18 @@ class DocDisplayArea(pymui.Rectangle, viewport.BackgroundMixin):
        
         finally:
             self.RemoveClipping()
-       
+    
+    # Private API
+    # 
+    
+    def _new_render_context(self, width, height):
+        # As we are doing the double buffering ourself we create
+        # a pixel buffer suitable to be blitted on the window RastPort (ARGB no-alpha premul)
+        self._drawbuf = model._pixbuf.Pixbuf(model._pixbuf.FORMAT_ARGB8_NOA, width, height)
+        self._drawsurf = cairo.ImageSurface.create_for_data(self._drawbuf, cairo.FORMAT_ARGB32, width, height)
+        self._drawcr = cairo.Context(self._drawsurf)
+        return self._drawbuf
+    
     # Public API
     #
 
@@ -333,6 +341,7 @@ class DocDisplayArea(pymui.Rectangle, viewport.BackgroundMixin):
         else:
             self._clip = (0, 0, self.width, self.height)
             
+        
         self._redraw(*self._clip)
         self.Redraw()
             
@@ -457,7 +466,10 @@ class DocDisplayArea(pymui.Rectangle, viewport.BackgroundMixin):
             self._curvp.set_scale(self._docvp.scale)
             self._docvp.update_matrix()
             x, y = self._docvp.get_view_point(x, y)
-            self.scroll(cx-x, cy-y)
+            self._docvp.scroll(cx-x, cy-y)
+            self._docvp.update_matrix()
+            self.repaint()
+            self._do_rulers()
             
     def scale_down(self, cx=.0, cy=.0):
         x, y = self._docvp.get_model_point(cx, cy)
@@ -465,12 +477,66 @@ class DocDisplayArea(pymui.Rectangle, viewport.BackgroundMixin):
             self._curvp.set_scale(self._docvp.scale)
             self._docvp.update_matrix()
             x, y = self._docvp.get_view_point(x, y)
-            self.scroll(cx-x, cy-y)
+            self._docvp.scroll(cx-x, cy-y)
+            self._docvp.update_matrix()
+            self.repaint()
+            self._do_rulers()
 
     def scroll(self, *delta):
+        # Scroll the document viewport
         self._docvp.scroll(*delta)
         self._docvp.update_matrix()
-        self.repaint()
+
+        dx, dy = delta
+        
+        # Scroll the internal docvp buffer
+        self._docvp.pixbuf.scroll(dx, dy)
+
+        ## Compute the damaged rectangles list...
+        # 4 damaged rectangles possible, but only two per delta:
+        #
+        # +==================+
+        # |        #3        |      #1 exists if dx > 0
+        # |----+========+----|      #2 exists if dx < 0
+        # |    |        |    |      #3 exists if dy > 0
+        # | #1 |   OK   | #2 |      #4 exists if dy < 0
+        # |    |        |    |
+        # |----+========+----|
+        # |        #4        |
+        # +==================+
+        #
+
+        w = self.width
+        h = self.height
+        
+        drects = []
+        
+        if dy > 0:
+            drects.append([0, 0, w, dy]) #3
+        elif dy < 0:
+            drects.append([0, h+dy, w, h]) #4
+        
+        if dx > 0:
+            if dy >= 0:
+                drects.append([0, dy, dx, h]) #1
+            else:
+                drects.append([0, 0, dx, h+dy]) #1
+        elif dx < 0:
+            if dy >= 0:
+                drects.append([w+dx, dy, w, h]) #2
+            else:
+                drects.append([w+dx, 0, w, h+dy]) #2
+
+        # Re-render only damaged parts
+        for clip in drects:
+            self._docvp.repaint(clip)
+
+        # Rasterize full area
+        clip = (0, 0, self.width, self.height)
+        self._redraw(*clip)
+        self._clip = clip
+        self.Redraw()
+        
         self._do_rulers()
 
     def rotate(self, angle):
@@ -480,7 +546,34 @@ class DocDisplayArea(pymui.Rectangle, viewport.BackgroundMixin):
             
         self._docvp.rotate(angle)
         self._docvp.update_matrix()
-        self.repaint()
+        
+        buf = self._docvp.pixbuf
+        w = buf.width
+        h = buf.height
+        cx = w/2.
+        cy = h/2.
+        
+        srcbuf = model._pixbuf.Pixbuf(buf.pixfmt, w, h, buf)
+        buf.clear_value(0.2)
+        del buf
+        
+        cr = self._docvp._ctx
+        cr.save()
+        cr.translate(cx, cy)
+        cr.rotate(angle)
+        cr.translate(-cx, -cy)
+        cr.set_source_surface(cairo.ImageSurface.create_for_data(srcbuf, cairo.FORMAT_ARGB32, w, h), 0, 0)
+        cr.get_source().set_filter(cairo.FILTER_FAST)
+        cr.paint()
+        cr.restore()
+        
+        del cr, srcbuf
+        
+        # Rasterize full area
+        clip = (0, 0, self.width, self.height)
+        self._redraw(*clip)
+        self._clip = clip
+        self.Redraw()
         
     def swap_x(self, x):
         if self._swap_x is None:
@@ -602,7 +695,7 @@ class DocWindow(pymui.Window):
     #
 
     def __init__(self, ctx, docproxy, **kwds):
-        self.title_header = 'Document: %s @ %u%%'
+        self.title_header = 'Document: %s @ %u%% (%s)'
         super(DocWindow, self).__init__('',
                                         ID=0,       # The haitian power
                                         LeftEdge='centered',
@@ -721,19 +814,19 @@ class DocWindow(pymui.Window):
     def set_watcher(self, name, cb, *args):
         self._watchers[name] = (cb, args)
 
-    def _refresh_title(self):
-        self.Title = self.title_header % (self._name, self._scale*100)
-        
     # Public API
     #
+    
+    def refresh_title(self):
+        self.Title = self.title_header % (self._name, self._scale*100, self.docproxy.active_layer.name.encode('latin1', 'replace'))
 
     def set_doc_name(self, name):
         self._name = name
-        self._refresh_title()
+        self.refresh_title()
         
     def set_scale(self, scale):
         self._scale = scale
-        self._refresh_title()
+        self.refresh_title()
 
     def confirm_close(self):
         return pymui.DoRequest(pymui.GetApp(),
@@ -751,7 +844,7 @@ class DocWindow(pymui.Window):
             
     def toggle_rulers(self):
         state = self.permit_rulers and not self._popruler.ShowMe.value
-        root = self.RootObject.contents
+        root = self.RootObject.object
         root.InitChange()
         try:
             self._popruler.ShowMe = state

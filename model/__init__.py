@@ -252,20 +252,26 @@ class DocumentProxy(puremvc.patterns.proxy.Proxy):
     
     def draw_start(self, device):
         doc = self.__doc
-        surface = doc.active.surface
-        if surface.lock:
+        layer = doc.active
+        
+        if layer.locked:
             # Do not record if surface is locked
-            self.record = utils.idle
-        else:
-            self.record = self._record
+            self.record = utils.idle_cb
+            self._layer = None
+            return
+        
+        self.record = self._record
+        surface = layer.surface
         self._dev = device
-        self._layer = doc.active
-        self._snapshot = doc.active.snapshot() # for undo
+        self._layer = layer
+        self._snapshot = layer.snapshot() # for undo
         state = device.current
         self._stroke = [ state ]
         doc.brush.start(surface, state)
 
     def draw_end(self):
+        if self._layer is None:
+            return
         doc = self.__doc
         area = doc.brush.stop()
         if area:
@@ -322,7 +328,7 @@ class DocumentProxy(puremvc.patterns.proxy.Proxy):
         state = bool(state)
         if layer.visible != state:
             vo = model.vo.LayerCommandVO(docproxy=self, layer=layer, state=state)
-            self.sendNotification(main.Gribouillis.DOC_LAYER_SET_VISIBLE, vo, type=utils.RECORDABLE_COMMAND)
+            self.sendNotification(main.Gribouillis.DOC_LAYER_SET_VISIBLE, vo)
 
     def iter_visible_layers(self):
         return (layer for layer in self.layers if layer.visible)

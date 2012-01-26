@@ -375,11 +375,11 @@ class AppPrefWindow(pymui.Window):
                 
             for i, name in enumerate(prefs['view-icons-names'][:8]):
                 self._popup[i].name = name
-                self._popup[i].Button.contents.Name = os.path.join(icons_path, name+'.png')
+                self._popup[i].Button.object.Name = os.path.join(icons_path, name+'.png')
                 
             for i, name in enumerate(prefs['view-icons-names'][8:]):
                 self._popup[8+i].name = name
-                self._popup[8+i].Button.contents.Name = os.path.join(icons_path, name+'.png')
+                self._popup[8+i].Button.object.Name = os.path.join(icons_path, name+'.png')
                 
             del i, name, icons_path
                 
@@ -749,7 +749,7 @@ class AppPrefWindow(pymui.Window):
     def _on_popup_icon_sel(self, evt, name, idx, off):
         popup = self._popup[off+idx]
         popup.name = name
-        popup.Button.contents.Name = os.path.join(resolve_path(prefs['view-icons-path']), name+'.png')
+        popup.Button.object.Name = os.path.join(resolve_path(prefs['view-icons-path']), name+'.png')
         popup.Close(0)
 
     def _on_save(self, evt):

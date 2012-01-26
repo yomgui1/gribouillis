@@ -426,8 +426,8 @@ class ToolsViewPort(ViewPortBase):
         
 class SurfaceViewPort(ViewPortBase, BackgroundMixin):
     def __init__(self, surface, bg=resolve_path(main.Gribouillis.TRANSPARENT_BACKGROUND)):
-        assert 0 # used?
-        self._surface = surface
+        super(SurfaceViewPort, self).__init__()
+        self.__surf = surface
         self.set_background(bg)
         
     def repaint(self, clip=None):
@@ -440,43 +440,21 @@ class SurfaceViewPort(ViewPortBase, BackgroundMixin):
         # Clip on the requested area
         cr.rectangle(*clip)
         cr.clip()
+        
+        self._buf.clear_area(*clip)
 
         # Background first, no matrix change
         cr.set_operator(cairo.OPERATOR_SOURCE)
         if self._backcolor:
             cr.set_source_rgb(*self._backcolor)
         else:
-            cr.set_source(self._backsurf)
+            cr.set_source(self._backpat)
         cr.paint()
 
-        # Set model affines transformations
-        cr.set_matrix(self._mat_model2view)
+        buf = self.__surf.get_rawbuf()
+        buf.compose(self._buf, 0, 0, *clip)
+        self._surface.mark_dirty_rectangle(*clip)
         
-        # Convert the clipped area given into viewport coordinates
-        # into model coordinates, add extra pixels for cairo internals.
-        x,y,w,h = cr.clip_extents()
-        x = int(floor(x)-1)
-        y = int(floor(y)-1)
-        w = int(ceil(w)+1) - x + 1
-        h = int(ceil(h)+1) - y + 1
-
-        rsurf = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
-
-        def cb(tile, fmt=_pixbuf.FORMAT_ARGB8):
-            tile.blit(fmt,
-                      rsurf.get_data(),
-                      rsurf.get_stride(),
-                      w, h, tile.x-x, tile.y-y)
-                          
-        self._surface.rasterize((x,y,w,h), cb)
-        rsurf.mark_dirty()
-            
-        # Now paint this rendered layer surface on the model surface
-        cr.set_source_surface(rsurf, x, y)
-        
-        self._set_filter(cr)
-        cr.paint()
-
         cr.restore()
 
 defaults['view-filter-threshold'] = DocumentViewPort.DEFAULT_FILTER_THRESHOLD

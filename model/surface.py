@@ -40,9 +40,6 @@ The surface class brings methods to access to one pixel or a rectangular region,
 in order to get/set pixel channel values.
 It gives also method to manipulate channels as sub-planes of the pixel surface.
 
-Surfaces implementation shall be thread-safe as can be accessed by multiples tasks.
-So surfaces implement a lock mechanism.
-
 Channel: logical view of one component of a 2D pixels array surface.
 
 Pixel: a object to represent one surface's pixel color in the 2D pixels array.
@@ -186,29 +183,6 @@ class Surface(object):
         pass
 
     @virtualmethod
-    def lock(self, excl=False, block=True):
-        """Protect the surface against read or/and write accesses.
-
-        The lock is given per-process.
-
-        Exclusive lock is given if no other locks (exclusive or not)
-        are pending on this surface.
-        Blocking lock blocks the caller if another process is owning
-        exclusively the lock. Shared locks doesn't block non-exclusive
-        calls.
-
-        Use unlock() method to remove the lock.
-
-        Locking a surface is mandatory to process dirty regions.
-        """
-        pass
-
-    @virtualmethod
-    def unlock(self):
-        "Unlock a previously locked surface by lock()."
-        pass
-
-    @virtualmethod
     def copy(self, surface):
         "Copy content from another surface"
         pass
@@ -228,8 +202,8 @@ class BoundedPlainSurface(Surface):
     may reside in the user RAM, like preview or picture thumbnails.
     """
     
-    def __init__(self, pixfmt, width, height, writeprotect=True):
-        super(BoundedPlainSurface, self).__init__(pixfmt, writeprotect)
+    def __init__(self, pixfmt, width, height):
+        super(BoundedPlainSurface, self).__init__(pixfmt)
         self.__buf = _pixbuf.Pixbuf(pixfmt, width, height)
         self.clear = self.__buf.clear
         self.clear_white = self.__buf.clear_white
@@ -255,13 +229,11 @@ class BoundedPlainSurface(Surface):
         """
         return self.__buf.size
 
-class UnboundedTiledSurface(Surface):
-    _lock = False
-    
-    def __init__(self, pixfmt, writeprotect=True):
-        super(UnboundedTiledSurface, self).__init__(pixfmt, writeprotect)
+class UnboundedTiledSurface(Surface): 
+    def __init__(self, pixfmt):
+        super(UnboundedTiledSurface, self).__init__(pixfmt)
             
-        self.__tilemgr = _tilemgr.UnboundedTileManager(Tile, pixfmt, writeprotect)
+        self.__tilemgr = _tilemgr.UnboundedTileManager(Tile, pixfmt, True)
         self.from_buffer = self.__tilemgr.from_buffer
         self.get_tiles = self.__tilemgr.get_tiles
         self.get_pixbuf = self.get_tile
@@ -273,11 +245,6 @@ class UnboundedTiledSurface(Surface):
     @property
     def empty(self):
         return not bool(self.__tilemgr.tiles)
-        
-    def _set_lock(self, lock):
-        self._lock = lock
-        
-    lock = property(fget=lambda self: self._lock, fset=_set_lock)
 
     def snapshot(self):
         return TileSurfaceSnapshot(self.__tilemgr.tiles)

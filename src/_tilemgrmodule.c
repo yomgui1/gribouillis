@@ -150,6 +150,7 @@ ubtilemgr_new(PyTypeObject *type, PyObject *args)
         self->pixfmt = pixfmt;
         self->flags = 0;
         
+        /* FIXME: not used! */
         if (writable)
             self->flags |= PBF_WRITABLE;
 

@@ -27,9 +27,24 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 #ifndef _PIXBUF_CORE
 
-PyTypeObject *PyPixbuf_Type;
+static PyTypeObject *PyPixbuf_Type=NULL;
 #define PyPixbuf_Check(op) PyObject_TypeCheck(op, PyPixbuf_Type)
 #define PyPixbuf_CheckExact(op) ((op)->ob_type == PyPixbuf_Type)
+
+static PyTypeObject *import_pixbuf(void) __attribute__((unused));
+
+static PyTypeObject *
+import_pixbuf(void)
+{
+    PyObject *_pixbuf = PyImport_ImportModule("model._pixbuf"); /* NR */
+    
+    if (NULL != _pixbuf)
+    {
+        PyPixbuf_Type = (PyTypeObject *)PyObject_GetAttrString(_pixbuf, "Pixbuf"); /* NR */
+        Py_DECREF(_pixbuf);
+    }
+    return PyPixbuf_Type;
+}
 
 #else
 

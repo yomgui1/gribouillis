@@ -178,30 +178,18 @@ class RenameLayerCmd(utils.UndoableCommand):
         old_name = vo.layer.name
         vo.layer.name = vo.name
         vo.name = old_name
+        self.sendNotification(main.Gribouillis.DOC_LAYER_RENAMED, (vo.docproxy, vo.layer))
 
     def getCommandName(self):
         return self.__name
 
-class SetLayerVisibilityCmd(utils.UndoableCommand):
+class SetLayerVisibilityCmd(puremvc.patterns.command.SimpleCommand, puremvc.interfaces.ICommand):
     def execute(self, note):
-        self.__name = "Set layer %svisible" % ('' if note.getBody().state else 'in')
-        super(SetLayerVisibilityCmd, self).execute(note)
-        self.registerUndoCommand(SetLayerVisibilityCmd)
-
-    def executeCommand(self):
-        note = self.getNote()
         vo = note.getBody()
-
         vo.layer.visible = vo.state
-
-        # update the state for the next command execution (undo/redo)
-        vo.state = not vo.state
-
+        
         # Using DOC_LAYER_UPDATED than DOC_DIRTY as a layer property is modified
         self.sendNotification(main.Gribouillis.DOC_LAYER_UPDATED, (vo.docproxy, vo.layer))
-
-    def getCommandName(self):
-        return self.__name
 
 class SetLayerOpacityCmd(puremvc.patterns.command.SimpleCommand, puremvc.interfaces.ICommand):
     def execute(self, note):
@@ -225,13 +213,16 @@ class AddLayerCmd(utils.UndoableCommand):
     def executeCommand(self):
         note = self.getNote()
         vo = note.getBody() # LayerCommandVO
+        docproxy = vo.docproxy
 
         if vo.layer:
             # layer exist (redo or Remove undo) just insert it
-            vo.docproxy.insert_layer(vo.layer, vo.pos, activate=True)
+            docproxy.insert_layer(vo.layer, vo.pos, activate=True)
         else:
             # Create layer and save it in the value object for undo/redo
-            vo.layer = vo.docproxy.new_layer(vo)
+            vo.layer = docproxy.new_layer(vo)
+            
+        self.sendNotification(main.Gribouillis.DOC_LAYER_ACTIVATED, (docproxy, docproxy.active_layer))
 
     def getCommandName(self):
         return self.__name

@@ -31,6 +31,8 @@ from cStringIO import StringIO
 from math import floor, ceil
 
 import _pixbuf
+import _savers
+
 from .colorspace import ColorSpace
 from .layer import TiledLayer
 from .brush import DrawableBrush
@@ -40,6 +42,7 @@ __all__ = [ 'Document' ]
 
 LASTS_FILENAME = 'ENVARC:Gribouillis/lasts'
 
+# DEPRECATED
 class _IntegerBuffer(object):
     def __init__(self, buf):
         self.b = buffer(buf)
@@ -425,11 +428,14 @@ class Document(list):
                              surface.get_width(), surface.get_height())
 
         # Encode pixels data to PNG
-        pngbuf = StringIO()
-        writer = png.Writer(w, h, alpha=True, bitdepth=8, compression=comp)
-        writer.write_array(pngbuf, _IntegerBuffer(pixelbuf))
         
-        return pngbuf.getvalue()
+        # DEPRECATED
+        #pngbuf = StringIO()
+        #writer = png.Writer(w, h, alpha=True, bitdepth=8, compression=comp)
+        #writer.write_array(pngbuf, _IntegerBuffer(pixelbuf))
+        #return pngbuf.getvalue()
+        
+        return _savers.save_pixbuf_as_png_buffer(pixelbuf);
         
     ### Properties ###
 

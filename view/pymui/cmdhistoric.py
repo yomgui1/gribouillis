@@ -52,7 +52,7 @@ class MyList(List):
 
 class CommandsHistoryList(Window):
     def __init__(self, name):
-        super(CommandsHistoryList, self).__init__(ID='CMDH', Title='Commands Historic', CloseOnReq=True)
+        super(CommandsHistoryList, self).__init__(ID='CMDH', Title=name, CloseOnReq=True)
         self.name = name
 
         ro = VGroup()

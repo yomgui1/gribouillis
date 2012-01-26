@@ -1765,7 +1765,7 @@ static int add_constants(PyObject *m)
 PyMODINIT_FUNC
 INITFUNC(void)
 {
-    PyObject *m, *_pixbuf;
+    PyObject *m;
     int i;
 
     /* pre-compute cos/sin tables */
@@ -1786,15 +1786,6 @@ INITFUNC(void)
 
     ADD_TYPE(m, "Brush", &PyBrush_Type);
 
-    /* Need the PyPixbuf_Type object from _pixbuf */
-    _pixbuf = PyImport_ImportModule("model._pixbuf"); /* NR */
-    if (NULL == _pixbuf)
+    if (!import_pixbuf())
         return;
-
-    PyPixbuf_Type = (PyTypeObject *)PyObject_GetAttrString(_pixbuf, "Pixbuf"); /* NR */
-    if (NULL == PyPixbuf_Type)
-    {
-        Py_DECREF(_pixbuf);
-        return;
-    }
 }

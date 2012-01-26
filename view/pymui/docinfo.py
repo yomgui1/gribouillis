@@ -38,7 +38,7 @@ class DocInfoWindow(pymui.Window):
     __docproxy = None
     
     def __init__(self, name):
-        super(DocInfoWindow, self).__init__(_T("Document Information"), ID='INFO',
+        super(DocInfoWindow, self).__init__(name, ID='INFO',
                                             CloseOnReq=True)
         self.name = name
         

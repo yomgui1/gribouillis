@@ -71,10 +71,11 @@ class Layer(object):
 
     OPERATORS_LIST  = "normal multiply screen overlay clear mask add difference exclusion"
     OPERATORS_LIST += " darken lighten dodge burn hard-light soft-light xor"
-    OPERATORS_LIST  = tuple(OPERATORS_LIST.split())
+    OPERATORS_LIST  = OPERATORS_LIST.split()
 
     _dirty = False
     _visible = True
+    locked = False
     
     def __init__(self, surface, name, alpha=1.0, alphamask=None, operator='normal', opacity=1.0, **options):
         self._surface   = surface # drawing surface
@@ -207,7 +208,7 @@ class TiledLayer(Layer):
         return len(self._surface.tiles) == 0
 
     def merge_to(self, dst):
-        """Merging source layer on the given destination layer (dst).
+        """Merging the layer on a given layer (dst).
         
         Operation takes care of layers opactity. After the operation
         the destination is marked as modified, but opacity is kept unchanged.
@@ -283,6 +284,7 @@ class TiledLayer(Layer):
             src_surf = cairo.ImageSurface.create_for_data(rpb, cairo.FORMAT_ARGB32, w, h)
                         
             for dst_tile in dst.surface.get_tiles([ x1, y1, w, h ], True):
+                # Make a copy of destination tile
                 dst_tile.blit(rsurf_pb)
                 
                 # Blit the transformed source now with its opacity and layer compositing operation.
@@ -290,7 +292,7 @@ class TiledLayer(Layer):
                 cr.set_operator(operator)
                 cr.paint_with_alpha(src_opa)
                 
-                # Copyback the result into destionation tile
+                # Copyback the result into destination tile
                 rsurf_pb.blit(dst_tile)
                                 
             # Finalisation

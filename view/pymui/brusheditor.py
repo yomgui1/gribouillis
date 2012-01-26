@@ -192,7 +192,7 @@ class BrushEditorWindow(pymui.Window):
     _lock = False # block prop change loop at MUI change
 
     def __init__(self, name):
-        super(BrushEditorWindow, self).__init__(ID='BEW', Width=320, Height=100, CloseOnReq=True)
+        super(BrushEditorWindow, self).__init__(name, ID='BEW', Width=320, Height=100, CloseOnReq=True)
         self.name = name
 
         # UI

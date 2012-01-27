@@ -779,7 +779,7 @@ class ColorHarmoniesWindowMediator(Mediator):
 
     ### notification handlers ###
 
-    #@mvcHandler(main.Gribouillis.DOC_ACTIVATE)
+    @mvcHandler(main.Gribouillis.DOC_ACTIVATE)
     def _on_activate_document(self, docproxy):
         self.__brush = docproxy.document.brush
         self.viewComponent.hsv = self.__brush.hsv

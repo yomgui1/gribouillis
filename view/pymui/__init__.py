@@ -893,13 +893,13 @@ class DocViewPortMediator(Mediator):
     def view_scale_reset(self, viewport, center):
         if viewport is None:
             return
-        viewport.reset_scaling()
+        viewport.reset_scaling(*center)
         viewport._win.set_scale(viewport.scale)
     
     def view_rotate_reset(self, viewport, center):
         if viewport is None:
             return
-        viewport.reset_rotation()
+        viewport.reset_rotation(*center)
     
     def view_scale_up(self, viewport, center):
         if viewport is None:

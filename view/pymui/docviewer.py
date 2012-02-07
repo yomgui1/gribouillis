@@ -444,7 +444,9 @@ class DocDisplayArea(pymui.Rectangle, viewport.BackgroundMixin):
         
             # Center vp on current cursor position
             x, y = dvp.get_view_point(x, y)
-            self.scroll(cx-x, cy-y)
+            self.scroll(int(cx-x), int(cy-y))
+            
+            self.repaint_cursor(cx, cy)
     
     def reset_rotation(self, cx=0, cy=0):
         dvp = self._docvp
@@ -455,7 +457,7 @@ class DocDisplayArea(pymui.Rectangle, viewport.BackgroundMixin):
             
             # Center vp on current cursor position
             x, y = dvp.get_view_point(x, y)
-            self.scroll(cx-x, cy-y)
+            self.scroll(int(cx-x), int(cy-y))
             
         # Unlock rulers display
         self._win.permit_rulers = True

@@ -4,8 +4,8 @@
         <bind action="confirm" any="True" context="Brush Stroke" event="key_released" key="mouse_leftpress" repeat="False" />
         <bind action="draw" any="True" context="Brush Stroke" event="cursor_move" key="" repeat="False" />
         <bind action="eat_event" any="True" context="Brush Stroke" event="key_pressed" key="mouse_rightpress" repeat="False" />
-        <bind action="erase_mode" any="False" context="Brush Stroke" event="key_pressed" key="e" repeat="False" />
-        <bind action="erase_mode" any="False" context="Brush Stroke" event="key_released" key="e" repeat="False" />
+        <bind action="set_erase_mode" any="False" context="Brush Stroke" event="key_pressed" key="e" repeat="False" />
+        <bind action="unset_erase_mode" any="False" context="Brush Stroke" event="key_released" key="e" repeat="False" />
         <bind action="clear_active_layer" any="False" context="Document" event="key_pressed" key="delete" repeat="False" />
         <bind action="color_darken" any="False" context="Document" event="key_pressed" key="rshift l" repeat="False" />
         <bind action="color_darken" any="False" context="Document" event="key_pressed" key="lshift l" repeat="False" />
@@ -45,8 +45,8 @@
         <bind action="activate" any="False" context="Viewport" event="get_focus" key="" repeat="False" />
         <bind action="desactivate" any="False" context="Viewport" event="loose_focus" key="" repeat="False" />
         <bind action="enter_pick_mode" any="False" context="Viewport" event="key_released" key="rshift p" repeat="False" />
-        <bind action="erase_mode" any="False" context="Viewport" event="key_pressed" key="e" repeat="False" />
-        <bind action="erase_mode" any="False" context="Viewport" event="key_released" key="e" repeat="False" />
+        <bind action="set_erase_mode" any="False" context="Viewport" event="key_pressed" key="e" repeat="False" />
+        <bind action="unset_erase_mode" any="False" context="Viewport" event="key_released" key="e" repeat="False" />
         <bind action="get_pixel_color" any="False" context="Viewport" event="key_released" key="p" repeat="False" />
         <bind action="interactive_radius" any="False" context="Viewport" event="key_pressed" key="r" repeat="False" />
         <bind action="last_colors_selector" any="False" context="Viewport" event="key_pressed" key="c" repeat="False" />

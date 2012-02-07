@@ -454,10 +454,14 @@ class ViewPortCtx(Context):
     def interactive_radius(self, event):
         self.viewport.get_device_state(event)
         self.enter_context('Both Radius Interactive')
-
-    @action(_T('toggle erase mode'))
-    def erase_mode(self, event):
-        self.docproxy.drawbrush.swap_erase()
+        
+    @action(_T('set erase mode'))
+    def set_erase_mode(self, event):
+        self.docproxy.drawbrush.set_erase(0.0)
+        
+    @action(_T('unset erase mode'))
+    def unset_erase_mode(self, event):
+        self.docproxy.drawbrush.set_erase(1.0)
         
     @action(_T('pick pixel color'))
     def get_pixel_color(self, event):
@@ -576,9 +580,13 @@ class BrushStrokeModal(ModalContext):
     def draw(self, event):
         self.viewport.docproxy.record(self.viewport.get_device_state(event))
 
-    @action(_T('toggle erase mode'))
-    def erase_mode(self, event):
-        self.docproxy.drawbrush.swap_erase()
+    @action(_T('set erase mode'))
+    def set_erase_mode(self, event):
+        self.docproxy.drawbrush.set_erase(0.0)
+        
+    @action(_T('unset erase mode'))
+    def unset_erase_mode(self, event):
+        self.docproxy.drawbrush.set_erase(1.0)
         
 class DragViewModal(ModalContext):
     NAME = 'Drag Viewport'

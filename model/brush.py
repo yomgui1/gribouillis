@@ -158,6 +158,9 @@ class Brush(object):
     def swap_erase(self):
         self.erase = 1 - self.erase
         
+    def set_erase(self, value=1.0):
+        self.erase = value
+        
     def set_from_brush(self, brush):
         self.name = brush.name
         for name in Brush.PROPERTIES:

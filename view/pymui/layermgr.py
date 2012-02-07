@@ -223,7 +223,7 @@ class LayerCtrl(pymui.Group):
         self.layer = layer
         #self.preview = LayerPreview()
         self.name = pymui.String(layer.name.encode('latin1', 'replace'),
-                                 Frame='Button', Background='Text',
+                                 Frame='Button', Background='StringBack',
                                  CycleChain=True, FrameDynamic=True)
         self.name.ctrl = self
         

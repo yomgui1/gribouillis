@@ -26,7 +26,8 @@
 # Python 2.5 compatibility
 from __future__ import with_statement
 
-import os, math
+import os
+import math
 
 from math import sin, pi
 
@@ -37,9 +38,7 @@ from devices import DeviceState
 from colorspace import ColorSpaceRGB
 from surface import BoundedPlainSurface
 
-
 __all__ = ['Brush', 'DrawableBrush']
-
 
 class Brush(object):
     """Brush base class"""
@@ -189,13 +188,16 @@ class DrawableBrush(_brush.Brush, Brush):
         pass
 
     def gen_preview_states(self, width, height):
+        assert width >= 32
+        assert height >= 16
+        
         y = height / 2
         r = height / 4
-        w = width - 1
+        size = width - 20
         
-        for x in xrange(width):
+        for x in xrange(10, width-10):
             state = DeviceState()
-            state.time = t = float(x)/w
+            state.time = t = float(x-10)/size
             state.pressure = 1.0 - (2*t-1)**2
             state.vpos = (x, y + int(r*sin(2*t*pi)))
             state.xtilt = 1.0

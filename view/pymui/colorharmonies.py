@@ -688,7 +688,7 @@ class ColorHarmoniesWindow(pymui.Window):
         toggle_pal = pymui.Text(_T("Toggle Palette panel"),
                                 InputMode='Toggle',
                                 Frame='Button',
-                                Background='ButtonSelectedBack',
+                                Background='ButtonBack',
                                 Font=pymui.MUIV_Font_Button,
                                 PreParse=pymui.MUIX_C,
                                 Selected=True)

@@ -203,9 +203,8 @@ class BrushEditorWindow(pymui.Window):
         self.bprev = BrushPreview()
         topbox.AddChild(self.bprev)
         
-        self._namebt = pymui.String(Frame='String', CycleChain=True)
-        self._namebt.Notify('Contents', self._on_brush_name_changed)
-        topbox.AddChild(pymui.HGroup(Child=[pymui.Label(_T('Name')+':'), self._namebt ]))
+        self.namebt = pymui.String(Frame='String', CycleChain=True)
+        topbox.AddChild(pymui.HGroup(Child=[pymui.Label(_T('Name')+':'), self.namebt ]))
         
         topbox.AddChild(pymui.HBar(2))
         
@@ -279,10 +278,7 @@ class BrushEditorWindow(pymui.Window):
 
         self._brush = brush
         self.bprev.set_from_brush(brush)
-        self._namebt.NNSet('Contents', brush.name)
-
-    def _on_brush_name_changed(self, evt):
-        self._brush.name = evt.value.contents
+        self.namebt.NNSet('Contents', brush.name)
         
     brush = property(fget=lambda self: self._brush, fset=_set_brush)
 

@@ -173,7 +173,12 @@ class DocumentProxy(puremvc.patterns.proxy.Proxy):
         self.__brush = brush
         self.document.brush.set_from_brush(brush)
         self.sendNotification(main.Gribouillis.DOC_BRUSH_UPDATED, self)
-        
+
+    def set_brush_name(self, name):
+        brush = self.__doc.brush
+        brush.name = name
+        self.sendNotification(main.Gribouillis.BRUSH_PROP_CHANGED, (brush, 'name'))
+
     def get_brush_color_rgb(self):
         return self.__doc.brush.rgb
 

@@ -524,7 +524,7 @@ class LayerMgrMediator(Mediator):
         if evt.value.value:
             self.sendNotification(main.Gribouillis.DOC_LAYER_ACTIVATE, (self.__docproxy, ctrl.layer))
         elif ctrl.layer == self.__docproxy.active_layer:
-            ctrl.activeBt.NNSet('Selected', True)
+            ctrl.activeBt.Selected = True # re-active the gadget
 
     def _on_layer_ope_changed(self, evt):
         dp = self.__docproxy
@@ -550,7 +550,6 @@ class LayerMgrMediator(Mediator):
     def _add_notifications(self, ctrl):
         #ctrl.preview.Notify('Pressed', self._on_layer_activated, when=True,
         #                    win=self.viewComponent, docproxy=self.__docproxy, layer=ctrl.layer)
-        #ctrl.vis.Notify('Selected', self._on_layer_vis_changed, docproxy=self.__docproxy, layer=ctrl.layer)
         
         ctrl.name.Notify('Acknowledge', self._on_change_name, ctrl)
         ctrl.activeBt.Notify('Selected', self._on_layer_activated, ctrl=ctrl)
@@ -629,6 +628,8 @@ class LayerMgrMediator(Mediator):
 class BrushEditorWindowMediator(Mediator):
     NAME = "BrushEditorWindowMediator"
 
+    docproxy = None
+
     #### Private API ####
 
     def __init__(self, component):
@@ -636,10 +637,14 @@ class BrushEditorWindowMediator(Mediator):
         super(BrushEditorWindowMediator, self).__init__(viewComponent=component)
 
         component.mediator = self
+        component.namebt.Notify('Contents', self._on_brush_name_changed)
 
     def _set_docproxy(self, docproxy):
-        #print "[BE] using brush BH=%s" % docproxy.brush
+        self.docproxy = docproxy
         self.viewComponent.brush = docproxy.brush
+
+    def _on_brush_name_changed(self, evt):
+        self.docproxy.set_brush_name(evt.value.contents)
 
     ### notification handlers ###
 
@@ -828,8 +833,10 @@ class BrushHouseWindowMediator(Mediator):
 
     @mvcHandler(main.Gribouillis.BRUSH_PROP_CHANGED)
     def _on_brush_prop_changed(self, brush, name):
-        if name is 'color': return
+        if name == 'color': return
         setattr(self._docproxy.brush, name, getattr(brush, name))
+        if name == 'name':
+            self.viewComponent.refresh_active()
 
 class DocViewPortMediator(Mediator):
     NAME = "DocViewPortMediator"

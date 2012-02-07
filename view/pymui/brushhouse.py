@@ -23,20 +23,29 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
+import cairo
 import pymui
 from pymui.mcc import laygroup
 from pymui.mcc import rawimage
 
 import main, model, utils, view
 
-from utils import _T
+from utils import _T, resolve_path
 from model.brush import Brush, DrawableBrush
 from model.document import Document
-from model import _pixbuf
+from model import _pixbuf, prefs
 
 __all__ = [ 'BrushHouseWindow' ]
 
 MUIA_Group_PageMax = 0x8042d777 # /* V4  i.. BOOL              */ /* private */
+
+_BRUSH_PREVIEW_BACK = "5:" + resolve_path(main.Gribouillis.TRANSPARENT_BACKGROUND)
+
+surf = cairo.ImageSurface.create_from_png(resolve_path(main.Gribouillis.TRANSPARENT_BACKGROUND))
+_PREVIEW_BACK_PAT = cairo.SurfacePattern(surf)
+_PREVIEW_BACK_PAT.set_extend(cairo.EXTEND_REPEAT)
+_PREVIEW_BACK_PAT.set_filter(cairo.FILTER_NEAREST)
+del surf
 
 class BrushHouseWindow(pymui.Window):
     _current_cb = utils.idle_cb
@@ -105,9 +114,13 @@ class BrushHouseWindow(pymui.Window):
         nb.Notify('ActivePage', self._on_active_page)
         topbox.AddChild(nb)
         
-        self._pagenamebt = pymui.String(Frame='String', Disabled=True, CycleChain=True)
+        self._pagenamebt = pymui.String(Frame='String', Background='StringBack', Disabled=True, CycleChain=True)
         self._pagenamebt.Notify('Acknowledge', lambda ev, v: self._change_page_name(v), pymui.MUIV_TriggerValue)
-        topbox.AddChild(pymui.HGroup(Child=[pymui.Label(_T('Page name')+':'), self._pagenamebt]))
+        
+        self._brushnamebt = pymui.Text(Frame='String', PreParse=pymui.MUIX_C)
+        
+        grp = pymui.HGroup(Child=[ pymui.Label(_T('Page name')+':'), self._pagenamebt, pymui.Label(_T('Active brush')+':'), self._brushnamebt ])
+        topbox.AddChild(grp)
 
         # Add the 'All brushes' page
         self._all = self.add_page(_T('All brushes'), close=False)
@@ -132,7 +145,7 @@ class BrushHouseWindow(pymui.Window):
                 return page
                 
         title = pymui.Text(name, Dropable=True)
-        page = laygroup.LayGroup(SameSize=False, Spacing=1)
+        page = laygroup.LayGroup(SameSize=False, Spacing=1, InnerSpacing=0)
         page.name = name
 
         self._top.InitChange()
@@ -170,14 +183,23 @@ class BrushHouseWindow(pymui.Window):
         if len(self._brushes) == 2:
             self._menuitems['delete'].Enabled = True
 
-        self.ActiveObject = bt
+        #self.ActiveObject = bt
         bt.Selected = True
 
     def _preview_icon_buffer(self, brush):
         self._drawbrush.set_from_brush(brush)
+        self._drawbrush.smudge = 0.
         width = 128
         height = 60
-        return self._drawbrush.paint_rgb_preview(width, height, fmt=_pixbuf.FORMAT_ARGB8_NOA)
+        buf = self._drawbrush.paint_rgb_preview(width, height, fmt=_pixbuf.FORMAT_ARGB8)
+        
+        # Compose with a checker background
+        cr = cairo.Context(cairo.ImageSurface.create_for_data(buf, cairo.FORMAT_ARGB32, width, height))
+        cr.set_operator(cairo.OPERATOR_DEST_OVER)
+        cr.set_source(_PREVIEW_BACK_PAT)
+        cr.paint()
+        
+        return buf
     
     def _load_brush_icon_for_rawimage(self, brush):
         buf, w, h, stride = Document.load_image(brush.icon, 'RGB')
@@ -189,12 +211,9 @@ class BrushHouseWindow(pymui.Window):
         if brush.icon:
             data = self._load_brush_icon_for_rawimage(brush)
             bt = rawimage.Rawimage(long(data),
-                                   Frame='ImageButton',
-                                   ShortHelp=brush.name,
+                                   Frame='None',
                                    InputMode='Toggle',
-                                   CycleChain=True,
-                                   Draggable=True,
-                                   ContextMenu=self._brushmenustrip)
+                                   InnerSpacing=2)
             bt.ri_data = data
         else:
             if not brush.icon_preview:
@@ -202,20 +221,24 @@ class BrushHouseWindow(pymui.Window):
             buf = brush.icon_preview
             data = rawimage.mkRawimageData(buf.width, buf.height, str(buffer(buf)))
             bt = rawimage.Rawimage(long(data),
-                                   Frame='ImageButton',
-                                   ShortHelp=brush.name,
+                                   Frame='None',
                                    InputMode='Toggle',
-                                   CycleChain=True,
-                                   Draggable=True,
-                                   ContextMenu=self._brushmenustrip)
+                                   InnerSpacing=2)
             bt.ri_data = data
-            
+
+        bt.Background = 'ImageButtonBack'
+        bt.ShortHelp = brush.name
+        bt.CycleChain = True
+        bt.Draggable = True
+        bt.ContextMenu = self._brushmenustrip
+        
         bt.Notify('Selected', self._on_brush_bt_clicked)
         bt.Notify('ContextMenuTrigger', self._on_preview_icon, when=self._menuitems['use-preview-icon']._object)
         bt.Notify('ContextMenuTrigger', self._on_image_icon, when=self._menuitems['use-image-icon']._object)
         bt.Notify('ContextMenuTrigger', self._on_change_icon, when=self._menuitems['change-icon']._object)
         bt.Notify('ContextMenuTrigger', self._on_dup_brush, when=self._menuitems['dup']._object)
         bt.Notify('ContextMenuTrigger', self._on_delete_brush, when=self._menuitems['delete']._object)
+        
         bt.page = page
         bt.brush = brush
         bt.bt2 = None # button in another page if it has been added
@@ -282,6 +305,8 @@ class BrushHouseWindow(pymui.Window):
         elif self._current is bt.allbt:
             bt.NNSet('Selected', True)
             pymui.GetApp().open_brush_editor()
+            
+        self._brushnamebt.Contents = bt.brush.name
 
     def _on_change_icon(self, evt):
         bt = evt.Source.allbt
@@ -341,6 +366,9 @@ class BrushHouseWindow(pymui.Window):
     def _change_page_name(self, value):
         page, title = self._pages[self._nb.ActivePage.value]
         page.name = title.Contents = value.contents
+        
+    def refresh_active(self):
+        self._brushnamebt.Contents = self.active_brush.name
         
     active_brush = property(fget=lambda self: self._current.brush, fset=_set_active_brush)
 

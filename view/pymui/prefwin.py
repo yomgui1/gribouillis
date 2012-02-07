@@ -353,12 +353,9 @@ class AppPrefWindow(pymui.Window):
         reg_pref_handler('rendering', _RenderingPrefHandler())
         reg_pref_handler('interface', _InterfacePrefHandler())
             
-    def init_from_prefs(self, *a):
-        self.Sleep = True
-        try:
-            # Events bindings
-            self.clear_bindings()
-            for ctx_name, bind_list in prefs['bindings'].iteritems():
+    def _init_bindings(self):
+        self.clear_bindings()
+        for ctx_name, bind_list in prefs['bindings'].iteritems():
                 page = self._ctx_pages.get(ctx_name)
                 page.vgp.InitChange()
                 try:
@@ -366,56 +363,58 @@ class AppPrefWindow(pymui.Window):
                         self.add_bind(page, **data)
                 finally:
                     page.vgp.ExitChange()
-            del ctx_name, bind_list, page, data
                     
-            # ToolsWheel
-            icons_path = resolve_path(prefs['view-icons-path'])
-            for i, cmd in enumerate(prefs['view-toolswheel-binding']):
-                self._toolswheel_strings[i].Contents = cmd
-                
-            for i, name in enumerate(prefs['view-icons-names'][:8]):
-                self._popup[i].name = name
-                self._popup[i].Button.object.Name = os.path.join(icons_path, name+'.png')
-                
-            for i, name in enumerate(prefs['view-icons-names'][8:]):
-                self._popup[8+i].name = name
-                self._popup[8+i].Button.object.Name = os.path.join(icons_path, name+'.png')
-                
-            del i, name, icons_path
-                
-            # Metrics
-            unit = prefs['view-metrics-unit']
-            self.cal_unit.Active = CALIBRATION_UNITS.index(unit)
+    def _init_toolsweel(self):
+        icons_path = resolve_path(prefs['view-icons-path'])
+        for i, cmd in enumerate(prefs['view-toolswheel-binding']):
+            self._toolswheel_strings[i].Contents = cmd
+            
+        for i, name in enumerate(prefs['view-icons-names'][:8]):
+            self._popup[i].name = name
+            self._popup[i].Button.object.Name = os.path.join(icons_path, name+'.png')
+            
+        for i, name in enumerate(prefs['view-icons-names'][8:]):
+            self._popup[8+i].name = name
+            self._popup[8+i].Button.object.Name = os.path.join(icons_path, name+'.png')
+            
+    def _init_metrics(self):
+        unit = prefs['view-metrics-unit']
+        self.cal_unit.Active = CALIBRATION_UNITS.index(unit)
 
-            if unit == 'dpi':
-                self.cal_bar_x.value = prefs['view-metrics-x']
-                self.cal_bar_y.value = prefs['view-metrics-y']
-            else:
-                self.cal_bar_x.calibration = prefs['view-metrics-x']
-                self.cal_bar_y.calibration = prefs['view-metrics-y']
+        if unit == 'dpi':
+            self.cal_bar_x.value = prefs['view-metrics-x']
+            self.cal_bar_y.value = prefs['view-metrics-y']
+        else:
+            self.cal_bar_x.calibration = prefs['view-metrics-x']
+            self.cal_bar_y.calibration = prefs['view-metrics-y']
+
+    def _init_rendering(self):
+        self._filter_threshold.Value = prefs['view-filter-threshold']
+            
+        for k, v in _RenderingPrefHandler.MAPS.iteritems():
+            r,g,b,a = prefs[v]
+            field, alpha = self._colors[k]
+            field.Red = int(r * 255) * 0x01010101
+            field.Green = int(g * 255) * 0x01010101
+            field.Blue = int(b * 255) * 0x01010101
+            alpha.Value = int(a * 100)
+        
+        self._ruler_bg_pen.Value = prefs['pymui-ruler-bg-pen']
+        self._ruler_fg_pen.Value = prefs['pymui-ruler-fg-pen']
+            
+    def _init_interface(self):
+        win_list = prefs['pymui-window-open-at-startup']
+        for key, bt in self._startup_win_bt.iteritems():
+            bt.Selected = key in win_list
                 
-            del unit
-            
-            # Rendering
-            self._filter_threshold.Value = prefs['view-filter-threshold']
-            
-            for k, v in _RenderingPrefHandler.MAPS.iteritems():
-                r,g,b,a = prefs[v]
-                field, alpha = self._colors[k]
-                field.Red = int(r * 255) * 0x01010101
-                field.Green = int(g * 255) * 0x01010101
-                field.Blue = int(b * 255) * 0x01010101
-                alpha.Value = int(a * 100)
-            
-            self._ruler_bg_pen.Value = prefs['pymui-ruler-bg-pen']
-            self._ruler_fg_pen.Value = prefs['pymui-ruler-fg-pen']
-            
-            del k, v
-            
-            # Interface
-            win_list = prefs['pymui-window-open-at-startup']
-            for key, bt in self._startup_win_bt.iteritems():
-                bt.Selected = key in win_list
+    def init_from_prefs(self, *a):
+        self.Sleep = True
+        try:
+            self._init_bindings()
+            self._init_toolsweel()
+            self._init_metrics()
+            self._init_rendering()
+            self._init_interface()
         finally:
             self.Sleep = False
                         

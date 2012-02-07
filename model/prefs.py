@@ -79,14 +79,13 @@ def load_preferences(filename=None, alternative='data/internal/config_default.xm
     with open(filename, 'r') as fd:
         config = ET.fromstring(fd.read())
         prefs['version'] = v = float(config.get('version', 0))
-        if v >= main.VERSION:
-            for element in config:
-                if element.tag in _hdl_dict:
-                    handler = _hdl_dict[element.tag]
-                    try:
-                        handler.parse(prefs, element)
-                    except:
-                        raise
+        for element in config:
+            if element.tag in _hdl_dict:
+                handler = _hdl_dict[element.tag]
+                try:
+                    handler.parse(prefs, element)
+                except:
+                    raise
                         
 def load_defaults(): load_preferences()
 

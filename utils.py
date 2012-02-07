@@ -26,6 +26,7 @@
 import os
 from functools import wraps
 from time import time
+from string import Template
 
 import puremvc.interfaces
 import puremvc.patterns.mediator
@@ -135,6 +136,17 @@ def join_area(a1, a2):
     x2 = max(a1[0]+a1[2], a2[0]+a2[2])
     y2 = max(a1[1]+a1[3], a2[1]+a2[3])
     return x1,y1,x2-x1,y2-y1
+
+class _MyTemplate(Template): idpattern = '[_a-z][_a-z0-9\-]*'
+
+def resolve_path(path):
+    from model.prefs import prefs
+    path = path.replace('/', os.path.sep)
+    old_path = None
+    while path != old_path:
+        old_path = path
+        path = _MyTemplate(path).safe_substitute(prefs)
+    return path
 
 ##
 ## PureMVC extention implemented from "PureMVC AS3 Utility - Undo"
@@ -397,20 +409,3 @@ class UndoableCommand(puremvc.patterns.command.SimpleCommand, IUndoableCommand):
         """
 
         return self.getNote().getName()
-
-##
-## Should be located at the end of the file
-##
-
-from model.prefs import prefs
-from string import Template
-
-class _MyTemplate(Template): idpattern = '[_a-z][_a-z0-9\-]*'
-
-def resolve_path(path):
-    path = path.replace('/', os.path.sep)
-    old_path = None
-    while path != old_path:
-        old_path = path
-        path = _MyTemplate(path).safe_substitute(prefs)
-    return path

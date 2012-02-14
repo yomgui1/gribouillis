@@ -49,6 +49,7 @@ typedef struct PA_InitValue
     writefunc      writepixel;
     write2func     write2pixel;
     readfunc       readpixel;
+    writefunc      writepixel_alpha_locked;
 } PA_InitValue;
 
 typedef void (*blitfunc)(void* src, void *dst,
@@ -64,6 +65,8 @@ static void rgba15x_writepixel(void *, float, float, uint16_t *);
 static void argb15x_writepixel(void *, float, float, uint16_t *);
 static void cmyk8_writepixel(void *, float, float, uint16_t *);
 static void cmyka15x_writepixel(void *, float, float, uint16_t *);
+
+static void argb15x_writepixel_alpha_locked(void *, float, float, uint16_t *);
 
 static void dummy_write2pixel(void *data, uint16_t *color);
 static void argb8_write2pixel(void *data, uint16_t *color);
@@ -82,15 +85,15 @@ static float rgb8_tofloat(void *);
 static float rgba15x_tofloat(void *);
 
 static const PA_InitValue gInitValues[] = {
-    {/*PyPixBuf_PIXFMT_RGB_8,*/      3, 8,  rgb8_fromfloat,    rgb8_tofloat,    rgb8_writepixel,     dummy_write2pixel, dummy_readpixel},
-    {/*PyPixBuf_PIXFMT_ARGB_8,*/     4, 8,  rgb8_fromfloat,    rgb8_tofloat,    argb8_writepixel,    argb8_write2pixel, argb8_readpixel},
-    {/*PyPixBuf_PIXFMT_ARGB_8_NOA,*/ 4, 8,  rgb8_fromfloat,    rgb8_tofloat,    argb8noa_writepixel, dummy_write2pixel, dummy_readpixel},
-    {/*PyPixBuf_PIXFMT_RGBA_8,*/     4, 8,  rgb8_fromfloat,    rgb8_tofloat,    rgba8_writepixel,    dummy_write2pixel, rgba8_readpixel},
-    {/*PyPixbuf_PIXFMT_RGBA_8_NOA,*/ 4, 8,  rgb8_fromfloat,    rgb8_tofloat,    rgba8noa_writepixel, dummy_write2pixel, dummy_readpixel},
-    {/*PyPixBuf_PIXFMT_CMYK_8,*/     4, 8,  rgb8_fromfloat,    rgb8_tofloat,    cmyk8_writepixel,    dummy_write2pixel, dummy_readpixel},
-    {/*PyPixBuf_PIXFMT_RGBA_15X,*/   4, 16, rgba15x_fromfloat, rgba15x_tofloat, rgba15x_writepixel,  dummy_write2pixel, rgba15x_readpixel},
-    {/*PyPixBuf_PIXFMT_ARGB_15X,*/   4, 16, rgba15x_fromfloat, rgba15x_tofloat, argb15x_writepixel,  argb15x_write2pixel, argb15x_readpixel},
-    {/*PyPixBuf_PIXFMT_CMYKA_15X,*/  5, 16, rgba15x_fromfloat, rgba15x_tofloat, cmyka15x_writepixel, dummy_write2pixel, dummy_readpixel},
+    {/*PyPixBuf_PIXFMT_RGB_8,*/      3, 8,  rgb8_fromfloat,    rgb8_tofloat,    rgb8_writepixel,     dummy_write2pixel, dummy_readpixel, NULL},
+    {/*PyPixBuf_PIXFMT_ARGB_8,*/     4, 8,  rgb8_fromfloat,    rgb8_tofloat,    argb8_writepixel,    argb8_write2pixel, argb8_readpixel, NULL},
+    {/*PyPixBuf_PIXFMT_ARGB_8_NOA,*/ 4, 8,  rgb8_fromfloat,    rgb8_tofloat,    argb8noa_writepixel, dummy_write2pixel, dummy_readpixel, NULL},
+    {/*PyPixBuf_PIXFMT_RGBA_8,*/     4, 8,  rgb8_fromfloat,    rgb8_tofloat,    rgba8_writepixel,    dummy_write2pixel, rgba8_readpixel, NULL},
+    {/*PyPixbuf_PIXFMT_RGBA_8_NOA,*/ 4, 8,  rgb8_fromfloat,    rgb8_tofloat,    rgba8noa_writepixel, dummy_write2pixel, dummy_readpixel, NULL},
+    {/*PyPixBuf_PIXFMT_CMYK_8,*/     4, 8,  rgb8_fromfloat,    rgb8_tofloat,    cmyk8_writepixel,    dummy_write2pixel, dummy_readpixel, NULL},
+    {/*PyPixBuf_PIXFMT_RGBA_15X,*/   4, 16, rgba15x_fromfloat, rgba15x_tofloat, rgba15x_writepixel,  dummy_write2pixel, rgba15x_readpixel, NULL},
+    {/*PyPixBuf_PIXFMT_ARGB_15X,*/   4, 16, rgba15x_fromfloat, rgba15x_tofloat, argb15x_writepixel,  argb15x_write2pixel, argb15x_readpixel, argb15x_writepixel_alpha_locked},
+    {/*PyPixBuf_PIXFMT_CMYKA_15X,*/  5, 16, rgba15x_fromfloat, rgba15x_tofloat, cmyka15x_writepixel, dummy_write2pixel, dummy_readpixel, NULL},
 
     {0}
 };
@@ -108,9 +111,11 @@ rgb8_writepixel(void *data, float opacity, float erase, uint16_t *color)
     uint8_t *pixel = data;
     uint32_t alpha, one_minus_alpha;
 
+    opacity += delta;
+    
     /* Adding delta to round values */
-    alpha = (uint32_t)((opacity * erase + delta) * 255);
-    one_minus_alpha = 255 - (uint32_t)((opacity + delta) * 255);
+    alpha = (uint32_t)(opacity * erase * 255);
+    one_minus_alpha = 255 - (uint32_t)(opacity * 255);
 
     /* R */ pixel[0] = (alpha*color[0] + one_minus_alpha*pixel[0]) / 255;
     /* G */ pixel[1] = (alpha*color[1] + one_minus_alpha*pixel[1]) / 255;
@@ -123,9 +128,11 @@ rgba8_writepixel(void *data, float opacity, float erase, uint16_t *color)
     uint8_t *pixel = data;
     uint32_t alpha, one_minus_alpha;
 
+    opacity += delta;
+    
     /* Adding delta to round values */
-    alpha = (uint32_t)((opacity * erase + delta) * 255);
-    one_minus_alpha = 255 - (uint32_t)((opacity + delta) * 255);
+    alpha = (uint32_t)(opacity * erase * 255);
+    one_minus_alpha = 255 - (uint32_t)(opacity * 255);
 
     /* R */ pixel[0] = (alpha*color[0] + one_minus_alpha*pixel[0]) / 255;
     /* G */ pixel[1] = (alpha*color[1] + one_minus_alpha*pixel[1]) / 255;
@@ -140,9 +147,11 @@ argb8_writepixel(void *data, float opacity, float erase, uint16_t *color)
     uint8_t *pixel = data;
     uint32_t alpha, one_minus_alpha;
 
+    opacity += delta;
+    
     /* Adding delta to round values */
-    alpha = (uint32_t)((opacity * erase + delta) * 255);
-    one_minus_alpha = 255 - (uint32_t)((opacity + delta) * 255);
+    alpha = (uint32_t)(opacity * erase * 255);
+    one_minus_alpha = 255 - (uint32_t)(opacity * 255);
 
     /* A */ pixel[0] =  alpha          + one_minus_alpha*pixel[0]  / 255;
     /* R */ pixel[1] = (alpha*color[0] + one_minus_alpha*pixel[1]) / 255;
@@ -157,9 +166,11 @@ argb8noa_writepixel(void *data, float opacity, float erase, uint16_t *color)
     uint8_t *pixel = data;
     uint32_t alpha, one_minus_alpha;
 
+    opacity += delta;
+    
     /* Adding delta to round values */
-    alpha = (uint32_t)((opacity * erase + delta) * 255);
-    one_minus_alpha = 255 - (uint32_t)((opacity + delta) * 255);
+    alpha = (uint32_t)(opacity * erase * 255);
+    one_minus_alpha = 255 - (uint32_t)(opacity * 255);
 
     /* A */ pixel[0] =   alpha  + one_minus_alpha*pixel[0]/255;
     /* R */ pixel[1] = color[0] + one_minus_alpha*pixel[1]/255;
@@ -174,9 +185,11 @@ rgba8noa_writepixel(void *data, float opacity, float erase, uint16_t *color)
     uint8_t *pixel = data;
     uint32_t alpha, one_minus_alpha;
 
+    opacity += delta;
+    
     /* Adding delta to round values */
-    alpha = (uint32_t)((opacity * erase + delta) * 255);
-    one_minus_alpha = 255 - (uint32_t)((opacity + delta) * 255);
+    alpha = (uint32_t)(opacity * erase * 255);
+    one_minus_alpha = 255 - (uint32_t)(opacity * 255);
 
     /* R */ pixel[0] = color[0] + one_minus_alpha*pixel[0]/255;
     /* G */ pixel[1] = color[1] + one_minus_alpha*pixel[1]/255;
@@ -191,9 +204,11 @@ cmyk8_writepixel(void *data, float opacity, float erase, uint16_t *color)
     uint8_t *pixel = data;
     uint32_t alpha, one_minus_alpha;
 
+    opacity += delta;
+    
     /* Adding delta to round values */
-    alpha = (uint32_t)((opacity * erase + delta) * 255);
-    one_minus_alpha = 255 - (uint32_t)((opacity + delta) * 255);
+    alpha = (uint32_t)(opacity * erase * 255);
+    one_minus_alpha = 255 - (uint32_t)(opacity * 255);
 
     /* C */ pixel[0] = (((alpha*color[0]*255)>>15) + one_minus_alpha*pixel[0]) / 255;
     /* M */ pixel[1] = (((alpha*color[1]*255)>>15) + one_minus_alpha*pixel[1]) / 255;
@@ -207,9 +222,11 @@ rgba15x_writepixel(void *data, float opacity, float erase, uint16_t *color)
     uint16_t *pixel = data;
     uint32_t alpha, one_minus_alpha;
     
+    opacity += delta;
+    
     /* Adding delta to round values */
-    alpha = (uint32_t)((opacity * erase + delta) * (1<<15));
-    one_minus_alpha = (1<<15) - (uint32_t)((opacity + delta) * (1<<15));
+    alpha = (uint32_t)(opacity * erase * (1<<15));
+    one_minus_alpha = (1<<15) - (uint32_t)(opacity * (1<<15));
     
     /* R */ pixel[0] = (alpha*color[0] + one_minus_alpha*pixel[0]) / (1<<15);
     /* G */ pixel[1] = (alpha*color[1] + one_minus_alpha*pixel[1]) / (1<<15);
@@ -224,7 +241,6 @@ argb15x_writepixel(void *data, float opacity, float erase, uint16_t *color)
     uint32_t alpha, one_minus_alpha;
     
     opacity += delta;
-    erase += delta;
     
     /* Adding delta to round values */
     alpha = (uint32_t)(opacity * erase * (1<<15));
@@ -236,15 +252,35 @@ argb15x_writepixel(void *data, float opacity, float erase, uint16_t *color)
     /* B */ pixel[3] = (alpha*color[2] + one_minus_alpha*pixel[3]) / (1<<15);
 }
 static void
+argb15x_writepixel_alpha_locked(void *data, float opacity, float erase, uint16_t *color)
+{
+    static const float delta = 1.f / (1<<16);
+    uint16_t *pixel = data;
+    uint32_t alpha, one_minus_alpha;
+    
+    opacity += delta;
+    
+    /* Adding delta to round values */
+    alpha = (uint32_t)(opacity * erase * (1<<15));
+    one_minus_alpha = (1<<15) - (uint32_t)(opacity * (1<<15));
+
+    ///* A */ pixel[0] =  alpha          + one_minus_alpha*pixel[0]  / (1<<15);
+    /* R */ pixel[1] = (alpha*color[0] + one_minus_alpha*pixel[1]) / (1<<15);
+    /* G */ pixel[2] = (alpha*color[1] + one_minus_alpha*pixel[2]) / (1<<15);
+    /* B */ pixel[3] = (alpha*color[2] + one_minus_alpha*pixel[3]) / (1<<15);
+}
+static void
 cmyka15x_writepixel(void *data, float opacity, float erase, uint16_t *color)
 {
     static const float delta = 1.f / (1<<16);
     uint16_t *pixel = data;
     uint32_t alpha, one_minus_alpha;
     
+    opacity += delta;
+    
     /* Adding delta to round values */
-    alpha = (uint32_t)((opacity * erase + delta) * (1<<15));
-    one_minus_alpha = (1<<15) - (uint32_t)((opacity + delta) * (1<<15));
+    alpha = (uint32_t)(opacity * erase * (1<<15));
+    one_minus_alpha = (1<<15) - (uint32_t)(opacity * (1<<15));
 
     /* C */ pixel[0] = (alpha*color[0] + one_minus_alpha*pixel[0]) / (1<<15);
     /* M */ pixel[1] = (alpha*color[1] + one_minus_alpha*pixel[1]) / (1<<15);
@@ -1457,6 +1493,7 @@ initialize_pixbuf(PyPixbuf *self, int width, int height, int pixfmt, PyPixbuf *s
         self->writepixel = init_values->writepixel;
         self->write2pixel = init_values->write2pixel;
         self->readpixel = init_values->readpixel;
+        self->writepixel_alpha_locked = init_values->writepixel_alpha_locked;
 
         return 0;
     }

@@ -72,16 +72,20 @@ class ViewPortBase(object):
         width = int(width)
         height = int(height)
         assert width > 0 and height > 0
-        self.width = width
-        self.height = height
         
-        self.update_matrix()
+        if self.width != width or self.height != height:
+            self.width = width
+            self.height = height
         
-        # create new cairo surface/context
-        self._buf = _pixbuf.Pixbuf(_pixbuf.FORMAT_ARGB8, width, height)
-        self.stride = self._buf.stride
-        self._surface = cairo.ImageSurface.create_for_data(self._buf, cairo.FORMAT_ARGB32, width, height)
-        self._ctx = cairo.Context(self._surface)
+            self.update_matrix()
+        
+            # create new cairo surface/context
+            self._buf = _pixbuf.Pixbuf(_pixbuf.FORMAT_ARGB8, width, height)
+            self.stride = self._buf.stride
+            self.__surf = cairo.ImageSurface.create_for_data(self._buf, cairo.FORMAT_ARGB32, width, height)
+            self._ctx = cairo.Context(self.__surf)
+            
+        return (0, 0, width, height)
         
     def update_matrix(self):
         # View affine transformations
@@ -130,7 +134,10 @@ class ViewPortBase(object):
             clip = (0, 0, self.width, self.height)
             
         self._buf.clear_area(*clip)
-        self._surface.mark_dirty_rectangle(*clip)
+        self.__surf.mark_dirty_rectangle(*clip)
+        
+    def mark_dirty_rectangle(self, rect):
+        self.__surf.mark_dirty_rectangle(*rect)
         
     def get_view_point_pos(self, pos):
         return self.get_view_point(*pos)
@@ -278,7 +285,7 @@ class ViewPortBase(object):
 
     @property
     def cairo_surface(self):
-        return self._surface
+        return self.__surf
 
 class BackgroundMixin:
     _backcolor = None # background as solid color
@@ -334,9 +341,7 @@ class DocumentViewPort(ViewPortBase):
         cr.clip()
         
         # Start with a fully transparent region
-        # I use my faster clear function than cairo.
-        self._buf.clear_area(*clip)
-        self._surface.mark_dirty_rectangle(*clip)
+        self.clear_area(clip)
         
         # Setup our cairo context using document viewing matrix
         cr.set_matrix(self._mat_model2view)
@@ -410,8 +415,7 @@ class ToolsViewPort(ViewPortBase):
         cr.clip()
         
         # Clear the repaint region
-        self._buf.clear_area(*clip)
-        self._surface.mark_dirty_rectangle(*clip)
+        self.clear_area(clip)
                 
         for tool in self._tools:
             cr.save()
@@ -424,38 +428,6 @@ class ToolsViewPort(ViewPortBase):
     def tools(self):
         return self._tools
         
-class SurfaceViewPort(ViewPortBase, BackgroundMixin):
-    def __init__(self, surface, bg=resolve_path(main.Gribouillis.TRANSPARENT_BACKGROUND)):
-        super(SurfaceViewPort, self).__init__()
-        self.__surf = surface
-        self.set_background(bg)
-        
-    def repaint(self, clip=None):
-        if clip is None:
-            clip = (0, 0, self.width, self.height)
-
-        cr = self._ctx
-        cr.save()
-        
-        # Clip on the requested area
-        cr.rectangle(*clip)
-        cr.clip()
-        
-        self._buf.clear_area(*clip)
-
-        # Background first, no matrix change
-        cr.set_operator(cairo.OPERATOR_SOURCE)
-        if self._backcolor:
-            cr.set_source_rgb(*self._backcolor)
-        else:
-            cr.set_source(self._backpat)
-        cr.paint()
-
-        buf = self.__surf.get_rawbuf()
-        buf.compose(self._buf, 0, 0, *clip)
-        self._surface.mark_dirty_rectangle(*clip)
-        
-        cr.restore()
 
 defaults['view-filter-threshold'] = DocumentViewPort.DEFAULT_FILTER_THRESHOLD
 defaults['view-color-passepartout'] = (.33,.33,.33,1.)

@@ -24,22 +24,19 @@
 ###############################################################################
 
 import pymui
+import model, view, main, utils
+
 from math import log, exp
-
-import model, view, main
-
-from view.backend_cairo import SimpleViewPort
-from model.surface import BoundedPlainSurface
-from model.layer import Layer
-from model.colorspace import ColorSpaceRGB
 from model import _pixbuf
+from model.surface import BoundedPlainSurface
+from model.colorspace import ColorSpaceRGB
 from model.brush import DrawableBrush
-from utils import _T, resolve_path
+from utils import _T
 
 
 __all__ = [ 'BrushEditorWindow' ]
 
-class BrushPreview(pymui.Area, SimpleViewPort):
+class BrushPreview(pymui.Area):
     _MCC_ = True
     WIDTH = 300
     HEIGHT = 64
@@ -63,32 +60,25 @@ class BrushPreview(pymui.Area, SimpleViewPort):
         msg.DoSuper()
 
         if msg.flags.value & pymui.MADF_DRAWOBJECT:
-            area = (0,0,self.MWidth,self.MHeight)
-            cr = self.cairo_context
-            cr.reset_clip()
-            cr.identity_matrix()
-            area = self.repaint(cr, self._layers, area, self.MWidth, self.MHeight)
-            self.ClipCairoPaintArea(*area)
+            buf = self._surface.get_rawbuf()
+            self._rp.Blit8(buf, buf.stride, self.MLeft, self.MTop, self.MWidth, self.MHeight, 0, 0, True)
             
     def __init__(self, dv=None):
         super(BrushPreview, self).__init__(InnerSpacing=(0,)*4,
                                            Frame='Virtual',
-                                           FillArea=False,
                                            DoubleBuffer=True)
+                                           
+        # surface used for brush preview
+        self._surface = BoundedPlainSurface(_pixbuf.FORMAT_ARGB8, BrushPreview.WIDTH, BrushPreview.HEIGHT)
         self._brush = DrawableBrush()
         self._brush.rgb = (0,0,0)
         self._states = list(self._brush.gen_preview_states(BrushPreview.WIDTH,
                                                            BrushPreview.HEIGHT))
-        self._surface = BoundedPlainSurface(_pixbuf.FLAG_RGB | _pixbuf.FLAG_15X | _pixbuf.FLAG_ALPHA_FIRST,
-                                            BrushPreview.WIDTH, BrushPreview.HEIGHT)
-        layer = Layer(self._surface, "BrushPreviewLayer")
-        self._layers = (layer,)
-        self.set_background(resolve_path(main.Gribouillis.TRANSPARENT_BACKGROUND))
+        self.Background = "5:" + utils.resolve_path(main.Gribouillis.TRANSPARENT_BACKGROUND)
                 
     def stroke(self, v=1.0):
         buf = self._brush.paint_rgb_preview(BrushPreview.WIDTH, BrushPreview.HEIGHT,
                                             surface=self._surface, states=self._states)
-        self.set_repaint(True)
         self.Redraw()
         return buf
         
@@ -234,6 +224,7 @@ class BrushEditorWindow(pymui.Window):
         self.prop['dab_radius_jitter'] = self._add_slider(table, 'dab_radius_jitter', 0.0, 1.0, 0.0, .01, 0.1)
         self.prop['dab_pos_jitter']    = self._add_slider(table, 'dab_pos_jitter', 0.0, 5.0, 0.0, .01, 0.1)
         self.prop['direction_jitter']  = self._add_slider(table, 'direction_jitter', 0.0, 1.0, 0.0, .01, 0.1)
+        self.prop['alpha_lock']        = self._add_slider(table, 'alpha_lock', 0.0, 1.0, 0.0, 1.0, 1.0)
 
         self.Title = 'Brush Editor'
 

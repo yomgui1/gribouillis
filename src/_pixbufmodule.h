@@ -92,21 +92,22 @@ typedef float (*colnatif2float)(void *from);
 typedef struct PyPixbuf_STRUCT {
     PyObject_HEAD
 
-    int            pixfmt;        /* Pixel Format */
-    int            x, y;          /* Buffers positions */
-    int            width, height; /* Pixels array size */
-    char           readonly;      /* True if the buffer is protected against write */
-    char           damaged;       /* True if written but not displayed */
-    unsigned char  nc;            /* Number of components per pixels */
-    unsigned char  bpc;           /* Number of bits for each components */
-    unsigned int   bpr;           /* Number of bytes per row */
-    colfloat2natif cfromfloat;    /* Function to convert a color channel value given in float to natif value */
-    colnatif2float ctofloat;      /* Function to convert a color channel value given in natif to float value */
-    writefunc      writepixel;    /* Function to change one pixel for given opacity and color */
-    write2func     write2pixel;   /* Function to change one pixel using all color information */
-    readfunc       readpixel;     /* Function to get color of specific pixel */
-    uint8_t *      data_alloc;    /* Pixels data (from malloc) */
-    uint8_t *      data;          /* Pixels data (aligned) */
+    int            pixfmt;                      /* Pixel Format */
+    int            x, y;                        /* Buffers positions */
+    int            width, height;               /* Pixels array size */
+    char           readonly;                    /* True if the buffer is protected against write */
+    char           damaged;                     /* True if written but not displayed */
+    unsigned char  nc;                          /* Number of components per pixels */
+    unsigned char  bpc;                         /* Number of bits for each components */
+    unsigned int   bpr;                         /* Number of bytes per row */
+    colfloat2natif cfromfloat;                  /* Function to convert a color channel value given in float to natif value */
+    colnatif2float ctofloat;                    /* Function to convert a color channel value given in natif to float value */
+    writefunc      writepixel;                  /* Function to change one pixel for given opacity and color */
+    writefunc      writepixel_alpha_locked;     /* Function to change one pixel for given opacity and color, Alpha not modified if exists */
+    write2func     write2pixel;                 /* Function to change one pixel using all color information */
+    readfunc       readpixel;                   /* Function to get color of specific pixel */
+    uint8_t *      data_alloc;                  /* Pixels data (from malloc) */
+    uint8_t *      data;                        /* Pixels data (aligned) */
 } PyPixbuf;
 
 #endif /* _PIXBUFMODULE_H */

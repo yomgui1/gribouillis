@@ -535,8 +535,6 @@ class LayerMgrMediator(Mediator):
     def _on_layer_vis_changed(self, evt, ctrl):
         visible = evt.value.value
         self.__docproxy.set_layer_visibility(ctrl.layer, visible)
-        if visible:
-            self.sendNotification(main.Gribouillis.DOC_LAYER_ACTIVATE, (self.__docproxy, ctrl.layer))
         
     def _on_layer_opa_changed(self, evt):
         dp = self.__docproxy
@@ -610,7 +608,7 @@ class LayerMgrMediator(Mediator):
     def remove_active_layer(self):
         vo = model.vo.LayerCommandVO(docproxy=self.__docproxy, layer=self.viewComponent.active)
         self.sendNotification(main.Gribouillis.DOC_LAYER_DEL, vo, type=utils.RECORDABLE_COMMAND)
-        
+
     def load_image_as_layer(self):
         docproxy = model.DocumentProxy.get_active()
         win = self.doc_mediator.get_win(docproxy)
@@ -619,12 +617,34 @@ class LayerMgrMediator(Mediator):
             self.sendNotification(main.Gribouillis.DOC_LOAD_IMAGE_AS_LAYER,
                                   model.vo.LayerConfigVO(docproxy=docproxy, filename=filename, pos=self.viewComponent.get_active_position()+1),
                                   type=RECORDABLE_COMMAND)
-                                  
+
     def exchange_layers(self, one, two):
         self.sendNotification(main.Gribouillis.DOC_LAYER_STACK_CHANGE,
                               (self.__docproxy, two, self.__docproxy.document.get_layer_index(one)),
                               type=utils.RECORDABLE_COMMAND)
 
+    def show_layers(self, *layers):
+        dp = self.__docproxy
+        for layer in dp.document.layers:
+            dp.set_layer_visibility(layer, layer in layers)
+            
+    def hide_layers(self, *layers):
+        dp = self.__docproxy
+        for layer in dp.document.layers:
+            dp.set_layer_visibility(layer, layer not in layers)
+            
+    def lock_layers(self, *layers):
+        dp = self.__docproxy
+        for layer in dp.document.layers:
+            layer.locked = layer in layers
+            self.viewComponent.update_layer(layer)
+            
+    def unlock_layers(self, *layers):
+        dp = self.__docproxy
+        for layer in dp.document.layers:
+            layer.locked = layer not in layers
+            self.viewComponent.update_layer(layer)
+        
 class BrushEditorWindowMediator(Mediator):
     NAME = "BrushEditorWindowMediator"
 

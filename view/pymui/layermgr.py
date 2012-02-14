@@ -27,8 +27,11 @@ import pymui
 import math
 import cairo
 import os
+import traceback as tb
 
 import model, view, main, utils
+import const
+
 from utils import _T, resolve_path
 from model import devices
 from model.prefs import prefs
@@ -39,6 +42,8 @@ __all__ = [ 'LayerMgr', 'LayerCtrl' ]
 
 VIRT_GROUP_SPACING = 2
 PREVIEW_HEIGHT = 48
+
+ALT_QUALIFIERS = const.IEQUALIFIER_LALT | const.IEQUALIFIER_RALT
 
 class LayerPreview(pymui.Area):
     _MCC_ = True
@@ -216,8 +221,12 @@ class LayerPreview(pymui.Area):
 class LayerCtrl(pymui.Group):
     _MCC_ = True
 
+    _alt = False
+    
     def __init__(self, layer, mediator):
         super(LayerCtrl, self).__init__(Horiz=True, Draggable=False, SameHeight=True)
+        
+        self._ev = pymui.EventHandler()
 
         self.mediator = mediator
         self.layer = layer
@@ -227,7 +236,7 @@ class LayerCtrl(pymui.Group):
                                  CycleChain=True, FrameDynamic=True)
         self.name.ctrl = self
         
-        image_path = os.path.join(resolve_path(prefs['data-path']), "icons", "updown.png")
+        image_path = os.path.join(resolve_path(prefs['view-icons-path']), "updown.png")
         handler = pymui.Dtpic(image_path, Frame='None', InputMode='RelVerify',
                               ShowSelState=False, LightenOnMouse=True,
                               ShortHelp=_T("Click and drag this icon to re-order the layer in stack"))
@@ -238,11 +247,11 @@ class LayerCtrl(pymui.Group):
         self.visBt = pymui.Dtpic(self._get_visible_image(layer.visible), Frame='None', InputMode='Toggle',
                                  Selected=layer.visible,
                                  ShowSelState=False, LightenOnMouse=True,
-                                 ShortHelp=_T("Layer visibility status"))
+                                 ShortHelp=_T("Layer visibility status.\nPress ALT key to toggle also all others layers"))
         self.lockBt = pymui.Dtpic(self._get_lock_image(layer.locked), Frame='None', InputMode='Toggle',
                                   Selected=layer.locked,
                                   ShowSelState=False, LightenOnMouse=True,
-                                  ShortHelp=_T("Layer locked status (write protection)"))
+                                  ShortHelp=_T("Layer locked status (write protection).\nPress ALT key to toggle also all others layers"))
         grp = pymui.HGroup(Child=(handler, self.activeBt, self.name, self.visBt, self.lockBt))
         self.AddChild(pymui.HGroup(Child=[pymui.HSpace(6), grp, pymui.HSpace(6)]))
         
@@ -261,23 +270,57 @@ class LayerCtrl(pymui.Group):
         other = msg.obj.object
         self.mediator.exchange_layers(self.layer, other.layer)
 
+    @pymui.muimethod(pymui.MUIM_Setup)
+    def _mcc_Setup(self, msg):
+        self._ev.install(self, pymui.IDCMP_RAWKEY)
+        return msg.DoSuper()
+
+    @pymui.muimethod(pymui.MUIM_Cleanup)
+    def _mcc_Cleanup(self, msg):
+        self._ev.uninstall()
+        return msg.DoSuper()
+        
+    @pymui.muimethod(pymui.MUIM_HandleEvent)
+    def _mcc_HandleEvent(self, msg):
+        try:
+            self._ev.readmsg(msg)
+            self._alt = self._ev.Qualifier & ALT_QUALIFIERS != 0
+        except:
+            tb.print_exc(limit=20)
+    
+    def _get_act_object(self):
+        return self.WindowObject.object.MouseObject.object
+        
     def _get_lock_image(self, sel):
-        return os.path.join(resolve_path(prefs['data-path']), "icons", ("lock.png" if sel else "unlock.png"))
+        return os.path.join(resolve_path(prefs['view-icons-path']), ("lock.png" if sel else "unlock.png"))
         
     def _get_visible_image(self, sel):
-        return os.path.join(resolve_path(prefs['data-path']), "icons", ("power_on.png" if sel else "power_off.png"))
+        return os.path.join(resolve_path(prefs['view-icons-path']), ("power_on.png" if sel else "power_off.png"))
 
     def _get_active_image(self, sel):
-        return os.path.join(resolve_path(prefs['data-path']), "icons", ("edit.png" if sel else "blue.png"))
+        return os.path.join(resolve_path(prefs['view-icons-path']), ("edit.png" if sel else "blue.png"))
 
     def _on_lock_sel(self, evt):
         sel = evt.value.value
         self.lockBt.Name = self._get_lock_image(sel)
-        self.layer.locked = sel
+        
+        if self._alt and self._get_act_object() is self.lockBt:
+            if sel:
+                self.mediator.lock_layers(self.layer)
+            else:
+                self.mediator.unlock_layers(self.layer)
+        else:
+            self.layer.locked = sel
         
     def _on_visible_sel(self, evt):
         sel = evt.value.value
         self.visBt.Name = self._get_visible_image(sel)
+        
+        if self._alt and self._get_act_object() is self.visBt:
+            if sel:
+                self.mediator.show_layers(self.layer)
+            else:
+                self.mediator.hide_layers(self.layer)
         
     def _on_active_sel(self, evt):
         sel = evt.value.value

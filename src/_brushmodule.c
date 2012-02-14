@@ -113,6 +113,7 @@ enum
     BV_COLOR_SHIFT_H,
     BV_COLOR_SHIFT_S,
     BV_COLOR_SHIFT_V,
+    BV_ALPHA_LOCK,
     BASIC_VALUES_MAX
 };
 
@@ -459,6 +460,13 @@ drawdab_solid(PyBrush *self,        /* In: brush object */
                 goto next_pixel;
             }
 
+            writefunc writepixel;
+            
+            if (self->b_BasicValues[BV_ALPHA_LOCK] && pb->writepixel_alpha_locked)
+                writepixel = pb->writepixel_alpha_locked;
+            else
+                writepixel = pb->writepixel;
+
             if (need_color)
             {
                 int j;
@@ -558,7 +566,7 @@ drawdab_solid(PyBrush *self,        /* In: brush object */
                             opa = MIN(opa * noise, 1.0);
                         }
 
-                        pb->writepixel(pixel, opa, alpha, native_color);
+                        writepixel(pixel, opa, alpha, native_color);
                         pb->damaged = TRUE;
                     }
                 }
@@ -1679,6 +1687,7 @@ static PyGetSetDef brush_getsetters[] = {
     {"color_shift_h",   (getter)brush_get_float,   (setter)brush_set_float,            "Color H shifting",        (void *)BV_COLOR_SHIFT_H},
     {"color_shift_s",   (getter)brush_get_float,   (setter)brush_set_float,            "Color S shifting",        (void *)BV_COLOR_SHIFT_S},
     {"color_shift_v",   (getter)brush_get_float,   (setter)brush_set_float,            "Color V shifting",        (void *)BV_COLOR_SHIFT_V},
+    {"alpha_lock",      (getter)brush_get_float,   (setter)brush_set_normalized_float, "Alpha Lock",              (void *)BV_ALPHA_LOCK},
 
     {"hsv",             (getter)brush_get_hsv,      (setter)brush_set_hsv,              "HSV Color",                    NULL},
     {"rgb",             (getter)brush_get_rgb,      (setter)brush_set_rgb,              "RGB Color",                    NULL},
@@ -1758,6 +1767,7 @@ static int add_constants(PyObject *m)
     INSI(m, "BV_COLOR_SHIFT_H", BV_COLOR_SHIFT_H);
     INSI(m, "BV_SCOLOR_SHIFT_S", BV_COLOR_SHIFT_S);
     INSI(m, "BV_COLOR_SHIFT_V", BV_COLOR_SHIFT_V);
+    INSI(m, "BV_ALPHA_LOCK", BV_ALPHA_LOCK);
     INSI(m, "BASIC_VALUES_MAX", BASIC_VALUES_MAX);
 
     return 0;

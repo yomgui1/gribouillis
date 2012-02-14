@@ -43,11 +43,11 @@ __all__ = ['Brush', 'DrawableBrush']
 class Brush(object):
     """Brush base class"""
 
-    __version__ = 2.5
+    __version__ = 2.6
     ALLBRUSHES = "brushes.data"
     PROPERTIES = 'radius_min radius_max yratio angle spacing opacity_min opacity_max opa_comp hardness erase grain'.split()
     PROPERTIES += 'motion_track hi_speed_track smudge smudge_var direction_jitter dab_pos_jitter dab_radius_jitter'.split()
-    PROPERTIES += 'color_shift_h color_shift_v color_shift_s'.split()
+    PROPERTIES += 'color_shift_h color_shift_v color_shift_s alpha_lock'.split()
     PROPERTIES += 'icon'.split()
 
     # default values = pen
@@ -72,6 +72,7 @@ class Brush(object):
     dab_radius_jitter   = 0.0
     dab_pos_jitter      = 0.0
     direction_jitter    = 0.0
+    alpha_lock          = 0.0
     icon                = None
     page                = None
     icon_preview        = None # runtime usage only, not saved

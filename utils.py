@@ -76,7 +76,8 @@ def delayedmethod(delay):
 class MetaMediator(type):
     def __new__(metacls, name, bases, dct):
         d = {}
-        dct['__mvc_handlers'] = d
+        dct['_mvc_handlers'] = d
+        # Added decorated functions, then cleanup
         for v in dct.itervalues():
             if hasattr(v, '_mvc_signals'):
                 for sig in v._mvc_signals:
@@ -97,21 +98,23 @@ class MetaSingleton(type):
 
 
 class Mediator(puremvc.patterns.mediator.Mediator, puremvc.interfaces.IMediator):
-    """
-    Base class to create Mediator classes.
+    """Mediator
+    Base class to create MVC Mediator classes.
 
     This class exists because it's better to use mapping design pattern
-    than if ... elif ... in Python.
+    in Python than the classical C one "if ... elif ...".
+
+    Moreover this class detectes methods decorated with 'mvcHandler'.
     """
 
     __metaclass__ = MetaMediator
 
     @classmethod
     def listNotificationInterests(cls):
-        return getattr(cls, '__mvc_handlers').keys()
+        return cls._mvc_handlers.keys()
 
     def handleNotification(self, note):
-        func = getattr(self,  '__mvc_handlers')[note.getName()]
+        func = self.__class__._mvc_handlers[note.getName()]
         data = note.getBody()
         if isinstance(data, (tuple, list)):
             func(self, *data)
@@ -120,14 +123,16 @@ class Mediator(puremvc.patterns.mediator.Mediator, puremvc.interfaces.IMediator)
 
 
 def mvcHandler(signal):
-    def decorator(func):
+    """Decorated function will be called when given MVC signal is trigged.
+    Note: be aware that there is no way to control the calls order!
+    """
+    def mvcHandlerDecorate(func):
         if hasattr(func, '_mvc_signals'):
             func._mvc_signals.append(signal)
         else:
             func._mvc_signals = [signal]
         return func
-    return decorator
-
+    return mvcHandlerDecorate
 
 def join_area(a1, a2):
     # TODO: make a C version

@@ -35,7 +35,7 @@ elif os.name == 'posix':
 else:
     raise ImportError('Your platform/os is not supported')
 
-_backend = __import__('view.'+backend_name, fromlist=['*'])
+_backend = __import__('view.'+backend_name, globals(), locals(), fromlist=['*'], level=0)
 
 Application = _backend.Application
 ApplicationMediator = _backend.ApplicationMediator

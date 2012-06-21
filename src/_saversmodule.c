@@ -23,11 +23,18 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 ******************************************************************************/
 
+#ifndef __MORPHOS__
+  /* must be included before Python.h */
+  #include <png.h>
+#endif
+
 #include "common.h"
 #include "_pixbufmodule.h"
 
-#include <libraries/png.h>
-#include <proto/png.h>
+#ifdef __MORPHOS__
+  #include <libraries/png.h>
+  #include <proto/png.h>
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -70,7 +77,7 @@ writepng_encode_finish(void)
     }
 
     png_write_end(gPNG_png_ptr, NULL);
-    
+
     return 0;
 }
 
@@ -93,7 +100,7 @@ mypngwrite(png_structp png_ptr, png_bytep data, png_size_t length)
         {
             Py_ssize_t new_length = gOutputAllocLength + MAX(length, 1024);
             char *ptr = malloc(new_length);
-            
+
             if (ptr)
             {
                 gOutputAllocLength = new_length;
@@ -101,14 +108,14 @@ mypngwrite(png_structp png_ptr, png_bytep data, png_size_t length)
             }
             else
                 PyErr_NoMemory();
-            
+
             free(gOutputBuffer);
             gOutputBuffer = ptr;
-            
+
             if (!gOutputBuffer)
                 return;
         }
-        
+
         memcpy(gOutputBuffer + gOutputWriteLength, data, length);
         gOutputWriteLength += length;
     }
@@ -177,23 +184,23 @@ static PyObject *
 mod_save_pixbuf_as_png_buffer(PyObject *self, PyObject *args)
 {
     PyPixbuf *pixbuf;
-    
+
     if (!PyArg_ParseTuple(args, "O!", PyPixbuf_Type, &pixbuf))
         return NULL;
-    
+
     gOutputBuffer = calloc(1024, 1);
     if (NULL != gOutputBuffer)
     {
         gOutputWriteLength = 0;
         gOutputAllocLength = 1024;
-        
+
         if (!writepng_init(pixbuf->width, pixbuf->height))
         {
             uint32_t y;
-            
+
             for (y=0; y < pixbuf->height; y++)
                 png_write_row(gPNG_png_ptr, &pixbuf->data[y*pixbuf->bpr]);
-            
+
             writepng_encode_finish();
             writepng_cleanup();
         }
@@ -205,15 +212,15 @@ mod_save_pixbuf_as_png_buffer(PyObject *self, PyObject *args)
     }
     else
         return PyErr_Format(PyExc_IOError, "Can't allocate the output string");
-    
+
     if (gOutputBuffer)
     {
         PyObject *output = PyString_FromStringAndSize(gOutputBuffer, gOutputWriteLength); /* NR */
-        
+
         free(gOutputBuffer);
         return output;
     }
-    
+
     return NULL;
 }
 

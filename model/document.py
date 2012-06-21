@@ -26,12 +26,21 @@
 # Python 2.5 compatibility
 from __future__ import with_statement
 
-import os, sys, cairo, png, PIL.Image, array
+import os, sys, cairo, PIL.Image, array
 from cStringIO import StringIO
 from math import floor, ceil
 
+try:
+    import png
+except:
+    pass
+
 import _pixbuf
-import _savers
+
+try:
+    import _savers
+except:
+    pass
 
 from .colorspace import ColorSpace
 from .layer import TiledLayer

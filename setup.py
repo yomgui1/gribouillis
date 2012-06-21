@@ -22,6 +22,16 @@ elif os.name == 'posix':
 link_opt += ['-lpng']
 pb_srcs = pb_generic_srcs + pb_plat_srcs
 
+ext_savers = Extension('model/_savers', [ 'src/_saversmodule.c' ] + pb_srcs,
+    define_macros=defines,
+    extra_compile_args=opt,
+    extra_link_args=link_opt)
+
+if os.name == 'morphos':
+    exts = [ ext_saver ]
+else:
+    exts = [ ]
+
 setup(name='Gribouillis',
       version='3.0',
       author='Guillaume Roguez',
@@ -42,8 +52,4 @@ setup(name='Gribouillis',
                                 define_macros=defines,
                                 extra_compile_args=opt,
                                 extra_link_args=link_opt),
-                      Extension('model/_savers', [ 'src/_saversmodule.c' ] + pb_srcs,
-                                define_macros=defines,
-                                extra_compile_args=opt,
-                                extra_link_args=link_opt),
-                      ])
+                      ] + exts)

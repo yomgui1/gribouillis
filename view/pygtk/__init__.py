@@ -33,14 +33,12 @@ from model import vo
 from view.contexts import action
 
 from app import Application
-from docviewer import DocWindow
-from brusheditor import BrushEditorWindow
-from layermgr import LayerManager
-from cmdhistoric import CommandsHistoryList
-from colorwindow import ColorWindow
-from brushhouse import BrushHouseWindow
-
-__all__ = ['DialogMediator', 'ApplicationMediator']
+#from docviewer import DocWindow
+#from brusheditor import BrushEditorWindow
+#from layermgr import LayerManager
+#from cmdhistoric import CommandsHistoryList
+#from colorwindow import ColorWindow
+#from brushhouse import BrushHouseWindow
 
 gdk = gtk.gdk
 
@@ -83,17 +81,17 @@ class ApplicationMediator(Mediator):
 
     def onRegister(self):
         self.facade.registerMediator(DialogMediator(self.viewComponent))
-        self.facade.registerMediator(LayerManagerMediator(self.viewComponent.layermgr))
-        self.facade.registerMediator(CommandsHistoryListMediator(self.viewComponent.cmdhist))
-        self.facade.registerMediator(BrushHouseWindowMediator(self.viewComponent.brushhouse))
-        self.facade.registerMediator(BrushEditorWindowMediator(self.viewComponent.brusheditor))
-        self.facade.registerMediator(ColorWindowMediator(self.viewComponent.colorwin))
+        #self.facade.registerMediator(LayerManagerMediator(self.viewComponent.layermgr))
+        #self.facade.registerMediator(CommandsHistoryListMediator(self.viewComponent.cmdhist))
+        #self.facade.registerMediator(BrushHouseWindowMediator(self.viewComponent.brushhouse))
+        #self.facade.registerMediator(BrushEditorWindowMediator(self.viewComponent.brusheditor))
+        #self.facade.registerMediator(ColorWindowMediator(self.viewComponent.colorwin))
 
-        self.viewport_mediator = DocViewPortMediator(self.viewComponent)
-        self.facade.registerMediator(self.viewport_mediator)
+        #self.viewport_mediator = DocViewPortMediator(self.viewComponent)
+        #self.facade.registerMediator(self.viewport_mediator)
 
-        self.document_mediator = DocumentMediator(self.viewComponent)
-        self.facade.registerMediator(self.document_mediator)
+        #self.document_mediator = DocumentMediator(self.viewComponent)
+        #self.facade.registerMediator(self.document_mediator)
 
     def get_document_filename(self, parent=None):
         return self.viewComponent.get_filename(parent)
@@ -107,12 +105,12 @@ class ApplicationMediator(Mediator):
                                   "Failed to create document.")
             return
         self.new_doc(docproxy)
-        
+
     @mvcHandler(main.Gribouillis.DOC_ACTIVATED)
     def _on_activate_document(self, docproxy):
         if not self.document_mediator.has_doc(docproxy):
             self.new_doc(docproxy)
-            
+
     @mvcHandler(main.Gribouillis.QUIT)
     def _on_quit(self, note):
         # TODO: check for modified documents
@@ -297,7 +295,7 @@ class DocumentMediator(Mediator):
     def __init__(self, component):
         assert isinstance(component, Application)
         super(DocumentMediator, self).__init__(viewComponent=component)
-        
+
         self.__docmap = {}
         self.__focused = None
 

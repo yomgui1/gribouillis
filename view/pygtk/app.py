@@ -30,11 +30,11 @@ import view, utils, main
 from utils import _T
 from view.contexts import action
 
-from layermgr import *
-from cmdhistoric import *
-from brusheditor import *
-from brushhouse import *
-from colorwindow import *
+#from layermgr import *
+#from cmdhistoric import *
+#from brusheditor import *
+#from brushhouse import *
+#from colorwindow import *
 
 __all__ = ['Application']
 

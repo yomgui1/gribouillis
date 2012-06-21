@@ -121,7 +121,7 @@ class ApplicationMediator(Mediator):
     def new_doc(self, docproxy):
         # Create and attach a window to view/edit the document
         component = DocWindow(docproxy)
-        
+ 
         # Register it to document mediator
         self.document_mediator.add_doc(docproxy, component)
 
@@ -133,7 +133,7 @@ class ApplicationMediator(Mediator):
         # Close the application if no document remains.
         if not len(self.document_mediator):
             self.viewComponent.quit()
-            
+
 class BrushEditorWindowMediator(Mediator):
     NAME = "BrushEditorWindowMediator"
 

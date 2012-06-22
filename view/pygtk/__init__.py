@@ -104,10 +104,12 @@ class ApplicationMediator(Mediator):
             self.sendNotification(main.Gribouillis.SHOW_ERROR_DIALOG,
                                   "Failed to create document.")
             return
+        print docproxy
         self.new_doc(docproxy)
 
     @mvcHandler(main.Gribouillis.DOC_ACTIVATED)
     def _on_activate_document(self, docproxy):
+        return
         if not self.document_mediator.has_doc(docproxy):
             self.new_doc(docproxy)
 
@@ -371,7 +373,7 @@ class DocumentMediator(Mediator):
     @mvcHandler(main.Gribouillis.BRUSH_PROP_CHANGED)
     def _on_brush_prop_changed(self, brush, name):
         if name is 'color': return
-        
+
         # synchronize storage brushes with drawing brushes.
         v = getattr(brush, name)
         for docproxy in self.__docmap.iterkeys():
@@ -395,7 +397,7 @@ class DocumentMediator(Mediator):
 
     def get_win(self, docproxy):
         return self.__docmap[docproxy]
-    
+
     def add_doc(self, docproxy, component):
         self.__docmap[docproxy] = component
 
@@ -527,7 +529,7 @@ class LayerManagerMediator(Mediator):
     def _on_new_doc_result(self, docproxy):
         if self.__docproxy is docproxy:
             self.viewComponent.set_layers(docproxy.layers, docproxy.document.active)
-    
+
     @mvcHandler(main.Gribouillis.DOC_ACTIVATED)
     def _on_doc_activated(self, docproxy):
         if self.__docproxy is not docproxy:
@@ -543,7 +545,7 @@ class LayerManagerMediator(Mediator):
     def _on_doc_layer_deleted(self, docproxy, layer):
         if self.__docproxy is docproxy:
             self.viewComponent.del_layer(layer)
-            
+
     @mvcHandler(main.Gribouillis.DOC_LAYER_STACK_CHANGED)
     def _on_doc_layer_moved(self, docproxy, layer, pos):
         if self.__docproxy is docproxy:
@@ -564,9 +566,9 @@ class DocViewPortMediator(Mediator):
         super(DocViewPortMediator, self).__init__(viewComponent=component)
         self.__vpmap = {}
         self._vp = None # viewport with focus
-        
+
     ### public API ####
-    
+
     def add_viewport(self, viewport):
         dp = viewport.docproxy
         if dp in self.__vpmap:
@@ -574,22 +576,22 @@ class DocViewPortMediator(Mediator):
         else:
             self.__vpmap[dp] = [viewport]
         self._vp = viewport
-        
+
     def reset_view(self, vp=None):
         if vp is None:
             vp = self._vp
         vp.reset_view()
-        
+
     def _get_active(self):
         return self._vp
-        
+
     def _set_active(self, vp):
         self._vp = vp
-    
+
     active = property(fget=_get_active, fset=_set_active)
-        
+
     ### notification handlers ###
-    
+
     @mvcHandler(main.Gribouillis.DOC_UPDATED)
     @mvcHandler(main.Gribouillis.DOC_DIRTY)
     def _on_doc_dirty(self, docproxy, area=None):

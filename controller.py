@@ -1,5 +1,5 @@
 ###############################################################################
-# Copyright (c) 2009-2011 Guillaume Roguez
+# Copyright (c) 2009-2012 Guillaume Roguez
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
@@ -23,24 +23,33 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
+"""Controller module, implementation of control part.
+
+This module exports all functions called by the hi-level MVC 
+notification system (obj.sendNotification() method).
+This hi-level interface doesn't depend on any platforms implementation,
+nor related to Model or View layers.
+"""
+
 import os
 
-import puremvc.patterns.command
-import puremvc.interfaces
 import model, view, main, utils
 
-from view.contexts import LastColorModal
-from utils import _T
+from puremvc.patterns.command import SimpleCommand, MacroCommand
+from puremvc.interfaces import ICommand
 
-class InitModelCmd(puremvc.patterns.command.SimpleCommand, puremvc.interfaces.ICommand):
+from view.contexts import LastColorModal
+from utils import _T, UndoableCommand
+
+class InitModelCmd(SimpleCommand, ICommand):
     def execute(self, note):
         model.prefs.load_preferences('config.xml')
-            
+
         # Open a default empty document
         vo = model.vo.EmptyDocumentConfigVO()
         self.sendNotification(main.Gribouillis.NEW_DOCUMENT, vo)
 
-class InitViewCmd(puremvc.patterns.command.SimpleCommand, puremvc.interfaces.ICommand):
+class InitViewCmd(SimpleCommand, ICommand):
     def execute(self, note):
         # ask the view application to create all its mediators
         self.facade.registerMediator(view.ApplicationMediator(note.getBody()))
@@ -48,29 +57,29 @@ class InitViewCmd(puremvc.patterns.command.SimpleCommand, puremvc.interfaces.ICo
         # open the default document now
         self.sendNotification(main.Gribouillis.DOC_ACTIVATE, model.DocumentProxy.get_active())
 
-class StartupCmd(puremvc.patterns.command.MacroCommand, puremvc.interfaces.ICommand):
+class StartupCmd(MacroCommand, ICommand):
     def initializeMacroCommand(self):
         self.addSubCommand(InitModelCmd)
         self.addSubCommand(InitViewCmd)
 
-class UndoCmd(puremvc.patterns.command.SimpleCommand, puremvc.interfaces.ICommand):
+class UndoCmd(SimpleCommand, ICommand):
     def execute(self, note):
         hp = utils.CommandsHistoryProxy.get_active()
         if hp.canUndo():
             hp.getPrevious().undo()
 
-class RedoCmd(puremvc.patterns.command.SimpleCommand, puremvc.interfaces.ICommand):
+class RedoCmd(SimpleCommand, ICommand):
     def execute(self, note):
         hp = utils.CommandsHistoryProxy.get_active()
         if hp.canRedo():
             hp.getNext().redo()
 
-class FlushCmd(puremvc.patterns.command.SimpleCommand, puremvc.interfaces.ICommand):
-    def execute(self, note):
+class FlushCmd(SimpleCommand, ICommand):
+  def execute(self, note):
         hp = utils.CommandsHistoryProxy.get_active()
         hp.flush()
 
-class NewDocumentCmd(puremvc.patterns.command.SimpleCommand, puremvc.interfaces.ICommand):
+class NewDocumentCmd(SimpleCommand, ICommand):
     def execute(self, note):
         vo = note.getBody() # DocumentConfigVO
 
@@ -119,7 +128,7 @@ class NewDocumentCmd(puremvc.patterns.command.SimpleCommand, puremvc.interfaces.
         if docproxy:
             self.sendNotification(main.Gribouillis.DOC_ACTIVATE, docproxy)
 
-class ActivateDocumentCmd(puremvc.patterns.command.SimpleCommand, puremvc.interfaces.ICommand):
+class ActivateDocumentCmd(SimpleCommand, ICommand):
     def execute(self, note):
         docproxy = note.getBody()
         docproxy.activate()
@@ -130,7 +139,7 @@ class ActivateDocumentCmd(puremvc.patterns.command.SimpleCommand, puremvc.interf
 
         self.sendNotification(main.Gribouillis.DOC_ACTIVATED, docproxy)
 
-class DeleteDocumentCmd(puremvc.patterns.command.SimpleCommand, puremvc.interfaces.ICommand):
+class DeleteDocumentCmd(SimpleCommand, ICommand):
     def execute(self, note):
         docproxy = note.getBody()
 
@@ -141,31 +150,31 @@ class DeleteDocumentCmd(puremvc.patterns.command.SimpleCommand, puremvc.interfac
         # delete from model
         self.facade.removeProxy('HP_' + docproxy.getProxyName())
         self.facade.removeProxy(docproxy.getProxyName())
-        
+
         del docproxy
 
-class SaveDocumentCmd(puremvc.patterns.command.SimpleCommand, puremvc.interfaces.ICommand):
+class SaveDocumentCmd(SimpleCommand, ICommand):
     def execute(self, note):
         docproxy, filename = note.getBody()
         if docproxy.document.empty:
             self.sendNotification(main.Gribouillis.SHOW_ERROR_DIALOG,
                                   _T("Failed to save document as %s.\nReason: Empty document") % filename)
             return
-            
+
         try:
             docproxy.document.save_as(filename)
             docproxy.docname = filename
-            
+
         except Exception, e:
             self.sendNotification(main.Gribouillis.SHOW_ERROR_DIALOG,
                                   _T("Failed to save document as %s.\nReason: %s") % (filename, e))
-                                  
+
         else:
             self.sendNotification(main.Gribouillis.DOC_SAVE_RESULT, (docproxy, True))
 
-class RenameLayerCmd(utils.UndoableCommand):
+class RenameLayerCmd(UndoableCommand):
     def execute(self, note):
-    
+
         self.__name = "Rename layer '%s' to '%s'" % (note.getBody().layer.name, note.getBody().name)
         super(RenameLayerCmd, self).execute(note)
         self.registerUndoCommand(RenameLayerCmd)
@@ -183,15 +192,15 @@ class RenameLayerCmd(utils.UndoableCommand):
     def getCommandName(self):
         return self.__name
 
-class SetLayerVisibilityCmd(puremvc.patterns.command.SimpleCommand, puremvc.interfaces.ICommand):
+class SetLayerVisibilityCmd(SimpleCommand, ICommand):
     def execute(self, note):
         vo = note.getBody()
         vo.layer.visible = vo.state
-        
+
         # Using DOC_LAYER_UPDATED than DOC_DIRTY as a layer property is modified
         self.sendNotification(main.Gribouillis.DOC_LAYER_UPDATED, (vo.docproxy, vo.layer))
 
-class SetLayerOpacityCmd(puremvc.patterns.command.SimpleCommand, puremvc.interfaces.ICommand):
+class SetLayerOpacityCmd(SimpleCommand, ICommand):
     def execute(self, note):
         vo = note.getBody()
         vo.layer.opacity = vo.state
@@ -199,7 +208,7 @@ class SetLayerOpacityCmd(puremvc.patterns.command.SimpleCommand, puremvc.interfa
         # Using DOC_LAYER_UPDATED than DOC_DIRTY as a layer property is modified, not only the contents
         self.sendNotification(main.Gribouillis.DOC_LAYER_UPDATED, (vo.docproxy, vo.layer))
 
-class AddLayerCmd(utils.UndoableCommand):
+class AddLayerCmd(UndoableCommand):
     def execute(self, note):
         vo = note.getBody()
         if vo.layer:
@@ -221,13 +230,13 @@ class AddLayerCmd(utils.UndoableCommand):
         else:
             # Create layer and save it in the value object for undo/redo
             vo.layer = docproxy.new_layer(vo)
-            
+
         self.sendNotification(main.Gribouillis.DOC_LAYER_ACTIVATED, (docproxy, docproxy.active_layer))
 
     def getCommandName(self):
         return self.__name
 
-class RemoveLayerCmd(utils.UndoableCommand):
+class RemoveLayerCmd(UndoableCommand):
     def execute(self, note):
         vo = note.getBody()
         vo.pos = vo.docproxy.document.get_layer_index(vo.layer) # keep position for redo
@@ -249,7 +258,7 @@ class RemoveLayerCmd(utils.UndoableCommand):
     def getCommandName(self):
         return self.__name
 
-class DuplicateLayerCmd(utils.UndoableCommand):
+class DuplicateLayerCmd(UndoableCommand):
     def execute(self, note):
         vo = note.getBody()
         self.__name = "Duplicate layer %s" % vo.layer.name
@@ -265,17 +274,17 @@ class DuplicateLayerCmd(utils.UndoableCommand):
         else:
             vo.from_layer = vo.layer
             new_layer = vo.layer = vo.docproxy.copy_layer(vo.layer)
-            
+
     def getCommandName(self):
         return self.__name
 
-class ActivateLayerCmd(puremvc.patterns.command.SimpleCommand, puremvc.interfaces.ICommand):
+class ActivateLayerCmd(SimpleCommand, ICommand):
     def execute(self, note):
         docproxy, layer = note.getBody()
         docproxy.document.active = layer
         self.sendNotification(main.Gribouillis.DOC_LAYER_ACTIVATED, note.getBody())
 
-class LayerStackChangeCmd(utils.UndoableCommand):
+class LayerStackChangeCmd(UndoableCommand):
     def execute(self, note):
         docproxy, layer, new_pos = note.getBody()[:3]
         self.__name = "Stack change for layer %s" % layer.name
@@ -294,7 +303,7 @@ class LayerStackChangeCmd(utils.UndoableCommand):
         return self.__name
 
 # Hidden command, only used in this module
-class _UnMergeLayerCmd(puremvc.patterns.command.SimpleCommand, puremvc.interfaces.ICommand):
+class _UnMergeLayerCmd(SimpleCommand, ICommand):
    def execute(self, note):
         docproxy, lsrc, ldst, opa, snapshot = note.getBody()
         pos = docproxy.document.get_layer_index(ldst)
@@ -302,7 +311,7 @@ class _UnMergeLayerCmd(puremvc.patterns.command.SimpleCommand, puremvc.interface
         docproxy.set_layer_opacity(ldst, opa)
         docproxy.insert_layer(lsrc, pos+1, activate=True)
 
-class MergeDownLayerCmd(utils.UndoableCommand):
+class MergeDownLayerCmd(UndoableCommand):
     def execute(self, note):
         docproxy, pos = note.getBody()
         if pos == 0: return
@@ -315,7 +324,7 @@ class MergeDownLayerCmd(utils.UndoableCommand):
     def executeCommand(self):
         note = self.getNote()
         docproxy, lsrc, ldst, opa, snapshot = note.getBody()
-        
+
         if snapshot is None:
             snapshot = ldst.snapshot()      # Save destination layer contents
             lsrc.merge_to(ldst)             # Do the merge
@@ -323,7 +332,7 @@ class MergeDownLayerCmd(utils.UndoableCommand):
             note.getBody()[-1] = snapshot   # Register snapshot for undo operation
         else:
             ldst.unsnapshot(snapshot, redo=True)
-        
+
         docproxy.remove_layer(lsrc)
         docproxy.set_layer_opacity(ldst, 1.0)
 
@@ -331,13 +340,13 @@ class MergeDownLayerCmd(utils.UndoableCommand):
         return self.__name
 
 # Hidden command, only used in this module
-class _UnsnapshotLayerContentCmd(puremvc.patterns.command.SimpleCommand, puremvc.interfaces.ICommand):
+class _UnsnapshotLayerContentCmd(SimpleCommand, ICommand):
     def execute(self, note):
         vo = note.getBody()
         vo.layer.unsnapshot(vo.snapshot)
         self.sendNotification(main.Gribouillis.DOC_DIRTY, (vo.docproxy, vo.dirty_area))
 
-class ClearLayerCmd(utils.UndoableCommand):
+class ClearLayerCmd(UndoableCommand):
     def execute(self, note):
         vo = note.getBody()
         self.__name = "Clear layer %s" % vo.layer.name
@@ -354,7 +363,7 @@ class ClearLayerCmd(utils.UndoableCommand):
     def getCommandName(self):
         return self.__name
 
-class RecordStrokeCmd(utils.UndoableCommand):
+class RecordStrokeCmd(UndoableCommand):
     """vo parameters:
 
         docproxy: document proxy
@@ -369,10 +378,10 @@ class RecordStrokeCmd(utils.UndoableCommand):
         vo.dirty_area = vo.layer.document_area(*vo.snapshot.dirty_area)
         self.registerUndoCommand(_UnsnapshotLayerContentCmd)
 
-    def executeCommand(self):        
+    def executeCommand(self):
         vo = self.getNote().getBody()
         layer = vo.layer
-        
+
         if vo.stroke is not None:
             self.__name = 'Stroke (%2.3fMB)' % (vo.snapshot.size/(1024.*1024))
             vo.stroke = None
@@ -386,7 +395,7 @@ class RecordStrokeCmd(utils.UndoableCommand):
     def getCommandName(self):
         return self.__name
 
-class LoadImageAsLayerCmd(utils.UndoableCommand):
+class LoadImageAsLayerCmd(UndoableCommand):
     """vo parameters:
 
         docproxy: document proxy
@@ -427,13 +436,13 @@ class LoadImageAsLayerCmd(utils.UndoableCommand):
 
             # get the position to be sure
             vo.pos = docproxy.document.get_layer_index(layer)
-            
+
         self.sendNotification(main.Gribouillis.DOC_DIRTY, (docproxy, layer.area))
 
     def getCommandName(self):
         return self.__name
 
-class SetLayerMatrixCmd(utils.UndoableCommand):
+class SetLayerMatrixCmd(UndoableCommand):
     def execute(self, note):
         self.__name = "Layer transformation"
         super(SetLayerMatrixCmd, self).execute(note)
@@ -447,7 +456,7 @@ class SetLayerMatrixCmd(utils.UndoableCommand):
         layer.matrix = new_mat
         new_area = layer.area
         note.setBody((docproxy, layer, new_mat, old_mat)) # inverse matrixes for undo/redo
-        
+
         area = utils.join_area(old_area, new_area)
         self.sendNotification(main.Gribouillis.DOC_DIRTY, (docproxy, area))
 

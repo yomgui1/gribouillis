@@ -1,5 +1,5 @@
 ###############################################################################
-# Copyright (c) 2009-2011 Guillaume Roguez
+# Copyright (c) 2009-2012 Guillaume Roguez
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
@@ -38,7 +38,7 @@ STATUS = 'beta'
 
 class Gribouillis(puremvc.patterns.facade.Facade):
     __instance = None
-        
+
     # application constants
     PREVIEW_BACKGROUND = '${backgrounds-path}/checker.png'
     TRANSPARENT_BACKGROUND = '${backgrounds-path}/checker.png'
@@ -88,7 +88,7 @@ class Gribouillis(puremvc.patterns.facade.Facade):
     DOC_RECORD_STROKE       = 'doc-record-stroke' # undoable command
     DOC_LOAD_IMAGE_AS_LAYER = 'doc-load-image-as-layer' # undoable command
     DOC_LAYER_MATRIX        = 'doc-layer-matrix' # undoable command
-    
+
     DOC_BRUSH_UPDATED       = 'doc-brush-updated'
 
     # Brush notifications
@@ -97,17 +97,17 @@ class Gribouillis(puremvc.patterns.facade.Facade):
     def __new__(cl, *a, **k):
         if cl.__instance:
             return cl.__instance
-        
+
         self = super(Gribouillis, cl).__new__(cl, *a, **k)
         cl.__instance = self
         return self
-    
+
     def __init__(self, datapath, userpath=None):
         if userpath is None:
             userpath = datapath
         self.paths = dict(data=datapath, userpath=userpath)
         self.initializeFacade()
-        
+
     @classmethod
     def getInstance(cl):
         return cl.__instance
@@ -145,4 +145,3 @@ class Gribouillis(puremvc.patterns.facade.Facade):
         super_.registerCommand(Gribouillis.DOC_LOAD_IMAGE_AS_LAYER, controller.LoadImageAsLayerCmd)
         super_.registerCommand(Gribouillis.DOC_LAYER_SET_OPACITY, controller.SetLayerOpacityCmd)
         super_.registerCommand(Gribouillis.DOC_LAYER_MERGE_DOWN, controller.MergeDownLayerCmd)
-        

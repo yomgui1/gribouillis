@@ -49,11 +49,7 @@ class Application(view.mixin.ApplicationMixin):
         self.create_ui()
 
     def create_ui(self):
-        self.layermgr = LayerManager()
-        self.cmdhist = CommandsHistoryList()
-        self.brusheditor = BrushEditorWindow()
-        self.brushhouse = BrushHouseWindow()
-        self.colorwin = ColorWindow()
+        self.windows = {}
 
     def run(self):
         gtk.main()
@@ -72,7 +68,7 @@ class Application(view.mixin.ApplicationMixin):
 
     def open_cmdhistoric(self):
         self.cmdhist.present()
-        
+
     def open_colorwin(self):
         self.colorwin.present()
 
@@ -81,25 +77,25 @@ class Application(view.mixin.ApplicationMixin):
             self.cmdhist.hide()
         else:
             self.cmdhist.present()
-        
+
     def toggle_brush_editor(self):
         if self.brusheditor.get_visible():
             self.brusheditor.hide()
         else:
             self.brusheditor.present()
-        
+
     def toggle_brush_house(self):
         if self.brushhouse.get_visible():
             self.brushhouse.hide()
         else:
             self.brushhouse.present()
-        
+
     def toggle_color_mgr(self):
         if self.colorwin.get_visible():
             self.colorwin.hide()
         else:
             self.colorwin.present()
-            
+
     def toggle_layer_mgr(self):
         if self.layermgr.get_visible():
             self.layermgr.hide()
@@ -168,7 +164,7 @@ class Application(view.mixin.ApplicationMixin):
 
         dlg.destroy()
         return vo
-    
+
     def close_all_non_drawing_windows(self):
         self.layermgr.hide()
         self.cmdhist.hide()

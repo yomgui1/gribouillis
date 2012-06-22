@@ -40,27 +40,32 @@ from puremvc.interfaces import ICommand
 
 from view.contexts import LastColorModal
 from utils import _T, UndoableCommand
+from model.prefs import prefs, load_preferences
+
+class StartupCmd(MacroCommand, ICommand):
+    """First command executed when application is created.
+    Initialize model and view layers, setup defaults.
+    """
+    def initializeMacroCommand(self):
+        self.addSubCommand(InitModelCmd)
+        self.addSubCommand(InitViewCmd)
 
 class InitModelCmd(SimpleCommand, ICommand):
     def execute(self, note):
-        model.prefs.load_preferences('config.xml')
+        load_preferences('config.xml')
 
-        # Open a default empty document
-        vo = model.vo.EmptyDocumentConfigVO()
+        # Load the default document
+        docpath = prefs.get('default-document', "toto")
+        if docpath is None:
+            vo = model.vo.EmptyDocumentConfigVO()
+        else:
+            vo = model.vo.FileDocumentConfigVO(docpath)
         self.sendNotification(main.Gribouillis.NEW_DOCUMENT, vo)
 
 class InitViewCmd(SimpleCommand, ICommand):
     def execute(self, note):
         # ask the view application to create all its mediators
         self.facade.registerMediator(view.ApplicationMediator(note.getBody()))
-
-        # open the default document now
-        self.sendNotification(main.Gribouillis.DOC_ACTIVATE, model.DocumentProxy.get_active())
-
-class StartupCmd(MacroCommand, ICommand):
-    def initializeMacroCommand(self):
-        self.addSubCommand(InitModelCmd)
-        self.addSubCommand(InitViewCmd)
 
 class UndoCmd(SimpleCommand, ICommand):
     def execute(self, note):
@@ -80,11 +85,14 @@ class FlushCmd(SimpleCommand, ICommand):
         hp.flush()
 
 class NewDocumentCmd(SimpleCommand, ICommand):
+    """Try to open/create document model as specified by given
+    DocumentConfigVO instance.
+    Exception raised if document cannot be created/open.
+    """
     def execute(self, note):
         vo = note.getBody() # DocumentConfigVO
 
         if isinstance(vo, model.vo.EmptyDocumentConfigVO):
-            # check for unique doc name
             basename = vo.name
             bases = (basename, basename+' #')
             given = [ name for name in model.DocumentProxy.iternames() if name.startswith(bases) ]
@@ -101,32 +109,26 @@ class NewDocumentCmd(SimpleCommand, ICommand):
                         break
                     x += 1
 
-            if not name:
-                self.sendNotification(main.Gribouillis.SHOW_ERROR_DIALOG,
-                                      "Document name already exist!")
-                return
-
             vo.name = name
-            docproxy = model.DocumentProxy.new_proxy(vo)
+            docproxy = model.DocumentProxy(vo)
+        else:
+            # FileDocumentConfigVO
+            # Search first if document isn't created yet,
+            # if is it, the existing document is just activated.
+            # New document are created/loaded then activated.
 
-        else: # FileDocumentConfigVO
-            # search if it wasn't open or active doc is empty, if yes just send a document_ready notification
             docproxy = model.DocumentProxy.from_doc_name(vo.name)
             if not docproxy:
+                # If the active docproxy is in 'safe' state (empty or
+                # untouched), it's going to be used as container for the
+                # wanted document. Otherwise a new docproxy is created.
                 docproxy = model.DocumentProxy.get_active()
-                try:
-                    if not docproxy.document.empty:
-                        docproxy = model.DocumentProxy.new_proxy(vo)
-                    else:
-                        docproxy.load(vo.name)
-                        self.sendNotification(main.Gribouillis.DOC_UPDATED, docproxy)
-                except Exception, e:
-                    self.sendNotification(main.Gribouillis.SHOW_ERROR_DIALOG,
-                                          "Failed to load document %s.\nReason: %s" % (vo.name, e))
-                    docproxy = model.DocumentProxy.get_active()
+                if not docproxy.document.is_safe:
+                    docproxy = model.DocumentProxy(vo)
 
-        if docproxy:
-            self.sendNotification(main.Gribouillis.DOC_ACTIVATE, docproxy)
+                docproxy.load(vo.name)
+
+        self.sendNotification(main.Gribouillis.DOC_ACTIVATE, docproxy)
 
 class ActivateDocumentCmd(SimpleCommand, ICommand):
     def execute(self, note):

@@ -57,7 +57,7 @@ class Gribouillis(puremvc.patterns.facade.Facade):
 
     NEW_DOCUMENT         = 'new-doc'      # user want to create a new document
     NEW_DOCUMENT_RESULT  = 'new-doc-res'
-    
+
     DOC_ACTIVATE         = 'doc-activate'
     DOC_ACTIVATED        = 'doc-activated' # document is ready to accept user inputs
     DOC_UPDATED          = 'doc-updated'

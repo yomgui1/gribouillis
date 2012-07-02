@@ -12,7 +12,8 @@ if os.name == 'morphos':
     pb_plat_srcs = [ 'src/platform-morphos.c' ]
     defines = [ ('NDEBUG', None),
                 ('__MORPHOS_SHAREDLIBS', None) ]
-    link_opt = [ '-lsyscall', '-llcms2' ]
+    link_opt = [ '-llcms2', '-lm' ]
+
 elif os.name == 'posix':
     opt = None
     pb_plat_srcs = [ 'src/platform-posix.c' ]
@@ -28,7 +29,7 @@ ext_savers = Extension('model/_savers', [ 'src/_saversmodule.c' ] + pb_srcs,
     extra_link_args=link_opt)
 
 if os.name == 'morphos':
-    exts = [ ext_saver ]
+    exts = [ ext_savers ]
 else:
     exts = [ ]
 

@@ -47,15 +47,14 @@ class StartupCmd(MacroCommand, ICommand):
     Initialize model and view layers, setup defaults.
     """
     def initializeMacroCommand(self):
-        self.addSubCommand(InitModelCmd)
+        load_preferences('config.xml')
         self.addSubCommand(InitViewCmd)
+        self.addSubCommand(InitModelCmd)
 
 class InitModelCmd(SimpleCommand, ICommand):
     def execute(self, note):
-        load_preferences('config.xml')
-
         # Load the default document
-        docpath = prefs.get('default-document', "toto")
+        docpath = prefs.get('default-document')
         if docpath is None:
             vo = model.vo.EmptyDocumentConfigVO()
         else:
@@ -110,7 +109,7 @@ class NewDocumentCmd(SimpleCommand, ICommand):
                     x += 1
 
             vo.name = name
-            docproxy = model.DocumentProxy(vo)
+            docproxy = model.DocumentProxy.new_proxy(vo)
         else:
             # FileDocumentConfigVO
             # Search first if document isn't created yet,
@@ -123,8 +122,8 @@ class NewDocumentCmd(SimpleCommand, ICommand):
                 # untouched), it's going to be used as container for the
                 # wanted document. Otherwise a new docproxy is created.
                 docproxy = model.DocumentProxy.get_active()
-                if not docproxy.document.is_safe:
-                    docproxy = model.DocumentProxy(vo)
+                if not docproxy or not docproxy.document.close_safe:
+                    docproxy = model.DocumentProxy.new_proxy(vo)
 
                 docproxy.load(vo.name)
 

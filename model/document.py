@@ -445,8 +445,12 @@ class Document(list):
         #return pngbuf.getvalue()
         
         return _savers.save_pixbuf_as_png_buffer(pixelbuf);
-        
+
     ### Properties ###
+
+    @property
+    def close_safe(self):
+        return self.empty or not self.modified
 
     @property
     def empty(self):
@@ -465,6 +469,6 @@ class Document(list):
     @property
     def modified(self):
         return self._dirty or any(layer.modified for layer in self)
-        
+
     active = property(fget=get_active, fset=set_active)
     fill = property(fget=get_fill, fset=set_fill)

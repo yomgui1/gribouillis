@@ -438,7 +438,7 @@ class Splash(pymui.Window):
         bt.Notify('Pressed', lambda *a: pymui.GetApp().about.OpenWindow(), when=False)
         bottom_bar.AddChild(pymui.HGroup(Child=(pymui.HSpace(0), bt)))
         
-        all_logos = glob.glob('PROGDIR:data/internal/app_intro*.png')
+        all_logos = glob.glob('data/internal/app_intro*.png')
         logo = pymui.Dtpic(random.choice(all_logos))
         
         root.AddChild(top_bar)

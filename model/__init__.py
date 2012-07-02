@@ -85,7 +85,7 @@ class DocumentProxy(puremvc.patterns.proxy.Proxy):
             DocumentProxy.__active = None
 
     #### Public API ####
-    
+
     @classmethod
     def from_doc_name(cls, name):
         return cls.__instances.get(name)
@@ -140,7 +140,7 @@ class DocumentProxy(puremvc.patterns.proxy.Proxy):
 
     def get_name(self):
         return self.__doc.name
-        
+
     def set_name(self, name):
         doc = self.__doc
         if name == doc.name:
@@ -157,7 +157,7 @@ class DocumentProxy(puremvc.patterns.proxy.Proxy):
     def set_background(self, value):
         self.__doc.fill = value
         self.sendNotification(main.Gribouillis.DOC_DIRTY, self)
-        
+
     def set_metadata(self, **kwds):
         change = False
         for k in kwds:
@@ -166,7 +166,7 @@ class DocumentProxy(puremvc.patterns.proxy.Proxy):
                 change = True
         if change:
             self.sendNotification(main.Gribouillis.DOC_UPDATED, self)
-    
+
     #### Brush handling ####
 
     def set_brush(self, brush):
@@ -184,7 +184,7 @@ class DocumentProxy(puremvc.patterns.proxy.Proxy):
 
     def get_brush_color_hsv(self):
         return self.__doc.brush.hsv
-            
+
     def set_brush_color_hsv(self, *hsv):
         brush = self.__doc.brush
         if brush.hsv != hsv:
@@ -206,7 +206,7 @@ class DocumentProxy(puremvc.patterns.proxy.Proxy):
         if brush.radius_min != r:
             brush.radius_min = r
             self.sendNotification(main.Gribouillis.BRUSH_PROP_CHANGED, (brush, 'radius_min'))
-            
+
     def add_brush_radius(self, dr):
         brush = self.__brush
         r = min(max(0.5, max(brush.radius_min, brush.radius_max)+dr), 150)
@@ -216,14 +216,14 @@ class DocumentProxy(puremvc.patterns.proxy.Proxy):
         if brush.radius_min != r:
             brush.radius_min = r
             self.sendNotification(main.Gribouillis.BRUSH_PROP_CHANGED, (brush, 'radius_min'))
-            
+
     def set_brush_radius_max(self, r):
         brush = self.__brush
         r = min(max(r, 0.5), 150)
         if brush.radius_max != r:
             brush.radius_max = r
             self.sendNotification(main.Gribouillis.BRUSH_PROP_CHANGED, (brush, 'radius_max'))
-            
+
     def add_brush_radius_max(self, dr):
         brush = self.__brush
         r = min(max(0.5, brush.radius_max+dr), 150)
@@ -237,7 +237,7 @@ class DocumentProxy(puremvc.patterns.proxy.Proxy):
         if brush.radius_min != r:
             brush.radius_min = r
             self.sendNotification(main.Gribouillis.BRUSH_PROP_CHANGED, (brush, 'radius_min'))
-            
+
     def add_brush_radius_min(self, dr):
         brush = self.__brush
         r = min(max(0.5, brush.radius_min+dr), 150)
@@ -248,23 +248,23 @@ class DocumentProxy(puremvc.patterns.proxy.Proxy):
     def add_color(self, *factors):
         hsv = [ c+f for c, f in zip(self.get_brush_color_hsv(), factors) ]
         self.set_brush_color_hsv(*hsv)
-        
+
     def multiply_color(self, *factors):
         hsv = [ c*f for c, f in zip(self.get_brush_color_hsv(), factors) ]
         self.set_brush_color_hsv(*hsv)
-        
+
     #### Painting ####
-    
+
     def draw_start(self, device):
         doc = self.__doc
         layer = doc.active
-        
+
         if layer.locked:
             # Do not record if surface is locked
             self.record = utils.idle_cb
             self._layer = None
             return
-        
+
         self.record = self._record
         surface = layer.surface
         self._dev = device
@@ -316,7 +316,7 @@ class DocumentProxy(puremvc.patterns.proxy.Proxy):
         self.sendNotification(main.Gribouillis.DOC_LAYER_CLEAR,
                               LayerCommandVO(self, layer),
                               type=utils.RECORDABLE_COMMAND)
-                              
+
     def copy_layer(self, layer, pos=None):
         if pos is None:
             pos = self.__doc.get_layer_index(layer) + 1
@@ -346,15 +346,15 @@ class DocumentProxy(puremvc.patterns.proxy.Proxy):
     def record_layer_matrix(self, layer, old_mat):
         if not layer.empty:
             self.sendNotification(main.Gribouillis.DOC_LAYER_MATRIX, (self, layer, old_mat, cairo.Matrix(*layer.matrix)), type=utils.RECORDABLE_COMMAND)
-        
+
     def layer_translate(self, *delta):
         layer = self.__doc.active
         if layer.empty: return
         area = layer.area
         if not area: return
-        
+
         layer.translate(*delta)
-        
+
         # Refresh the old area + the new layer area
         area = utils.join_area(area, layer.area)
         self.sendNotification(main.Gribouillis.DOC_DIRTY, (self, area))
@@ -369,9 +369,9 @@ class DocumentProxy(puremvc.patterns.proxy.Proxy):
         matrix.translate(ox, oy)
         matrix.rotate(angle)
         matrix.translate(-ox, -oy)
-        
+
         layer.matrix = matrix
-        
+
         # Refresh the old area + the new layer area
         area = utils.join_area(area, layer.area)
         self.sendNotification(main.Gribouillis.DOC_DIRTY, (self, area))

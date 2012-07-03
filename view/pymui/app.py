@@ -51,7 +51,7 @@ defaults['pymui-window-open-at-startup'] = ['splash']
 prefs.update(defaults)
 
 BASE = "Gribouillis"
-COPYRIGHT = "\xa92009-2011, Guillaume ROGUEZ"
+COPYRIGHT = "\xa92009-2012, Guillaume Roguez"
 DESCRIPTION = "Painting program for MorphOS"
 
 about_msg = string.Template(_T("""\033b$base-3\033n
@@ -61,19 +61,26 @@ version $version.$build ($date)
 
 $copyright
 
-$base uses \033bPython2\033n, \033bPureMVC\033n, \033bLittleCMS\033n and \033bLayGroup.mcc\033n technologies.
+$base uses following technologies:
 
-\033bVisiBone2\033n palette from \033ihttp://www.visibone.com/swatches/\033n
-\033bHighlander icons and splash image by Christophe Delorme\033n
-\033bExtras icons, splash image and header text by Sébastien Poelz\033n
-\033bBoomy icons by Milosz Wlazlo\033n
+\033bPython2\033n
+\033bPureMVC\033n
+\033bLittleCMS 2\033n
+\033bLayGroup.mcc\033n
+
+\033c\033b~~~ Extras ~~~\033n\033l
+
+* \033bVisiBone2\033n palette from \033ihttp://www.visibone.com/swatches/\033n
+* \033bHighlander icons and splash image by Christophe Delorme\033n
+* \033bExtras icons, splash image and header text by Sébastien Poelz\033n
+* \033bBoomy icons by Milosz Wlazlo\033n
 
 \033c\033b~~~ Alpha testing, icons and design suggestions ~~~\033n\033l
 
     Christophe 'highlander' Delorme
     Sébastien Poelzl
-    Neal ROGUEZ (my son, 4 years old, the first tester!)
-    
+    Neal Roguez (my son, 4 years old, the first tester!)
+
 \033c\033b~~~ Thanks to ~~~\033n\033l
 
     My familly for its patience.
@@ -373,16 +380,19 @@ class Splash(pymui.Window):
                                      CloseGadget=False,
                                      SizeGadget=False,
                                      DepthGadget=False,
+                                     Opacity=230,
                                      Position=('centered', 'centered'))
         self.name = name
         
         # Special root group with window auto-close on any events
-        root = MyRoot(Frame='Group',
+        root = MyRoot(Frame='None',
                       Background='2:00000000,00000000,00000000',
                       InnerSpacing=(0,)*4)
         self.RootObject = root
         
-        top_bar = pymui.HGroup(Frame='None', Background='5:PROGDIR:data/internal/splash_header.png')
+        top_bar = pymui.HGroup(
+            Frame='None',
+            Background='5:PROGDIR:data/internal/splash_header.png')
         self.bottom_bar = bottom_bar = pymui.VGroup(Frame='None', InnerBottom=6)
         
         top_bar.AddChild(pymui.Dtpic('PROGDIR:data/internal/app_logo.png', InnerLeft=6, InnerRight=6))
@@ -438,8 +448,8 @@ class Splash(pymui.Window):
         bt.Notify('Pressed', lambda *a: pymui.GetApp().about.OpenWindow(), when=False)
         bottom_bar.AddChild(pymui.HGroup(Child=(pymui.HSpace(0), bt)))
         
-        all_logos = glob.glob('data/internal/app_intro*.png')
-        logo = pymui.Dtpic(random.choice(all_logos))
+        all_logos = glob.glob('PROGDIR:data/internal/app_intro*.png')
+        logo = pymui.Dtpic(random.choice(all_logos), Frame="Group")
         
         root.AddChild(top_bar)
         root.AddChild(logo)

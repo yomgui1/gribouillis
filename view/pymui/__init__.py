@@ -31,6 +31,8 @@ import main
 import model
 import utils
 
+from utils import _T
+
 from app import Application
 from docviewer import DocWindow
 from brusheditor import BrushEditorWindow
@@ -45,27 +47,20 @@ IECODE_LBUTTON = 0x68
 import commands
 del commands
 
-class DialogMediator(utils.Mediator):
-    NAME = 'DialogMediator'
-
+class GenericMediator(utils.Mediator):
     def show_dialog(self, title, msg):
         pymui.DoRequest(app=self.viewComponent, title=title, format=msg, gadgets='*_Ok')
+        
+    def show_error_dialog(self, msg):
+        self.show_dialog(_T('Error'), msg)
 
-    #### notification handlers ####
+    def show_warning_dialog(self, msg):
+        self.show_dialog(_T('Warning'), msg)
 
-    @utils.mvcHandler(main.Gribouillis.SHOW_ERROR_DIALOG)
-    def on_show_error(self, msg):
-        self.show_dialog('', msg)
+    def show_info_dialog(self, msg):
+        self.show_dialog(_T('Info'), msg)
 
-    @utils.mvcHandler(main.Gribouillis.SHOW_WARNING_DIALOG)
-    def on_show_warning(self, msg):
-        self.show_dialog('', msg)
-
-    @utils.mvcHandler(main.Gribouillis.SHOW_INFO_DIALOG)
-    def on_show_info(self, msg):
-        self.show_dialog('', msg)
-
-class ApplicationMediator(utils.Mediator):
+class ApplicationMediator(GenericMediator):
     """Application Mediator class.
 
     Responsible to receive and handle all notifications at Application level, like:
@@ -119,8 +114,6 @@ class ApplicationMediator(utils.Mediator):
             item.Notify('Pressed', self._on_last_sel, when=False, filename=item.path)
 
     def onRegister(self):
-        self.facade.registerMediator(DialogMediator(self.viewComponent))
-
         self.viewport_mediator = DocViewPortMediator(self.viewComponent)
         self.facade.registerMediator(self.viewport_mediator)
 
@@ -276,9 +269,12 @@ class ApplicationMediator(utils.Mediator):
         filename = self.viewComponent.get_document_filename(parent=win, read=False)
         if filename:
             vo = model.vo.FileDocumentConfigVO(filename)
-            self.sendNotification(main.Gribouillis.NEW_DOCUMENT, vo)
+            try:
+                self.sendNotification(main.Gribouillis.NEW_DOCUMENT, vo)
+            except IOError:
+                self.show_error_dialog(_T("Can't open file:\n%s" % filename))
 
-class DocumentMediator(utils.Mediator):
+class DocumentMediator(GenericMediator):
     NAME = "DocumentMediator"
 
     viewport_mediator = None
@@ -305,7 +301,7 @@ class DocumentMediator(utils.Mediator):
         self.sendNotification(main.Gribouillis.DOC_DELETE, win.docproxy)
 
     def _on_win_activated(self, evt):
-        self.sendNotification(main.Gribouillis.DOC_ACTIVATE, evt.Source.docproxy)
+        evt.Source.docproxy.activate()
 
     ### notification handlers ###
 
@@ -370,7 +366,7 @@ class DocumentMediator(utils.Mediator):
         docproxy = docproxy or model.DocumentProxy.get_active()
 
         if docproxy.document.empty:
-            self.sendNotification(main.Gribouillis.SHOW_ERROR_DIALOG, utils._T("Empty document!") % filename)
+            self.sendNotification(main.Gribouillis.SHOW_ERROR_DIALOG, _T("Empty document!") % filename)
             return
 
         win = self.get_win(docproxy)
@@ -402,7 +398,7 @@ class DocumentMediator(utils.Mediator):
         map(self.viewport_mediator.remove_viewport, component.disp_areas)
         if len(self.__docmap):
             docproxy = self.__docmap.keys()[-1]
-            self.sendNotification(main.Gribouillis.DOC_ACTIVATE, docproxy)
+            docproxy.activate()
         return component
 
     def load_background(self):
@@ -438,7 +434,7 @@ class DocumentMediator(utils.Mediator):
     def proxies(self):
         return self.__docmap.iterkeys()
 
-class LayerMgrMediator(utils.Mediator):
+class LayerMgrMediator(GenericMediator):
     NAME = "LayerMgrMediator"
 
     app_mediator = None
@@ -642,7 +638,7 @@ class LayerMgrMediator(utils.Mediator):
             layer.locked = layer not in layers
             self.viewComponent.update_layer(layer)
 
-class BrushEditorWindowMediator(utils.Mediator):
+class BrushEditorWindowMediator(GenericMediator):
     NAME = "BrushEditorWindowMediator"
 
     docproxy = None
@@ -679,7 +675,7 @@ class BrushEditorWindowMediator(utils.Mediator):
         if self.viewComponent.brush is not brush: return
         self.viewComponent.brush_changed_prop(name, getattr(brush, name))
 
-class CommandsHistoryListMediator(utils.Mediator):
+class CommandsHistoryListMediator(GenericMediator):
     NAME = "CommandsHistoryListMediator"
 
     #### Private API ####
@@ -735,7 +731,7 @@ class CommandsHistoryListMediator(utils.Mediator):
         if hp is self.__cur_hp:
             self.viewComponent.redo(cmd)
 
-class ColorHarmoniesWindowMediator(utils.Mediator):
+class ColorHarmoniesWindowMediator(GenericMediator):
     NAME = "ColorHarmoniesWindowMediator"
 
     #### Private API ####
@@ -801,7 +797,7 @@ class ColorHarmoniesWindowMediator(utils.Mediator):
 
     ### notification handlers ###
 
-    @utils.mvcHandler(main.Gribouillis.DOC_ACTIVATE)
+    @utils.mvcHandler(main.Gribouillis.DOC_ACTIVATED)
     def _on_activate_document(self, docproxy):
         self.__brush = docproxy.document.brush
         self.viewComponent.hsv = self.__brush.hsv
@@ -811,7 +807,7 @@ class ColorHarmoniesWindowMediator(utils.Mediator):
         if self.__brush is brush and name == 'color':
             self.viewComponent.hsv = brush.hsv
 
-class BrushHouseWindowMediator(utils.Mediator):
+class BrushHouseWindowMediator(GenericMediator):
     NAME = "BrushHouseWindowMediator"
 
     #### Private API ####
@@ -855,7 +851,7 @@ class BrushHouseWindowMediator(utils.Mediator):
         if name == 'name':
             self.viewComponent.refresh_active()
 
-class DocViewPortMediator(utils.Mediator):
+class DocViewPortMediator(GenericMediator):
     NAME = "DocViewPortMediator"
 
     active = None # Viewport components set this value to themself at focus
@@ -976,7 +972,7 @@ class DocViewPortMediator(utils.Mediator):
             for vp in self.__vpmap[docproxy]:
                 vp.repaint(vp.get_view_area(*area))
 
-class DocInfoMediator(utils.Mediator):
+class DocInfoMediator(GenericMediator):
     NAME = "DocInfoMediator"
 
     def __init__(self, component):

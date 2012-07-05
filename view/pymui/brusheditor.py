@@ -74,7 +74,7 @@ class BrushPreview(pymui.Area):
         self._brush.rgb = (0,0,0)
         self._states = list(self._brush.gen_preview_states(BrushPreview.WIDTH,
                                                            BrushPreview.HEIGHT))
-        self.Background = "5:" + utils.resolve_path(main.Gribouillis.TRANSPARENT_BACKGROUND)
+        self.Background = "5:" + utils.resolve_path(main.TRANSPARENT_BACKGROUND)
                 
     def stroke(self, v=1.0):
         buf = self._brush.paint_rgb_preview(BrushPreview.WIDTH, BrushPreview.HEIGHT,
@@ -251,7 +251,7 @@ class BrushEditorWindow(pymui.Window):
 
             # FIXME: this call should be in a mediator or proxy, not in the component itself!
             self._lock = True
-            self.mediator.sendNotification(main.Gribouillis.BRUSH_PROP_CHANGED, (self._brush, name))
+            self.mediator.sendNotification(main.BRUSH_PROP_CHANGED, (self._brush, name))
             self._lock = False
 
     def brush_changed_prop(self, name, value):

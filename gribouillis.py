@@ -49,5 +49,5 @@ if __name__ == '__main__':
     app = view.app = view.Application()
 
     gribouillis = main.Gribouillis(os.getcwd())
-    gribouillis.sendNotification(main.Gribouillis.STARTUP, app)
+    gribouillis.sendNotification(main.STARTUP, app)
     app.run()

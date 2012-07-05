@@ -347,11 +347,11 @@ class DocumentCtx(Context):
         
     @action(_T('undo'))
     def undo(self, event):
-        self.docproxy.sendNotification(main.Gribouillis.UNDO)
+        self.docproxy.sendNotification(main.UNDO)
         
     @action(_T('redo'))
     def redo(self, event):
-        self.docproxy.sendNotification(main.Gribouillis.REDO)
+        self.docproxy.sendNotification(main.REDO)
     
     @action(_T('lighten brush color of 10%'))
     def color_lighten(self, event):
@@ -512,7 +512,7 @@ class ViewPortCtx(Context):
         # Rulers don't work correctly with a view rotation.
         if self.window.rulers:
             if self._rot_ruler_warn:
-                self.docproxy.sendNotification(main.Gribouillis.SHOW_WARNING_DIALOG,
+                self.docproxy.sendNotification(main.SHOW_WARNING_DIALOG,
                                                "View rotation is not possible when rulers are active.\n"
                                                "The next try will automatically remove them.")
                 self._rot_ruler_warn = False

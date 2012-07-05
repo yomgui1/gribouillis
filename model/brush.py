@@ -40,6 +40,7 @@ from surface import BoundedPlainSurface
 
 __all__ = ['Brush', 'DrawableBrush']
 
+
 class Brush(object):
     """Brush base class"""
 
@@ -50,38 +51,41 @@ class Brush(object):
     PROPERTIES += 'color_shift_h color_shift_v color_shift_s alpha_lock'.split()
     PROPERTIES += 'icon'.split()
 
+    RADIUS_MIN = 0.5
+    RADIUS_MAX = 150.
+
     # default values = pen
-    radius_min          = 1.0
-    radius_max          = 1.5
-    yratio              = 1.0
-    angle               = 0.0
-    erase               = 1.0
-    grain               = 0.0
-    spacing             = 0.25
-    opacity_min         = 0.15
-    opacity_max         = 1.0
-    hardness            = 0.28
-    opa_comp            = 1.2
-    motion_track        = 0.5
-    hi_speed_track      = 0.0
-    smudge              = 0.0
-    smudge_var          = 0.0
-    color_shift_h       = 0.0
-    color_shift_v       = 0.0
-    color_shift_s       = 0.0
-    dab_radius_jitter   = 0.0
-    dab_pos_jitter      = 0.0
-    direction_jitter    = 0.0
-    alpha_lock          = 0.0
-    icon                = None
-    page                = None
-    icon_preview        = None # runtime usage only, not saved
+    radius_min = 1.0
+    radius_max = 1.5
+    yratio = 1.0
+    angle = 0.0
+    erase = 1.0
+    grain = 0.0
+    spacing = 0.25
+    opacity_min = 0.15
+    opacity_max = 1.0
+    hardness = 0.28
+    opa_comp = 1.2
+    motion_track = 0.5
+    hi_speed_track = 0.0
+    smudge = 0.0
+    smudge_var = 0.0
+    color_shift_h = 0.0
+    color_shift_v = 0.0
+    color_shift_s = 0.0
+    dab_radius_jitter = 0.0
+    dab_pos_jitter = 0.0
+    direction_jitter = 0.0
+    alpha_lock = 0.0
+    icon = None
+    page = None
+    icon_preview = None  # runtime usage only, not saved
 
     def __init__(self, name='brush', icon=None, **kwds):
         self.name = name
         self.icon = icon
         self.__dict__.update(kwds)
-        self._erase = 0 # temp save of erase
+        self._erase = 0  # temp save of erase
 
     @staticmethod
     def save_brushes(brushes):
@@ -92,8 +96,10 @@ class Brush(object):
                 for brush in brushes:
                     file.write("[brush]\n")
                     for prop in Brush.PROPERTIES + ['name', 'page']:
-                        if prop == 'icon' and not brush.icon: continue
-                        if prop == 'page' and not brush.page: continue
+                        if prop == 'icon' and not brush.icon:
+                            continue
+                        if prop == 'page' and not brush.page:
+                            continue
                         file.write("%s = %s\n" % (prop, getattr(brush, prop)))
                     file.write("\n")
         except Exception, e:
@@ -125,7 +131,7 @@ class Brush(object):
                             value = value.strip()
                             if attr != 'icon' and attr in Brush.PROPERTIES:
                                 value = float(value)
-                            else: # compatibility support
+                            else:  # compatibility support
                                 if ver <= 1.0:
                                     if attr == 'radius':
                                         value = float(value)
@@ -141,7 +147,7 @@ class Brush(object):
                                 if ver <= 2.4:
                                     if attr.startswith('smudge_add_'):
                                         continue
-                                    
+
                             setattr(brush, attr, value)
             except Exception, e:
                 print "[DBG] error during brushes loading:", e
@@ -158,19 +164,20 @@ class Brush(object):
 
     def swap_erase(self):
         self.erase = 1 - self.erase
-        
+
     def set_erase(self, value=1.0):
         self.erase = value
-        
+
     def set_from_brush(self, brush):
         self.name = brush.name
         for name in Brush.PROPERTIES:
             setattr(self, name, getattr(brush, name))
-        
+
+
 class DrawableBrush(_brush.Brush, Brush):
     """Brush class used by documents"""
 
-    tool = None # current tool used
+    tool = None  # current tool used
 
     def start(self, surface, state):
         "Called at to start a new drawing path on given surface using given input device"
@@ -182,7 +189,7 @@ class DrawableBrush(_brush.Brush, Brush):
     def stop(self):
         "Finish the path"
         return self.stroke_end()
-        
+
     def flush_area(self):
         "Get the modified area and reset it"
         pass
@@ -194,26 +201,31 @@ class DrawableBrush(_brush.Brush, Brush):
     def gen_preview_states(self, width, height):
         assert width >= 32
         assert height >= 16
-        
+
         y = height / 2
         r = height / 4
         size = width - 20
-        
-        for x in xrange(10, width-10):
+
+        for x in xrange(10, width - 10):
             state = DeviceState()
-            state.time = t = float(x-10)/size
-            state.pressure = 1.0 - (2*t-1)**2
-            state.vpos = (x, y + int(r*sin(2*t*pi)))
+            state.time = t = float(x - 10) / size
+            state.pressure = 1.0 - (2 * t - 1) ** 2
+            state.vpos = (x, y + int(r * sin(2 * t * pi)))
             state.xtilt = 1.0
             state.ytilt = 0.0
             state.angle = 0.0
             state.spos = state.vpos
             yield state
-            
-    def paint_rgb_preview(self, width, height, surface=None, states=None, fmt=_pixbuf.FORMAT_ARGB8_NOA):
+
+    def paint_rgb_preview(self,
+                          width,
+                          height,
+                          surface=None,
+                          states=None,
+                          fmt=_pixbuf.FORMAT_ARGB8_NOA):
         if surface is None:
             surface = BoundedPlainSurface(fmt, width, height)
-            
+
         if states is None:
             states = list(self.gen_preview_states(width, height))
 
@@ -223,5 +235,5 @@ class DrawableBrush(_brush.Brush, Brush):
         for state in states:
             self.draw_stroke(state)
         self.stroke_end()
-        
+
         return surface.get_rawbuf()

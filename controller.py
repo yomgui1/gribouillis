@@ -63,7 +63,7 @@ class InitModelCmd(SimpleCommand, ICommand):
             vo = model.vo.EmptyDocumentConfigVO()
         else:
             vo = model.vo.FileDocumentConfigVO(docpath)
-        self.sendNotification(main.Gribouillis.NEW_DOCUMENT, vo)
+        self.sendNotification(main.NEW_DOCUMENT, vo)
 
 
 class InitViewCmd(SimpleCommand, ICommand):
@@ -138,7 +138,7 @@ class NewDocumentCmd(SimpleCommand, ICommand):
 
                 docproxy.load(vo.name)
 
-        self.sendNotification('doc-activate', docproxy)
+        self.sendNotification(main.DOC_ACTIVATE, docproxy)
 
 
 class DeleteDocumentCmd(SimpleCommand, ICommand):
@@ -160,7 +160,7 @@ class SaveDocumentCmd(SimpleCommand, ICommand):
     def execute(self, note):
         docproxy, filename = note.getBody()
         if docproxy.document.empty:
-            self.sendNotification(main.Gribouillis.SHOW_ERROR_DIALOG,
+            self.sendNotification(main.SHOW_ERROR_DIALOG,
                                   _T("Failed to save document as %s.\nReason: Empty document") % filename)
             return
 
@@ -169,23 +169,23 @@ class SaveDocumentCmd(SimpleCommand, ICommand):
             docproxy.docname = filename
 
         except Exception, e:
-            self.sendNotification(main.Gribouillis.SHOW_ERROR_DIALOG,
+            self.sendNotification(main.SHOW_ERROR_DIALOG,
                                   _T("Failed to save document as %s.\nReason: %s") % (filename, e))
 
         else:
-            self.sendNotification(main.Gribouillis.DOC_SAVE_RESULT, (docproxy, True))
+            self.sendNotification(main.DOC_SAVE_RESULT, (docproxy, True))
 
 
 class ActivateDocumentCmd(SimpleCommand, ICommand):
     def execute(self, note):
         docproxy = note.getBody()
-        self.active = docproxy
+        docproxy.active = docproxy
 
         # activate the commands history proxy of the document
         hp = self.facade.retrieveProxy('HP_' + docproxy.getProxyName())
         hp.activate()
 
-        self.sendNotification('doc-activated', self)
+        self.sendNotification(main.DOC_ACTIVATED, self)
 
 
 class RenameLayerCmd(UndoableCommand):
@@ -203,7 +203,7 @@ class RenameLayerCmd(UndoableCommand):
         old_name = vo.layer.name
         vo.layer.name = vo.name
         vo.name = old_name
-        self.sendNotification(main.Gribouillis.DOC_LAYER_RENAMED, (vo.docproxy, vo.layer))
+        self.sendNotification(main.DOC_LAYER_RENAMED, (vo.docproxy, vo.layer))
 
     def getCommandName(self):
         return self.__name
@@ -215,7 +215,7 @@ class SetLayerVisibilityCmd(SimpleCommand, ICommand):
         vo.layer.visible = vo.state
 
         # Using DOC_LAYER_UPDATED than DOC_DIRTY as a layer property is modified
-        self.sendNotification(main.Gribouillis.DOC_LAYER_UPDATED, (vo.docproxy, vo.layer))
+        self.sendNotification(main.DOC_LAYER_UPDATED, (vo.docproxy, vo.layer))
 
 
 class SetLayerOpacityCmd(SimpleCommand, ICommand):
@@ -224,7 +224,7 @@ class SetLayerOpacityCmd(SimpleCommand, ICommand):
         vo.layer.opacity = vo.state
 
         # Using DOC_LAYER_UPDATED than DOC_DIRTY as a layer property is modified, not only the contents
-        self.sendNotification(main.Gribouillis.DOC_LAYER_UPDATED, (vo.docproxy, vo.layer))
+        self.sendNotification(main.DOC_LAYER_UPDATED, (vo.docproxy, vo.layer))
 
 
 class AddLayerCmd(UndoableCommand):
@@ -250,7 +250,7 @@ class AddLayerCmd(UndoableCommand):
             # Create layer and save it in the value object for undo/redo
             vo.layer = docproxy.new_layer(vo)
 
-        self.sendNotification(main.Gribouillis.DOC_LAYER_ACTIVATED, (docproxy, docproxy.active_layer))
+        self.sendNotification(main.DOC_LAYER_ACTIVATED, (docproxy, docproxy.active_layer))
 
     def getCommandName(self):
         return self.__name
@@ -304,7 +304,7 @@ class ActivateLayerCmd(SimpleCommand, ICommand):
     def execute(self, note):
         docproxy, layer = note.getBody()
         docproxy.document.active = layer
-        self.sendNotification(main.Gribouillis.DOC_LAYER_ACTIVATED, note.getBody())
+        self.sendNotification(main.DOC_LAYER_ACTIVATED, note.getBody())
 
 
 class LayerStackChangeCmd(UndoableCommand):
@@ -368,7 +368,7 @@ class ClearLayerCmd(UndoableCommand):
         vo.snapshot = vo.layer.surface.snapshot()
         vo.dirty_area = vo.layer.area
         vo.layer.clear()
-        self.sendNotification(main.Gribouillis.DOC_DIRTY, (vo.docproxy, vo.dirty_area))
+        self.sendNotification(main.DOC_DIRTY, (vo.docproxy, vo.dirty_area))
 
     def getCommandName(self):
         return self.__name
@@ -398,7 +398,7 @@ class RecordStrokeCmd(UndoableCommand):
             vo.stroke = None
         else:
             layer.unsnapshot(vo.snapshot, True)
-            self.sendNotification(main.Gribouillis.DOC_DIRTY, (vo.docproxy, vo.dirty_area))
+            self.sendNotification(main.DOC_DIRTY, (vo.docproxy, vo.dirty_area))
 
         # Update the last color used also
         LastColorModal.push_color(vo.docproxy.get_brush_color_rgb())
@@ -437,7 +437,7 @@ class LoadImageAsLayerCmd(UndoableCommand):
             # Load the image
             data = model.Document.load_image(vo.filename)
             if data is None:
-                self.sendNotification(main.Gribouillis.SHOW_ERROR_DIALOG,
+                self.sendNotification(main.SHOW_ERROR_DIALOG,
                                       "Loading image %s failed" % vo.filename)
                 return
 
@@ -449,7 +449,7 @@ class LoadImageAsLayerCmd(UndoableCommand):
             # get the position to be sure
             vo.pos = docproxy.document.get_layer_index(layer)
 
-        self.sendNotification(main.Gribouillis.DOC_DIRTY, (docproxy, layer.area))
+        self.sendNotification(main.DOC_DIRTY, (docproxy, layer.area))
 
     def getCommandName(self):
         return self.__name
@@ -471,7 +471,7 @@ class SetLayerMatrixCmd(UndoableCommand):
         note.setBody((docproxy, layer, new_mat, old_mat))  # inverse matrixes for undo/redo
 
         area = utils.join_area(old_area, new_area)
-        self.sendNotification(main.Gribouillis.DOC_DIRTY, (docproxy, area))
+        self.sendNotification(main.DOC_DIRTY, (docproxy, area))
 
     def getCommandName(self):
         return self.__name
@@ -492,4 +492,4 @@ class _UnsnapshotLayerContentCmd(SimpleCommand, ICommand):
     def execute(self, note):
         vo = note.getBody()
         vo.layer.unsnapshot(vo.snapshot)
-        self.sendNotification(main.Gribouillis.DOC_DIRTY, (vo.docproxy, vo.dirty_area))
+        self.sendNotification(main.DOC_DIRTY, (vo.docproxy, vo.dirty_area))

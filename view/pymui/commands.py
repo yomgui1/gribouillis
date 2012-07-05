@@ -88,11 +88,11 @@ def cmd_cleanup_workspace(appctx):
 
 @command(_T('undo'))
 def cmd_undo(appctx):
-    appctx.app.mediator.sendNotification(main.Gribouillis.UNDO)
+    appctx.app.mediator.sendNotification(main.UNDO)
     
 @command(_T('redo'))
 def cmd_redo(appctx):
-    appctx.app.mediator.sendNotification(main.Gribouillis.REDO)
+    appctx.app.mediator.sendNotification(main.REDO)
     
 @command(_T('new document'))
 def cmd_new_doc(appctx):

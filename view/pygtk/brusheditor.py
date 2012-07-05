@@ -62,7 +62,7 @@ class BrushPreview(gtk.DrawingArea, SimpleViewPort):
                                             BrushPreview.WIDTH, BrushPreview.HEIGHT)
         layer = Layer(self._surface, "BrushPreviewLayer")
         self._layers = ( layer, )
-        self.set_background(main.Gribouillis.TRANSPARENT_BACKGROUND)
+        self.set_background(main.TRANSPARENT_BACKGROUND)
 
         self.set_size_request(BrushPreview.WIDTH, BrushPreview.HEIGHT)
         self.set_events(gdk.EXPOSURE_MASK)
@@ -177,7 +177,7 @@ class BrushEditorWindow(SubWindow):
             self.bprev.set_attr(name, v)
 
             # FIXME: this call should be in a mediator or proxy, not in the component itself!
-            self.mediator.sendNotification(main.Gribouillis.BRUSH_PROP_CHANGED, (self._brush, name))
+            self.mediator.sendNotification(main.BRUSH_PROP_CHANGED, (self._brush, name))
 
     def set_property(self, name, value):
         if name in ('color', ): return

@@ -97,22 +97,22 @@ class ApplicationMediator(GenericMediator):
 
     ### notification handlers ###
 
-    @mvcHandler(main.Gribouillis.NEW_DOCUMENT_RESULT)
+    @mvcHandler(main.NEW_DOCUMENT_RESULT)
     def _on_new_document_result(self, docproxy):
         if not docproxy:
-            self.sendNotification(main.Gribouillis.SHOW_ERROR_DIALOG,
+            self.sendNotification(main.SHOW_ERROR_DIALOG,
                                   "Failed to create document.")
             return
         print docproxy
         self.new_doc(docproxy)
 
-    @mvcHandler(main.Gribouillis.DOC_ACTIVATED)
+    @mvcHandler(main.DOC_ACTIVATED)
     def _on_activate_document(self, docproxy):
         return
         if not self.document_mediator.has_doc(docproxy):
             self.new_doc(docproxy)
 
-    @mvcHandler(main.Gribouillis.QUIT)
+    @mvcHandler(main.QUIT)
     def _on_quit(self, note):
         # TODO: check for modified documents
         self.viewComponent.quit()
@@ -152,12 +152,12 @@ class BrushEditorWindowMediator(GenericMediator):
 
     ### notification handlers ###
 
-    @mvcHandler(main.Gribouillis.DOC_ACTIVATED)
+    @mvcHandler(main.DOC_ACTIVATED)
     def _on_activate_document(self, docproxy):
         if docproxy.brush:
             self._set_docproxy(docproxy)
 
-    @mvcHandler(main.Gribouillis.DOC_BRUSH_UPDATED)
+    @mvcHandler(main.DOC_BRUSH_UPDATED)
     def _on_activate_document(self, docproxy):
         self._set_docproxy(docproxy)
 
@@ -179,7 +179,7 @@ class BrushHouseWindowMediator(GenericMediator):
 
     ### notification handlers ###
 
-    @mvcHandler(main.Gribouillis.DOC_ACTIVATED)
+    @mvcHandler(main.DOC_ACTIVATED)
     def _on_activate_document(self, docproxy):
         # keep silent if no change
         if docproxy is self._docproxy: return
@@ -193,12 +193,12 @@ class BrushHouseWindowMediator(GenericMediator):
             # change current active brush by the docproxy one
             self.viewComponent.active_brush = docproxy.brush
 
-    @mvcHandler(main.Gribouillis.DOC_DELETE)
+    @mvcHandler(main.DOC_DELETE)
     def _on_delete_document(self, docproxy):
         if docproxy is self._docproxy:
             self._docproxy = None
 
-    @mvcHandler(main.Gribouillis.BRUSH_PROP_CHANGED)
+    @mvcHandler(main.BRUSH_PROP_CHANGED)
     def _on_brush_prop_changed(self, brush, name):
         if name is 'color': return
         setattr(self._docproxy.brush, name, getattr(brush, name))
@@ -223,17 +223,17 @@ class CommandsHistoryListMediator(GenericMediator):
     #### Protected API ####
 
     def _on_undo(self, *a):
-        self.sendNotification(main.Gribouillis.UNDO)
+        self.sendNotification(main.UNDO)
 
     def _on_redo(self, *a):
-        self.sendNotification(main.Gribouillis.REDO)
+        self.sendNotification(main.REDO)
 
     def _on_flush(self, *a):
-        self.sendNotification(main.Gribouillis.FLUSH)
+        self.sendNotification(main.FLUSH)
 
     ### notification handlers ###
 
-    @mvcHandler(main.Gribouillis.DOC_ACTIVATED)
+    @mvcHandler(main.DOC_ACTIVATED)
     def _on_doc_activated(self, docproxy):
         self.viewComponent.set_doc_name(docproxy.docname)
         self.__cur_hp = utils.CommandsHistoryProxy.get_active()
@@ -276,7 +276,7 @@ class ColorWindowMediator(GenericMediator):
 
     ### notification handlers ###
 
-    @mvcHandler(main.Gribouillis.DOC_ACTIVATED)
+    @mvcHandler(main.DOC_ACTIVATED)
     def _on_activate_document(self, docproxy):
         brush = docproxy.document.brush
         self.viewComponent.set_color_rgb(brush.rgb)
@@ -308,27 +308,27 @@ class DocumentMediator(GenericMediator):
     def _safe_close_viewer(self, win):
         #if not win.docproxy.document.empty and not win.confirm_close():
         #    return
-        self.sendNotification(main.Gribouillis.DOC_DELETE, win.docproxy)
+        self.sendNotification(main.DOC_DELETE, win.docproxy)
 
     ### UI events handlers ###
 
     def _on_focus_in_event(self, win, evt):
         self.__focused = win
-        self.sendNotification(main.Gribouillis.DOC_ACTIVATE, win.docproxy)
+        self.sendNotification(main.DOC_ACTIVATE, win.docproxy)
 
     def _on_delete_event(self, win, evt):
-        self.sendNotification(main.Gribouillis.DOC_DELETE, win.docproxy)
+        self.sendNotification(main.DOC_DELETE, win.docproxy)
 
     def _on_menu_close_doc(self, win):
-        self.sendNotification(main.Gribouillis.DOC_DELETE, win.docproxy)
+        self.sendNotification(main.DOC_DELETE, win.docproxy)
 
     def _on_menu_quit(self, win):
-        self.sendNotification(main.Gribouillis.QUIT)
+        self.sendNotification(main.QUIT)
 
     def _on_menu_new_doc(self, win):
         vo = model.vo.EmptyDocumentConfigVO('New document')
         if self.viewComponent.get_new_document_type(vo, parent=win):
-            self.sendNotification(main.Gribouillis.NEW_DOCUMENT, vo)
+            self.sendNotification(main.NEW_DOCUMENT, vo)
 
     def _on_menu_load_doc(self, win):
         self._load_new_doc(win)
@@ -336,40 +336,40 @@ class DocumentMediator(GenericMediator):
     def _on_menu_save_doc(self, win):
         filename = self.viewComponent.get_document_filename(parent=win, read=False)
         if filename:
-            self.sendNotification(main.Gribouillis.DOC_SAVE, (win.docproxy, filename))
+            self.sendNotification(main.DOC_SAVE, (win.docproxy, filename))
             win.set_doc_name(win.docproxy.document.name)
 
     def _on_menu_clear_layer(self, win):
-        self.sendNotification(main.Gribouillis.DOC_LAYER_CLEAR,
+        self.sendNotification(main.DOC_LAYER_CLEAR,
                               model.vo.LayerCommandVO(win.docproxy, win.docproxy.active_layer),
                               type=utils.RECORDABLE_COMMAND)
 
     def _on_menu_undo(self, *a):
-        self.sendNotification(main.Gribouillis.UNDO)
+        self.sendNotification(main.UNDO)
 
     def _on_menu_redo(self, *a):
-        self.sendNotification(main.Gribouillis.REDO)
+        self.sendNotification(main.REDO)
 
     def _on_menu_flush(self, *a):
-        self.sendNotification(main.Gribouillis.FLUSH)
+        self.sendNotification(main.FLUSH)
 
     def _on_menu_load_image_as_layer(self, *a):
         self.load_image_as_layer()
 
     ### notification handlers ###
 
-    @mvcHandler(main.Gribouillis.DOC_SAVE_RESULT)
+    @mvcHandler(main.DOC_SAVE_RESULT)
     def _on_save_document_result(self, *args):
         pass
 
-    @mvcHandler(main.Gribouillis.DOC_ACTIVATED)
+    @mvcHandler(main.DOC_ACTIVATED)
     def _on_activate_document(self, docproxy):
         win = self.get_win(docproxy)
         if win is not self.__focused:
             win.present()
             #Application().brusheditor.set_transient_for(win)
 
-    @mvcHandler(main.Gribouillis.BRUSH_PROP_CHANGED)
+    @mvcHandler(main.BRUSH_PROP_CHANGED)
     def _on_brush_prop_changed(self, brush, name):
         if name is 'color': return
 
@@ -389,7 +389,7 @@ class DocumentMediator(GenericMediator):
         filename = self.viewComponent.get_document_filename(parent=win)
         if filename:
             vo = model.vo.FileDocumentConfigVO(filename)
-            self.sendNotification(main.Gribouillis.NEW_DOCUMENT, vo)
+            self.sendNotification(main.NEW_DOCUMENT, vo)
 
     def has_doc(self, docproxy):
         return docproxy in self.__docmap
@@ -426,7 +426,7 @@ class DocumentMediator(GenericMediator):
         dv = self._get_viewer(docproxy)
         filename = self.viewComponent.get_image_filename(parent=dv)
         if filename:
-            self.sendNotification(main.Gribouillis.DOC_LOAD_IMAGE_AS_LAYER,
+            self.sendNotification(main.DOC_LOAD_IMAGE_AS_LAYER,
                                   model.vo.LayerConfigVO(docproxy=docproxy, filename=filename),
                                   type=utils.RECORDABLE_COMMAND)
 
@@ -457,13 +457,13 @@ class LayerManagerMediator(GenericMediator):
 
     def _on_layer_active_event(self, w, layer):
         self.__docproxy.document.active = layer
-        self.sendNotification(main.Gribouillis.DOC_LAYER_ACTIVATE, (self.__docproxy, layer))
+        self.sendNotification(main.DOC_LAYER_ACTIVATE, (self.__docproxy, layer))
 
     def _on_layer_name_changed(self, w, data):
         layer, name = data
         if layer.name != name:
             vo = model.vo.LayerCommandVO(docproxy=self.__docproxy, layer=layer, name=name)
-            self.sendNotification(main.Gribouillis.DOC_LAYER_RENAME, vo, type=utils.RECORDABLE_COMMAND)
+            self.sendNotification(main.DOC_LAYER_RENAME, vo, type=utils.RECORDABLE_COMMAND)
 
     def _on_layer_visibility_event(self, w, data):
         layer, state = data
@@ -472,85 +472,85 @@ class LayerManagerMediator(GenericMediator):
     def _on_layer_operator_event(self, w, ctrl):
         layer = ctrl.layer
         layer.operator = ctrl.operator.get_active_text()
-        self.sendNotification(main.Gribouillis.DOC_LAYER_UPDATED, (self.__docproxy, layer))
+        self.sendNotification(main.DOC_LAYER_UPDATED, (self.__docproxy, layer))
 
     def _on_add_layer(self, *a):
         pos = self.viewComponent.get_active_position() + 1
         vo = model.vo.LayerConfigVO(docproxy=self.__docproxy, pos=pos)
-        self.sendNotification(main.Gribouillis.DOC_LAYER_ADD, vo, type=utils.RECORDABLE_COMMAND)
+        self.sendNotification(main.DOC_LAYER_ADD, vo, type=utils.RECORDABLE_COMMAND)
 
     def _on_delete_layer(self, *a):
         layer = self.viewComponent.active
         vo = model.vo.LayerCommandVO(docproxy=self.__docproxy, layer=layer)
-        self.sendNotification(main.Gribouillis.DOC_LAYER_DEL, vo, type=utils.RECORDABLE_COMMAND)
+        self.sendNotification(main.DOC_LAYER_DEL, vo, type=utils.RECORDABLE_COMMAND)
 
     def _on_up_layer(self, *a):
-        self.sendNotification(main.Gribouillis.DOC_LAYER_STACK_CHANGE,
+        self.sendNotification(main.DOC_LAYER_STACK_CHANGE,
                               (self.__docproxy, self.viewComponent.active, self.viewComponent.get_active_position()+1),
                               type=utils.RECORDABLE_COMMAND)
 
     def _on_down_layer(self, *a):
-        self.sendNotification(main.Gribouillis.DOC_LAYER_STACK_CHANGE,
+        self.sendNotification(main.DOC_LAYER_STACK_CHANGE,
                               (self.__docproxy, self.viewComponent.active, self.viewComponent.get_active_position()-1),
                               type=utils.RECORDABLE_COMMAND)
 
     def _on_top_layer(self, *a):
-        self.sendNotification(main.Gribouillis.DOC_LAYER_STACK_CHANGE,
+        self.sendNotification(main.DOC_LAYER_STACK_CHANGE,
                               (self.__docproxy, self.viewComponent.active, len(self.viewComponent)-1),
                               type=utils.RECORDABLE_COMMAND)
 
     def _on_bottom_layer(self, *a):
-        self.sendNotification(main.Gribouillis.DOC_LAYER_STACK_CHANGE,
+        self.sendNotification(main.DOC_LAYER_STACK_CHANGE,
                               (self.__docproxy, self.viewComponent.active, 0),
                               type=utils.RECORDABLE_COMMAND)
 
     def _on_duplicate_layer(self, *a):
         layer = self.viewComponent.active
         vo = model.vo.LayerCommandVO(docproxy=self.__docproxy, layer=layer)
-        self.sendNotification(main.Gribouillis.DOC_LAYER_DUP, vo, type=utils.RECORDABLE_COMMAND)
+        self.sendNotification(main.DOC_LAYER_DUP, vo, type=utils.RECORDABLE_COMMAND)
 
     def _on_merge_layer(self, *a):
-        self.sendNotification(main.Gribouillis.DOC_LAYER_MERGE_DOWN,
+        self.sendNotification(main.DOC_LAYER_MERGE_DOWN,
                               (self.__docproxy, self.viewComponent.get_active_position()),
                               type=utils.RECORDABLE_COMMAND)
 
     #### notification handlers ####
 
-    @mvcHandler(main.Gribouillis.DOC_DELETE)
+    @mvcHandler(main.DOC_DELETE)
     def _on_doc_delete(self, docproxy):
         if docproxy is self.__docproxy:
             self.viewComponent.clear()
             self.viewComponent.hide()
             self.__docproxy = None
 
-    @mvcHandler(main.Gribouillis.NEW_DOCUMENT_RESULT)
-    @mvcHandler(main.Gribouillis.DOC_UPDATED)
+    @mvcHandler(main.NEW_DOCUMENT_RESULT)
+    @mvcHandler(main.DOC_UPDATED)
     def _on_new_doc_result(self, docproxy):
         if self.__docproxy is docproxy:
             self.viewComponent.set_layers(docproxy.layers, docproxy.document.active)
 
-    @mvcHandler(main.Gribouillis.DOC_ACTIVATED)
+    @mvcHandler(main.DOC_ACTIVATED)
     def _on_doc_activated(self, docproxy):
         if self.__docproxy is not docproxy:
             self.__docproxy = docproxy
             self.viewComponent.set_layers(docproxy.layers, docproxy.document.active)
 
-    @mvcHandler(main.Gribouillis.DOC_LAYER_ADDED)
+    @mvcHandler(main.DOC_LAYER_ADDED)
     def _on_doc_layer_added(self, docproxy, layer, pos):
         if self.__docproxy is docproxy:
             self.viewComponent.add_layer(layer, pos)
 
-    @mvcHandler(main.Gribouillis.DOC_LAYER_DELETED)
+    @mvcHandler(main.DOC_LAYER_DELETED)
     def _on_doc_layer_deleted(self, docproxy, layer):
         if self.__docproxy is docproxy:
             self.viewComponent.del_layer(layer)
 
-    @mvcHandler(main.Gribouillis.DOC_LAYER_STACK_CHANGED)
+    @mvcHandler(main.DOC_LAYER_STACK_CHANGED)
     def _on_doc_layer_moved(self, docproxy, layer, pos):
         if self.__docproxy is docproxy:
             self.viewComponent.move_layer(layer, pos)
 
-    @mvcHandler(main.Gribouillis.DOC_LAYER_ACTIVATED)
+    @mvcHandler(main.DOC_LAYER_ACTIVATED)
     def _on_doc_layer_activated(self, docproxy, layer):
         if self.__docproxy is docproxy and layer is not self.viewComponent.active:
             self.viewComponent.active = layer
@@ -592,8 +592,8 @@ class DocViewPortMediator(GenericMediator):
 
     ### notification handlers ###
 
-    @mvcHandler(main.Gribouillis.DOC_UPDATED)
-    @mvcHandler(main.Gribouillis.DOC_DIRTY)
+    @mvcHandler(main.DOC_UPDATED)
+    @mvcHandler(main.DOC_DIRTY)
     def _on_doc_dirty(self, docproxy, area=None):
         "Redraw given area. If area is None => full redraw."
         for vp in self.__vpmap[docproxy]:
@@ -602,10 +602,10 @@ class DocViewPortMediator(GenericMediator):
             else:
                 vp.repaint()
 
-    @mvcHandler(main.Gribouillis.DOC_LAYER_ADDED)
-    @mvcHandler(main.Gribouillis.DOC_LAYER_STACK_CHANGED)
-    @mvcHandler(main.Gribouillis.DOC_LAYER_UPDATED)
-    @mvcHandler(main.Gribouillis.DOC_LAYER_DELETED)
+    @mvcHandler(main.DOC_LAYER_ADDED)
+    @mvcHandler(main.DOC_LAYER_STACK_CHANGED)
+    @mvcHandler(main.DOC_LAYER_UPDATED)
+    @mvcHandler(main.DOC_LAYER_DELETED)
     def _on_layer_dirty(self, docproxy, layer, *args):
         "Specific layer repaint, limited to its area."
         if not layer.empty:

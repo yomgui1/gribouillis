@@ -25,9 +25,13 @@
 
 import pygtk
 pygtk.require('2.0')
+
 import gtk
 
-import main, model, utils
+import main
+import model
+import utils
+
 from utils import Mediator, mvcHandler, RECORDABLE_COMMAND, _T
 from model import vo
 from view.contexts import action
@@ -42,10 +46,9 @@ from app import Application
 
 gdk = gtk.gdk
 
-class DialogMediator(Mediator):
-    NAME = "DialogMediator"
 
-    def show_dialog(self, type, msg):
+class GenericMediator(utils.Mediator):
+    def show_dialog(self, title, msg):
         dlg = gtk.MessageDialog(self.viewComponent,
                                 type=type,
                                 buttons=gtk.BUTTONS_OK,
@@ -53,21 +56,17 @@ class DialogMediator(Mediator):
         dlg.run()
         dlg.destroy()
 
-    #### notification handlers ####
-
-    @mvcHandler(main.Gribouillis.SHOW_ERROR_DIALOG)
-    def on_show_error(self, msg):
+    def show_error_dialog(self, msg):
         self.show_dialog(gtk.MESSAGE_ERROR, msg)
 
-    @mvcHandler(main.Gribouillis.SHOW_WARNING_DIALOG)
-    def on_show_warning(self, msg):
+    def show_warning_dialog(self, msg):
         self.show_dialog(gtk.MESSAGE_WARNING, msg)
 
-    @mvcHandler(main.Gribouillis.SHOW_INFO_DIALOG)
-    def on_show_info(self, msg):
+    def show_info_dialog(self, msg):
         self.show_dialog(gtk.MESSAGE_INFO, msg)
 
-class ApplicationMediator(Mediator):
+
+class ApplicationMediator(GenericMediator):
     NAME = "ApplicationMediator"
 
     document_mediator = None
@@ -136,7 +135,7 @@ class ApplicationMediator(Mediator):
         if not len(self.document_mediator):
             self.viewComponent.quit()
 
-class BrushEditorWindowMediator(Mediator):
+class BrushEditorWindowMediator(GenericMediator):
     NAME = "BrushEditorWindowMediator"
 
     #### Private API ####
@@ -162,7 +161,7 @@ class BrushEditorWindowMediator(Mediator):
     def _on_activate_document(self, docproxy):
         self._set_docproxy(docproxy)
 
-class BrushHouseWindowMediator(Mediator):
+class BrushHouseWindowMediator(GenericMediator):
     NAME = "BrushHouseWindowMediator"
 
     #### Private API ####
@@ -204,7 +203,7 @@ class BrushHouseWindowMediator(Mediator):
         if name is 'color': return
         setattr(self._docproxy.brush, name, getattr(brush, name))
 
-class CommandsHistoryListMediator(Mediator):
+class CommandsHistoryListMediator(GenericMediator):
     NAME = "CommandsHistoryListMediator"
 
     cmdhistproxy = None
@@ -260,7 +259,7 @@ class CommandsHistoryListMediator(Mediator):
         if hp is self.__cur_hp:
             self.viewComponent.redo(cmd)
 
-class ColorWindowMediator(Mediator):
+class ColorWindowMediator(GenericMediator):
     NAME = "ColorWindowMediator"
 
     #### Private API ####
@@ -277,12 +276,12 @@ class ColorWindowMediator(Mediator):
 
     ### notification handlers ###
 
-    @mvcHandler(main.Gribouillis.DOC_ACTIVATE)
+    @mvcHandler(main.Gribouillis.DOC_ACTIVATED)
     def _on_activate_document(self, docproxy):
         brush = docproxy.document.brush
         self.viewComponent.set_color_rgb(brush.rgb)
 
-class DocumentMediator(Mediator):
+class DocumentMediator(GenericMediator):
     """
     This class creates one instance for the application.
     This instance handles creation/destruction of document viewer components.
@@ -431,7 +430,7 @@ class DocumentMediator(Mediator):
                                   model.vo.LayerConfigVO(docproxy=docproxy, filename=filename),
                                   type=utils.RECORDABLE_COMMAND)
 
-class LayerManagerMediator(Mediator):
+class LayerManagerMediator(GenericMediator):
     NAME = "LayerManagerMediator"
 
     def __init__(self, component):
@@ -537,7 +536,7 @@ class LayerManagerMediator(Mediator):
             self.viewComponent.set_layers(docproxy.layers, docproxy.document.active)
 
     @mvcHandler(main.Gribouillis.DOC_LAYER_ADDED)
-    def _on_doc_layer_added(self, docproxy, layer ,pos):
+    def _on_doc_layer_added(self, docproxy, layer, pos):
         if self.__docproxy is docproxy:
             self.viewComponent.add_layer(layer, pos)
 
@@ -556,7 +555,8 @@ class LayerManagerMediator(Mediator):
         if self.__docproxy is docproxy and layer is not self.viewComponent.active:
             self.viewComponent.active = layer
 
-class DocViewPortMediator(Mediator):
+
+class DocViewPortMediator(GenericMediator):
     NAME = "DocViewPortMediator"
 
     #### Private API ####

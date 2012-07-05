@@ -26,7 +26,7 @@
 import os
 import puremvc.patterns.facade
 
-__all__ = ['Gribouillis', 'VERSION', 'DATE' ]
+__all__ = ['Gribouillis', 'VERSION', 'DATE']
 
 # Defaults - must be changed by the caller
 VERSION = 3.0
@@ -36,60 +36,57 @@ DATE = 'dd.mm.yyyy'
 # Must be commited
 STATUS = 'beta'
 
+
 class Gribouillis(puremvc.patterns.facade.Facade):
     __instance = None
 
     # application constants
     PREVIEW_BACKGROUND = '${backgrounds-path}/checker.png'
     TRANSPARENT_BACKGROUND = '${backgrounds-path}/checker.png'
-    DEFAULT_BACKGROUND = (1,1,1)
+    DEFAULT_BACKGROUND = (1, 1, 1)
 
     # application notifications
-    STARTUP             = 'startup'
-    QUIT                = 'quit'          # user want to quit the application
-    UNDO                = 'undo'
-    REDO                = 'redo'
-    FLUSH               = 'flush'
+    STARTUP = 'startup'
+    QUIT = 'quit'                                         # user want to quit the application
+    UNDO = 'undo'
+    REDO = 'redo'
+    FLUSH = 'flush'
 
-    SHOW_ERROR_DIALOG   = 'show_error_dlg'
-    SHOW_WARNING_DIALOG = 'show_warning_dlg'
-    SHOW_INFO_DIALOG    = 'show_info_dlg'
+    NEW_DOCUMENT = 'new-doc'                              # user want to create a new document
+    NEW_DOCUMENT_RESULT = 'new-doc-result'
 
-    NEW_DOCUMENT         = 'new-doc'      # user want to create a new document
-    NEW_DOCUMENT_RESULT  = 'new-doc-res'
+    DOC_ACTIVATE = 'doc-activate'
+    DOC_ACTIVATED = 'doc-activated'                       # gives the working document
+    DOC_UPDATED = 'doc-updated'                           # the document has some modified properties
+    DOC_DIRTY = 'doc-dirty'                               # document contents is modified
+    DOC_SAVE = 'doc-save'
+    DOC_SAVE_RESULT = 'doc-save-result'
+    DOC_DELETE = 'doc-del'
 
-    DOC_ACTIVATE         = 'doc-activate'
-    DOC_ACTIVATED        = 'doc-activated' # document is ready to accept user inputs
-    DOC_UPDATED          = 'doc-updated'
-    DOC_DIRTY            = 'doc-dirty'
-    DOC_SAVE             = 'doc-save'
-    DOC_SAVE_RESULT      = 'doc-save-res'
-    DOC_DELETE           = 'doc-del'
-
-    LAYER_CREATED        = 'layer-created'
+    LAYER_CREATED = 'layer-created'
 
     # document's layer notifications
-    DOC_LAYER_ACTIVATE      = 'doc-layer-active'
-    DOC_LAYER_ACTIVATED     = 'doc-layer-actived'
-    DOC_LAYER_UPDATED       = 'doc-layer-updated'
-    DOC_LAYER_RENAME        = 'doc-layer-rename' # undoable command
-    DOC_LAYER_RENAMED       = 'doc-layer-renamed'
-    DOC_LAYER_ADD           = 'doc-layer-add'    # undoable command
-    DOC_LAYER_ADDED         = 'doc-layer-added'
-    DOC_LAYER_DEL           = 'doc-layer-del'    # undoable command
-    DOC_LAYER_DELETED       = 'doc-layer-deleted'
-    DOC_LAYER_DUP           = 'doc-layer-dup'    # undoable command
-    DOC_LAYER_STACK_CHANGE  = 'doc-layer-stack-change'   # undoable command
+    DOC_LAYER_ACTIVATE = 'doc-layer-active'
+    DOC_LAYER_ACTIVATED = 'doc-layer-actived'
+    DOC_LAYER_UPDATED = 'doc-layer-updated'
+    DOC_LAYER_RENAME = 'doc-layer-rename'                 # undoable command
+    DOC_LAYER_RENAMED = 'doc-layer-renamed'
+    DOC_LAYER_ADD = 'doc-layer-add'                       # undoable command
+    DOC_LAYER_ADDED = 'doc-layer-added'
+    DOC_LAYER_DEL = 'doc-layer-del'                       # undoable command
+    DOC_LAYER_DELETED = 'doc-layer-deleted'
+    DOC_LAYER_DUP = 'doc-layer-dup'                       # undoable command
+    DOC_LAYER_STACK_CHANGE = 'doc-layer-stack-change'     # undoable command
     DOC_LAYER_STACK_CHANGED = 'doc-layer-stack-changed'
-    DOC_LAYER_CLEAR         = 'doc-layer-clear'   # undoable command
-    DOC_LAYER_SET_VISIBLE   = 'doc-layer-visible'
-    DOC_LAYER_SET_OPACITY   = 'doc-layer-opacity'
-    DOC_LAYER_MERGE_DOWN    = 'doc-layer-merge-down' # undoable command
-    DOC_RECORD_STROKE       = 'doc-record-stroke' # undoable command
-    DOC_LOAD_IMAGE_AS_LAYER = 'doc-load-image-as-layer' # undoable command
-    DOC_LAYER_MATRIX        = 'doc-layer-matrix' # undoable command
+    DOC_LAYER_CLEAR = 'doc-layer-clear'                   # undoable command
+    DOC_LAYER_SET_VISIBLE = 'doc-layer-visible'
+    DOC_LAYER_SET_OPACITY = 'doc-layer-opacity'
+    DOC_LAYER_MERGE_DOWN = 'doc-layer-merge-down'         # undoable command
+    DOC_RECORD_STROKE = 'doc-record-stroke'               # undoable command
+    DOC_LOAD_IMAGE_AS_LAYER = 'doc-load-image-as-layer'   # undoable command
+    DOC_LAYER_MATRIX = 'doc-layer-matrix'                 # undoable command
 
-    DOC_BRUSH_UPDATED       = 'doc-brush-updated'
+    DOC_BRUSH_UPDATED = 'doc-brush-updated'
 
     # Brush notifications
     BRUSH_PROP_CHANGED = 'brush-prop-changed'

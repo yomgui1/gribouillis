@@ -22,43 +22,42 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
+
 import cairo
 from puremvc.patterns.proxy import Proxy
 
 import utils
 import model.vo as _vo
 
+from utils import _T
 from .document import Document
-
+from .layer import Layer
+from .palette import Palette
 
 __all__ = ['DocumentProxy']
 
 
 class DocumentProxy(Proxy):
-    """
-    A DocumentProxy instance is responsible to:
-      - handle one document at time.
-      - check that doesn't exist two document with same name.
-      - give access to Document's methods.
+    """DocumentProxy(document)
 
-    Instances are created by the view when needed.
-    Instances are not re-usable (setData raise exception)
+    Implement proxy on Document instance.
+    Is responsible of:
+      - provide document's API.
+      - check documents unicity over names.
     """
 
+    ####
     #### Private API ####
 
-    __instances = {}
-    __active = None  # Current working docproxy
-    __brush = None   # Brush instance owned by the Brush House.
-    profile = None   # Color profile
+    __instances = {}  # All registered DocumentProxy instances
+    __active = None   # Current working docproxy
+    __brush = None    # Brush instance owned by the Brush House.
+    profile = None    # Color profile
 
     def __init__(self, doc):
         assert isinstance(doc, Document)
-        super(DocumentProxy, self).__init__(str(id(self)), None)
-        self.__doc = doc
-
+        super(DocumentProxy, self).__init__(str(id(self)), doc)
         self.facade.registerProxy(self)
-        self._attach_cmd_hist()
 
     def _attach_cmd_hist(self):
         hp_name = 'HP_' + self.getProxyName()
@@ -66,21 +65,28 @@ class DocumentProxy(Proxy):
         hp = utils.CommandsHistoryProxy(name=hp_name, data=self)
         self.facade.registerProxy(hp)
 
+    def _check_name(self, name):
+        if name in DocumentProxy.__instances:
+            raise NameError(_T('document name already exists'))
+
+    ####
     #### MVC API ####
 
     def onRegister(self):
-        # Check if the document's name is unique
-        docname = self.__doc.name
-        if docname in DocumentProxy.__instances:
-            raise NameError('document name already exists')
-        DocumentProxy.__instances[docname] = self
+        self._check_name(doc)
+        self._attach_cmd_hist()
+        DocumentProxy.__instances[self.data.name] = self
 
     def onRemove(self):
-        del DocumentProxy.__instances[self.document.name]
-        self.__doc = None  # invalide the proxy doc, in case of ref kept somewhere
+        del DocumentProxy.__instances[self.data.name]
+        self.data = None
+        hp_name = 'HP_' + self.getProxyName()
+        self.facade.removeProxy(self.getProxyName(hp_name))
         if DocumentProxy.__active is self:
+            # Proxy is not responsible to determinate who is the next active
             DocumentProxy.__active = None
 
+    ####
     #### Public API ####
 
     @classmethod
@@ -123,20 +129,21 @@ class DocumentProxy(Proxy):
         DocumentProxy.__active = proxy
 
     def load(self, filename):
-        doc = self.__doc
+        doc = self.data
         del DocumentProxy.__instances[doc.name]
         try:
             doc.load(filename)
         finally:
             DocumentProxy.__instances[doc.name] = self
 
+    ####
     #### Document access API ####
 
     def get_name(self):
-        return self.__doc.name
+        return self.data.name
 
     def set_name(self, name):
-        doc = self.__doc
+        doc = self.data
         if name == doc.name:
             return
 
@@ -146,98 +153,100 @@ class DocumentProxy(Proxy):
         del DocumentProxy.__instances[doc.name]
         DocumentProxy.__instances[name] = self
         doc.name = name
-        self.sendNotification(facade.DOC_UPDATED, self)
+        self.sendNotification('doc-updated', self)
 
     def set_background(self, value):
-        self.__doc.fill = value
-        self.sendNotification(facade.DOC_DIRTY, self)
+        self.data.fill = value
+        self.sendNotification('doc-dirty', self)
 
     def set_metadata(self, **kwds):
         change = False
         for k in kwds:
-            if k in self.__doc.metadata:
-                self.__doc.metadata[k] = kwds[k]
+            if k in self.data.metadata:
+                self.data.metadata[k] = kwds[k]
                 change = True
         if change:
-            self.sendNotification(facade.DOC_UPDATED, self)
+            self.sendNotification('doc-updated', self)
 
+    ####
     #### Brush handling ####
 
     def set_brush(self, brush):
         self.__brush = brush
         self.document.brush.set_from_brush(brush)
-        self.sendNotification(facade.DOC_BRUSH_UPDATED, self)
+        self.sendNotification('doc-brush-updated', self)
 
     def set_brush_name(self, name):
-        brush = self.__doc.brush
+        brush = self.data.brush
         brush.name = name
-        self.sendNotification(facade.BRUSH_PROP_CHANGED, (brush, 'name'))
+        self.sendNotification('brush-prop-changed', (brush, 'name'))
 
     def get_brush_color_rgb(self):
-        return self.__doc.brush.rgb
+        return self.data.brush.rgb
 
     def get_brush_color_hsv(self):
-        return self.__doc.brush.hsv
+        return self.data.brush.hsv
 
     def set_brush_color_hsv(self, *hsv):
-        brush = self.__doc.brush
+        brush = self.data.brush
         if brush.hsv != hsv:
             brush.hsv = hsv
-            self.sendNotification(facade.BRUSH_PROP_CHANGED, (brush, 'color'))
+            self.sendNotification('brush-prop-changed', (brush, 'color'))
 
     def set_brush_color_rgb(self, *rgb):
-        brush = self.__doc.brush
+        brush = self.data.brush
         if brush.rgb != rgb:
             brush.rgb = rgb
-            self.sendNotification(facade.BRUSH_PROP_CHANGED, (brush, 'color'))
+            self.sendNotification('brush-prop-changed', (brush, 'color'))
 
     def set_brush_radius(self, r):
         brush = self.__brush
-        r = min(max(r, 0.5), 150)
+        r = brush.bound_radius(r)
+        r = min(max(r, brush.RADIUS_MIN), brush.RADIUS_MAX)
         if brush.radius_max != r:
             brush.radius_max = r
-            self.sendNotification(facade.BRUSH_PROP_CHANGED, (brush, 'radius_max'))
+            self.sendNotification('brush-prop-changed', (brush, 'radius_max'))
         if brush.radius_min != r:
             brush.radius_min = r
-            self.sendNotification(facade.BRUSH_PROP_CHANGED, (brush, 'radius_min'))
+            self.sendNotification('brush-prop-changed', (brush, 'radius_min'))
 
     def add_brush_radius(self, dr):
         brush = self.__brush
-        r = min(max(0.5, max(brush.radius_min, brush.radius_max) + dr), 150)
+        r = min(max(0.5, dr + max(brush.radius_min, brush.radius_max)), 150)
         if brush.radius_max != r:
             brush.radius_max = r
-            self.sendNotification(facade.BRUSH_PROP_CHANGED, (brush, 'radius_max'))
+            self.sendNotification('brush-prop-changed', (brush, 'radius_max'))
         if brush.radius_min != r:
             brush.radius_min = r
-            self.sendNotification(facade.BRUSH_PROP_CHANGED, (brush, 'radius_min'))
+            self.sendNotification('brush-prop-changed', (brush, 'radius_min'))
 
     def set_brush_radius_max(self, r):
         brush = self.__brush
         r = min(max(r, 0.5), 150)
         if brush.radius_max != r:
             brush.radius_max = r
-            self.sendNotification(facade.BRUSH_PROP_CHANGED, (brush, 'radius_max'))
+            self.sendNotification('brush-prop-changed', (brush, 'radius_max'))
 
     def add_brush_radius_max(self, dr):
         brush = self.__brush
         r = min(max(0.5, brush.radius_max + dr), 150)
         if brush.radius_max != r:
             brush.radius_max = r
-            self.sendNotification(facade.BRUSH_PROP_CHANGED, (brush, 'radius_max'))
+            self.sendNotification('brush-prop-changed', (brush, 'radius_max'))
 
     def set_brush_radius_min(self, r):
         brush = self.__brush
         r = min(max(r, 0.5), 150)
         if brush.radius_min != r:
             brush.radius_min = r
-            self.sendNotification(facade.BRUSH_PROP_CHANGED, (brush, 'radius_min'))
+            self.sendNotification('brush-prop-changed', (brush, 'radius_min'))
 
     def add_brush_radius_min(self, dr):
         brush = self.__brush
         r = min(max(0.5, brush.radius_min + dr), 150)
         if brush.radius_min != r:
             brush.radius_min = r
-            self.sendNotification(facade.BRUSH_PROP_CHANGED, (brush, 'radius_min'))
+            self.sendNotification('brush-prop-changed', (brush, 'radius_min'))
 
     def add_color(self, *factors):
         hsv = [c + f for c, f in zip(self.get_brush_color_hsv(), factors)]
@@ -247,10 +256,11 @@ class DocumentProxy(Proxy):
         hsv = [c * f for c, f in zip(self.get_brush_color_hsv(), factors)]
         self.set_brush_color_hsv(*hsv)
 
-        #### Painting ####
+    ####
+    #### Painting ####
 
     def draw_start(self, device):
-        doc = self.__doc
+        doc = self.data
         layer = doc.active
 
         if layer.locked:
@@ -271,63 +281,72 @@ class DocumentProxy(Proxy):
     def draw_end(self):
         if self._layer is None:
             return
-        doc = self.__doc
+        doc = self.data
         area = doc.brush.stop()
         if area:
             doc._dirty = True
-            self.sendNotification(facade.DOC_DIRTY, (self, self._layer.document_area(*area)))
+            self.sendNotification('doc-dirty', (self, self._layer.document_area(*area)))
         ss = self._snapshot
         if ss.reduce(self._layer.surface):
-            self.sendNotification(facade.DOC_RECORD_STROKE,
-                                  model.vo.LayerCommandVO(self, self._layer, snapshot=ss, stroke=self._stroke),
+            self.sendNotification('doc-record-stroke',
+                                  model.vo.LayerCommandVO(self,
+                                                          self._layer,
+                                                          snapshot=ss,
+                                                          stroke=self._stroke),
                                   type=utils.RECORDABLE_COMMAND)
         del self._snapshot, self._layer, self._stroke, self._dev
 
     def _record(self, state):
         self._stroke.append(state)
-        area = self.__doc.brush.draw_stroke(state)
+        area = self.data.brush.draw_stroke(state)
         if area:
             self._layer._dirty = True
-            self.sendNotification(facade.DOC_DIRTY, (self, self._layer.document_area(*area)))
+            self.sendNotification('doc-dirty',
+                                  (self, self._layer.document_area(*area)))
 
+    ####
     #### Document layers handling ####
 
     def new_layer(self, vo):
-        layer = self.__doc.new_layer(**vo)
-        self.sendNotification(facade.DOC_LAYER_ADDED, (self, layer, self.__doc.get_layer_index(layer)))
+        layer = self.data.new_layer(**vo)
+        self.sendNotification('doc-layer-added',
+                              (self, layer, self.data.get_layer_index(layer)))
         return layer
 
     def insert_layer(self, layer, pos=None, **k):
-        self.__doc.insert_layer(layer, pos, **k)
-        self.sendNotification(facade.DOC_LAYER_ADDED, (self, layer, self.__doc.get_layer_index(layer)))
+        self.data.insert_layer(layer, pos, **k)
+        self.sendNotification('doc-layer-added',
+                              (self, layer, self.data.get_layer_index(layer)))
 
     def remove_layer(self, layer):
-        self.__doc.remove_layer(layer)
-        self.sendNotification(facade.DOC_LAYER_DELETED, (self, layer))
-        self.sendNotification(facade.DOC_LAYER_ACTIVATED, (self, self.active_layer))
+        self.data.remove_layer(layer)
+        self.sendNotification('doc-layer-deleted', (self, layer))
+        self.sendNotification('doc-layer-actived', (self, self.active_layer))
 
     def clear_layer(self, layer):
-        self.sendNotification(facade.DOC_LAYER_CLEAR,
+        self.sendNotification('doc-layer-clear',
                               model.vo.LayerCommandVO(self, layer),
                               type=utils.RECORDABLE_COMMAND)
 
     def copy_layer(self, layer, pos=None):
         if pos is None:
-            pos = self.__doc.get_layer_index(layer) + 1
-        new_layer = self.__doc.new_layer('Copy of %s' % layer.name, pos)
+            pos = self.data.get_layer_index(layer) + 1
+        new_layer = self.data.new_layer('Copy of %s' % layer.name, pos)
         new_layer.copy(layer)
-        self.sendNotification(facade.DOC_LAYER_ADDED, (self, new_layer, self.__doc.get_layer_index(layer)))
+        self.sendNotification('doc-layer-added',
+                              (self, new_layer, self.data.get_layer_index(layer)))
         return new_layer
 
     def move_layer(self, layer, pos=None):
-        self.__doc.move_layer(layer, pos)
-        self.sendNotification(facade.DOC_LAYER_STACK_CHANGED, (self, layer, self.__doc.get_layer_index(layer)))
+        self.data.move_layer(layer, pos)
+        self.sendNotification('doc-layer-stack-changed',
+                              (self, layer, self.data.get_layer_index(layer)))
 
     def set_layer_visibility(self, layer, state):
         state = bool(state)
         if layer.visible != state:
             vo = model.vo.LayerCommandVO(docproxy=self, layer=layer, state=state)
-            self.sendNotification(facade.DOC_LAYER_SET_VISIBLE, vo)
+            self.sendNotification('doc-layer-visible', vo)
 
     def iter_visible_layers(self):
         return (layer for layer in self.layers if layer.visible)
@@ -335,14 +354,18 @@ class DocumentProxy(Proxy):
     def set_layer_opacity(self, layer, value):
         if value != layer.opacity:
             vo = model.vo.LayerCommandVO(docproxy=self, layer=layer, state=value)
-            self.sendNotification(facade.DOC_LAYER_SET_OPACITY, vo)
+            self.sendNotification('doc-layer-opacity', vo)
 
     def record_layer_matrix(self, layer, old_mat):
         if not layer.empty:
-            self.sendNotification(facade.DOC_LAYER_MATRIX, (self, layer, old_mat, cairo.Matrix(*layer.matrix)), type=utils.RECORDABLE_COMMAND)
+            self.sendNotification('doc-layer-matrix', (self,
+                                                       layer,
+                                                       old_mat,
+                                                       cairo.Matrix(*layer.matrix)),
+                                  type=utils.RECORDABLE_COMMAND)
 
     def layer_translate(self, *delta):
-        layer = self.__doc.active
+        layer = self.data.active
         if layer.empty:
             return
         area = layer.area
@@ -353,10 +376,10 @@ class DocumentProxy(Proxy):
 
         # Refresh the old area + the new layer area
         area = utils.join_area(area, layer.area)
-        self.sendNotification(facade.DOC_DIRTY, (self, area))
+        self.sendNotification('doc-dirty', (self, area))
 
     def layer_rotate(self, angle, ox=0, oy=0):
-        layer = self.__doc.active
+        layer = self.data.active
         if layer.empty:
             return
         area = layer.area
@@ -372,22 +395,22 @@ class DocumentProxy(Proxy):
 
         # Refresh the old area + the new layer area
         area = utils.join_area(area, layer.area)
-        self.sendNotification(facade.DOC_DIRTY, (self, area))
+        self.sendNotification('doc-dirty', (self, area))
 
     def get_layer_pos(self, *pos):
-        layer = self.__doc.active
+        layer = self.data.active
         return layer.inv_matrix.transform_point(*pos)
 
     def get_layer_dist(self, *dist):
-        layer = self.__doc.active
+        layer = self.data.active
         return layer.inv_matrix.transform_distance(*dist)
 
+    ####
     #### Properties ###
 
-    active = property(fget=lambda self: self.get_active(),
-                      fset=lambda self, v: self.set_active(v))
-    document = property(fget=lambda self: self.__doc)
-    docname = property(fget=lambda self: self.__doc.name, fset=set_name)
+    active = property(fget=get_active, fset=set_active)
+    document = property(fget=lambda self: self.data)
+    docname = property(fget=lambda self: self.data.name, fset=set_name)
     brush = property(fget=lambda self: self.__brush, fset=set_brush)
-    drawbrush = property(fget=lambda self: self.__doc.brush)
-    active_layer = property(fget=lambda self: self.__doc.active)
+    drawbrush = property(fget=lambda self: self.data.brush)
+    active_layer = property(fget=lambda self: self.data.active)

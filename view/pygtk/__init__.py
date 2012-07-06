@@ -32,7 +32,7 @@ import main
 import model
 import utils
 
-from utils import Mediator, mvcHandler, RECORDABLE_COMMAND, _T
+from utils import Mediator, mvcHandler, _T
 from model import vo
 from view.contexts import action
 
@@ -341,8 +341,7 @@ class DocumentMediator(GenericMediator):
 
     def _on_menu_clear_layer(self, win):
         self.sendNotification(main.DOC_LAYER_CLEAR,
-                              model.vo.LayerCommandVO(win.docproxy, win.docproxy.active_layer),
-                              type=utils.RECORDABLE_COMMAND)
+                              model.vo.LayerCommandVO(win.docproxy, win.docproxy.active_layer))
 
     def _on_menu_undo(self, *a):
         self.sendNotification(main.UNDO)
@@ -427,8 +426,7 @@ class DocumentMediator(GenericMediator):
         filename = self.viewComponent.get_image_filename(parent=dv)
         if filename:
             self.sendNotification(main.DOC_LOAD_IMAGE_AS_LAYER,
-                                  model.vo.LayerConfigVO(docproxy=docproxy, filename=filename),
-                                  type=utils.RECORDABLE_COMMAND)
+                                  model.vo.LayerConfigVO(docproxy=docproxy, filename=filename))
 
 class LayerManagerMediator(GenericMediator):
     NAME = "LayerManagerMediator"
@@ -463,7 +461,7 @@ class LayerManagerMediator(GenericMediator):
         layer, name = data
         if layer.name != name:
             vo = model.vo.LayerCommandVO(docproxy=self.__docproxy, layer=layer, name=name)
-            self.sendNotification(main.DOC_LAYER_RENAME, vo, type=utils.RECORDABLE_COMMAND)
+            self.sendNotification(main.DOC_LAYER_RENAME, vo)
 
     def _on_layer_visibility_event(self, w, data):
         layer, state = data
@@ -477,42 +475,37 @@ class LayerManagerMediator(GenericMediator):
     def _on_add_layer(self, *a):
         pos = self.viewComponent.get_active_position() + 1
         vo = model.vo.LayerConfigVO(docproxy=self.__docproxy, pos=pos)
-        self.sendNotification(main.DOC_LAYER_ADD, vo, type=utils.RECORDABLE_COMMAND)
+        self.sendNotification(main.DOC_LAYER_ADD, vo)
 
     def _on_delete_layer(self, *a):
         layer = self.viewComponent.active
         vo = model.vo.LayerCommandVO(docproxy=self.__docproxy, layer=layer)
-        self.sendNotification(main.DOC_LAYER_DEL, vo, type=utils.RECORDABLE_COMMAND)
+        self.sendNotification(main.DOC_LAYER_DEL, vo)
 
     def _on_up_layer(self, *a):
         self.sendNotification(main.DOC_LAYER_STACK_CHANGE,
-                              (self.__docproxy, self.viewComponent.active, self.viewComponent.get_active_position()+1),
-                              type=utils.RECORDABLE_COMMAND)
+                              (self.__docproxy, self.viewComponent.active, self.viewComponent.get_active_position()+1))
 
     def _on_down_layer(self, *a):
         self.sendNotification(main.DOC_LAYER_STACK_CHANGE,
-                              (self.__docproxy, self.viewComponent.active, self.viewComponent.get_active_position()-1),
-                              type=utils.RECORDABLE_COMMAND)
+                              (self.__docproxy, self.viewComponent.active, self.viewComponent.get_active_position()-1))
 
     def _on_top_layer(self, *a):
         self.sendNotification(main.DOC_LAYER_STACK_CHANGE,
-                              (self.__docproxy, self.viewComponent.active, len(self.viewComponent)-1),
-                              type=utils.RECORDABLE_COMMAND)
+                              (self.__docproxy, self.viewComponent.active, len(self.viewComponent)-1))
 
     def _on_bottom_layer(self, *a):
         self.sendNotification(main.DOC_LAYER_STACK_CHANGE,
-                              (self.__docproxy, self.viewComponent.active, 0),
-                              type=utils.RECORDABLE_COMMAND)
+                              (self.__docproxy, self.viewComponent.active, 0))
 
     def _on_duplicate_layer(self, *a):
         layer = self.viewComponent.active
         vo = model.vo.LayerCommandVO(docproxy=self.__docproxy, layer=layer)
-        self.sendNotification(main.DOC_LAYER_DUP, vo, type=utils.RECORDABLE_COMMAND)
+        self.sendNotification(main.DOC_LAYER_DUP, vo)
 
     def _on_merge_layer(self, *a):
         self.sendNotification(main.DOC_LAYER_MERGE_DOWN,
-                              (self.__docproxy, self.viewComponent.get_active_position()),
-                              type=utils.RECORDABLE_COMMAND)
+                              (self.__docproxy, self.viewComponent.get_active_position()))
 
     #### notification handlers ####
 

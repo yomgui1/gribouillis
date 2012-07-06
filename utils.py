@@ -24,18 +24,22 @@
 ###############################################################################
 
 import os
-from functools import wraps
-from time import time
-from string import Template
 
 import puremvc.interfaces
 import puremvc.patterns.mediator
 import puremvc.patterns.proxy
 import puremvc.patterns.command
 
+from functools import wraps, partial
+from time import time
+from string import Template
+
 __all__ = [ 'VirtualCalledError', 'virtualmethod',
             'Mediator', 'UndoableCommand', 'mvcHandler',
             'MetaSingleton', 'idle_cb', '_T', 'delayedmethod' ]
+
+RECORDABLE_COMMAND = "RecordableCommand"
+NON_RECORDABLE_COMMAND = "NonRecordableCommand"
 
 idle_cb = lambda *a, **k: None
 
@@ -159,9 +163,6 @@ def resolve_path(path):
 
 __all__ += [ "CommandsHistoryProxy", "IUndoableCommand", "UndoableCommand",
              "RECORDABLE_COMMAND", "NON_RECORDABLE_COMMAND" ]
-
-RECORDABLE_COMMAND     = "RecordableCommand"
-NON_RECORDABLE_COMMAND = "NonRecordableCommand"
 
 class CommandsHistoryProxy(puremvc.patterns.proxy.Proxy, puremvc.interfaces.IProxy):
     """The model that keeps track of the commands.
@@ -338,7 +339,8 @@ class UndoableCommand(puremvc.patterns.command.SimpleCommand, IUndoableCommand):
         self._note = note
         self.executeCommand()
 
-        if note.getType() == RECORDABLE_COMMAND:
+        # default is recorded
+        if note.getType() != NON_RECORDABLE_COMMAND:
             CommandsHistoryProxy.get_active().putCommand(self)
 
     def registerUndoCommand(self, cmdClass):

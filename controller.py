@@ -50,21 +50,22 @@ class StartupCmd(MacroCommand, ICommand):
     Initialize model and view layers, setup defaults.
     """
     def initializeMacroCommand(self):
-        load_preferences('config.xml')
         self.addSubCommand(InitModelCmd)
         self.addSubCommand(InitViewCmd)
 
 
 class InitModelCmd(SimpleCommand, ICommand):
     def execute(self, note):
+        load_preferences('config.xml')
+        
         # Load the default document
         docpath = prefs.get('default-document')
         if docpath is None:
             vo = model.vo.EmptyDocumentConfigVO()
         else:
             vo = model.vo.FileDocumentConfigVO(docpath)
+        
         self.sendNotification(main.NEW_DOCUMENT, vo)
-
 
 class InitViewCmd(SimpleCommand, ICommand):
     def execute(self, note):

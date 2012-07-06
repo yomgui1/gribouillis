@@ -35,10 +35,9 @@ from time import time
 from string import Template
 
 __all__ = [ 'VirtualCalledError', 'virtualmethod',
-            'Mediator', 'UndoableCommand', 'mvcHandler',
+            'Mediator',  'mvcHandler',
             'MetaSingleton', 'idle_cb', '_T', 'delayedmethod' ]
 
-RECORDABLE_COMMAND = "RecordableCommand"
 NON_RECORDABLE_COMMAND = "NonRecordableCommand"
 
 idle_cb = lambda *a, **k: None
@@ -146,7 +145,8 @@ def join_area(a1, a2):
     y2 = max(a1[1]+a1[3], a2[1]+a2[3])
     return x1,y1,x2-x1,y2-y1
 
-class _MyTemplate(Template): idpattern = '[_a-z][_a-z0-9\-]*'
+class _MyTemplate(Template):
+    idpattern = '[_a-z][_a-z0-9\-]*'
 
 def resolve_path(path):
     from model.prefs import prefs
@@ -161,8 +161,10 @@ def resolve_path(path):
 ## PureMVC extention implemented from "PureMVC AS3 Utility - Undo"
 ##
 
-__all__ += [ "CommandsHistoryProxy", "IUndoableCommand", "UndoableCommand",
-             "RECORDABLE_COMMAND", "NON_RECORDABLE_COMMAND" ]
+__all__ += ["CommandsHistoryProxy",
+            "IUndoableCommand",
+            "UndoableCommand",
+            "NON_RECORDABLE_COMMAND"]
 
 class CommandsHistoryProxy(puremvc.patterns.proxy.Proxy, puremvc.interfaces.IProxy):
     """The model that keeps track of the commands.

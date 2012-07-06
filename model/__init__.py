@@ -26,6 +26,7 @@
 import cairo
 from puremvc.patterns.proxy import Proxy
 
+import main
 import utils
 import model.vo as _vo
 

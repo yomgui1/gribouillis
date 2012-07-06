@@ -62,7 +62,7 @@ class BrushPreview(gtk.DrawingArea, SimpleViewPort):
                                             BrushPreview.WIDTH, BrushPreview.HEIGHT)
         layer = Layer(self._surface, "BrushPreviewLayer")
         self._layers = ( layer, )
-        self.set_background(main.TRANSPARENT_BACKGROUND)
+        self.set_background(main.Gribouillis.TRANSPARENT_BACKGROUND)
 
         self.set_size_request(BrushPreview.WIDTH, BrushPreview.HEIGHT)
         self.set_events(gdk.EXPOSURE_MASK)

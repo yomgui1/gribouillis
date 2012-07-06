@@ -74,7 +74,7 @@ class BrushPreview(pymui.Area):
         self._brush.rgb = (0,0,0)
         self._states = list(self._brush.gen_preview_states(BrushPreview.WIDTH,
                                                            BrushPreview.HEIGHT))
-        self.Background = "5:" + utils.resolve_path(main.TRANSPARENT_BACKGROUND)
+        self.Background = "5:" + utils.resolve_path(main.Gribouillis.TRANSPARENT_BACKGROUND)
                 
     def stroke(self, v=1.0):
         buf = self._brush.paint_rgb_preview(BrushPreview.WIDTH, BrushPreview.HEIGHT,

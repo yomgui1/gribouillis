@@ -47,6 +47,8 @@ IECODE_LBUTTON = 0x68
 import commands
 del commands
 
+# Needed by view module
+Application = app.Application
 
 class GenericMediator(utils.Mediator):
     def show_dialog(self, title, msg):

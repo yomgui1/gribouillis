@@ -32,7 +32,7 @@ from pymui.mcc.betterbalance import BetterBalance
 import main, view
 from utils import _T, resolve_path
 from view import contexts, viewport
-from model.prefs import *
+from model import prefs, IPrefHandler
 
 from .eventparser import _KEYVALS
 from .widgets import Ruler
@@ -63,7 +63,7 @@ def convert2mui(key):
         
     return mod + ' ' + MUI_MAPS.get(key, key)
 
-class _BindingsPrefHandler(PrefHandlerInterface):        
+class _BindingsPrefHandler(IPrefHandler):
     def parse(self, prefs, element):
         bd = prefs['bindings'] = {}
         
@@ -104,7 +104,7 @@ class _BindingsPrefHandler(PrefHandlerInterface):
                               repeat=str(bind['repeat']),
                               action=bind['action'].__name__)
 
-class _ToolsWheelPrefHandler(PrefHandlerInterface):
+class _ToolsWheelPrefHandler(IPrefHandler):
     def parse(self, prefs, element):
         icons_names = prefs['view-icons-names']
         binds = prefs['view-toolswheel-binding']
@@ -145,7 +145,7 @@ class _ToolsWheelPrefHandler(PrefHandlerInterface):
                           icon_selected=icons_names[8+i],
                           command=cmd)
         
-class _MetricsPrefHandler(PrefHandlerInterface):
+class _MetricsPrefHandler(IPrefHandler):
     def parse(self, prefs, metrics):
         unit = metrics.get('unit', prefs['view-metrics-unit'])
         x = float(metrics.get('x', prefs['view-metrics-x']))
@@ -161,7 +161,7 @@ class _MetricsPrefHandler(PrefHandlerInterface):
         root.set('x', str(prefs['view-metrics-x']))
         root.set('y', str(prefs['view-metrics-y']))
                 
-class _RenderingPrefHandler(PrefHandlerInterface):
+class _RenderingPrefHandler(IPrefHandler):
     MAPS = {
         'background': 'view-color-bg',
         'outlines': 'view-color-ol',
@@ -205,7 +205,7 @@ class _RenderingPrefHandler(PrefHandlerInterface):
         root.set('pymui_ruler_fg_pen', str(prefs['pymui-ruler-fg-pen']))
         root.set('filter_threshold', str(prefs['view-filter-threshold']))
         
-class _InterfacePrefHandler(PrefHandlerInterface):
+class _InterfacePrefHandler(IPrefHandler):
     def parse(self, prefs, interface):
         avail_maps = pymui.GetApp().startup_windows
         win_list = interface.get('pymui_startup_win_list', ','.join(prefs['pymui-window-open-at-startup']))
@@ -347,11 +347,11 @@ class AppPrefWindow(pymui.Window):
         lister.Active = 0
         
         # Register prefs handlers
-        reg_pref_handler('bindings', _BindingsPrefHandler())
-        reg_pref_handler('toolswheel', _ToolsWheelPrefHandler())
-        reg_pref_handler('metrics', _MetricsPrefHandler())
-        reg_pref_handler('rendering', _RenderingPrefHandler())
-        reg_pref_handler('interface', _InterfacePrefHandler())
+        prefs.register_tag_handler('bindings', _BindingsPrefHandler())
+        prefs.register_tag_handler('toolswheel', _ToolsWheelPrefHandler())
+        prefs.register_tag_handler('metrics', _MetricsPrefHandler())
+        prefs.register_tag_handler('rendering', _RenderingPrefHandler())
+        prefs.register_tag_handler('interface', _InterfacePrefHandler())
             
     def _init_bindings(self):
         self.clear_bindings()

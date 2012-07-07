@@ -26,10 +26,7 @@
 import pymui
 
 import view
-
 from utils import _T
-from model.prefs import prefs
-
 from .widgets import Ruler
 
 __all__ = [ 'DocInfoWindow' ]

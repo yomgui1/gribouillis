@@ -25,7 +25,7 @@
 
 import _lcms
 
-from model.prefs import prefs
+from model import prefs
 from utils import _T
 
 __all__ = [ 'Profile', 'Transform', 'INTENTS' ]

@@ -34,7 +34,7 @@ import const
 
 from utils import _T, resolve_path
 from model import devices
-from model.prefs import prefs
+from model import prefs
 
 import eventparser
 

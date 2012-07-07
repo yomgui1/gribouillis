@@ -34,8 +34,33 @@ from utils import _T
 from .document import Document
 from .layer import Layer
 from .palette import Palette
+from ._prefs import prefs, IPrefHandler
 
 __all__ = ['DocumentProxy']
+
+
+class PrefsProxy(Proxy):
+    NAME = "Preferences"
+    
+    def __init__(self, data=None):
+        Proxy.__init__(self, self.NAME, _prefs.prefs)
+        
+    def __getitem__(self, key):
+        return self.data[key]
+        
+    def __setitem__(self, key, value):
+        self.data[key] = value
+        self.sendNotification(main.PREFS_CHANGED, key)
+
+    def set_to_defaults(self):
+        self.data.set_to_defaults()
+        self.sendNotification(main.PREFS_CHANGED)
+
+    def __getattr__(self, name):
+        try:
+            return self.data.__getattribute__(name)
+        except:
+            return Proxy.__getattribute__(self, name)
 
 
 class DocumentProxy(Proxy):

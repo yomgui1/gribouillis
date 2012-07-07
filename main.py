@@ -43,6 +43,8 @@ UNDO = 'undo'
 REDO = 'redo'
 FLUSH = 'flush'
 
+PREFS_CHANGED = 'prefs-changed'
+
 NEW_DOCUMENT = 'new-doc'                              # user want to create a new document
 NEW_DOCUMENT_RESULT = 'new-doc-result'
 

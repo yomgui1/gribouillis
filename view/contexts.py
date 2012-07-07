@@ -32,37 +32,39 @@ import cairo
 from glob import glob
 
 import view, main
+from model import prefs
 from utils import _T, resolve_path
-from model.prefs import prefs
 
 # Defaults for prefs
-prefs['view-toolswheel-binding'] = [ 'new layer',
-                                     'open layer manager window',
-                                     'save document as',
-                                     'open preferences window',
-                                     'open color manager window',
-                                     'undo',
-                                     'load document',
-                                     'redo' ]
-                                     
+prefs.add_default('view-toolswheel-binding',
+    ['new layer',
+     'open layer manager window',
+     'save document as',
+     'open preferences window',
+     'open color manager window',
+     'undo',
+     'load document',
+     'redo'])
+
 # This list uses Higlander icons
-prefs['view-icons-names'] = [ 'AddLayer_0',
-                              'Layer_0',
-                              'Save_0',
-                              'Prefs_0',
-                              'Color_0',
-                              'Undo_0',
-                              'Open_0',
-                              'Redo_0',
-                               
-                              'AddLayer_1', 
-                              'Layer_1',
-                              'Save_1',
-                              'Prefs_1',
-                              'Color_1',
-                              'Undo_1',
-                              'Open_1',
-                              'Redo_1' ]
+prefs.add_default('view-icons-names',
+    ['AddLayer_0',
+     'Layer_0',
+     'Save_0',
+     'Prefs_0',
+     'Color_0',
+     'Undo_0',
+     'Open_0',
+     'Redo_0',
+
+     'AddLayer_1', 
+     'Layer_1',
+     'Save_1',
+     'Prefs_1',
+     'Color_1',
+     'Undo_1',
+     'Open_1',
+     'Redo_1'])
 
 ICONS = {}
 ALL_CONTEXTS = {}

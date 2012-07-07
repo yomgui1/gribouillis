@@ -28,12 +28,12 @@ from math import ceil, floor
 
 import main
 from utils import _T
-from model.prefs import defaults, prefs
+from model import prefs
 
-defaults['pymui-ruler-bg-pen'] = 0
-defaults['pymui-ruler-fg-pen'] = 1
-defaults['pymui-ruler-pos-pen'] = 3
-prefs.update(defaults)
+prefs.add_default('pymui-ruler-bg-pen', 0)
+prefs.add_default('pymui-ruler-fg-pen', 1)
+prefs.add_default('pymui-ruler-pos-pen', 3)
+
 
 class Ruler(pymui.Rectangle):
     _MCC_ = True

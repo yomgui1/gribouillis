@@ -42,8 +42,6 @@ from puremvc.interfaces import ICommand
 
 from utils import _T, UndoableCommand
 from view.contexts import LastColorModal
-from model.prefs import prefs, load_preferences
-
 
 class StartupCmd(MacroCommand, ICommand):
     """First command executed when application is created.
@@ -56,16 +54,20 @@ class StartupCmd(MacroCommand, ICommand):
 
 class InitModelCmd(SimpleCommand, ICommand):
     def execute(self, note):
-        load_preferences('config.xml')
+        pp = model.PrefsProxy()
+        self.facade.registerProxy(pp)
+        pp.load('config.xml')
+        model.prefs = pp
         
         # Load the default document
-        docpath = prefs.get('default-document')
+        docpath = pp.data.get('default-document')
         if docpath is None:
             vo = model.vo.EmptyDocumentConfigVO()
         else:
             vo = model.vo.FileDocumentConfigVO(docpath)
         
         self.sendNotification(main.NEW_DOCUMENT, vo)
+
 
 class InitViewCmd(SimpleCommand, ICommand):
     def execute(self, note):

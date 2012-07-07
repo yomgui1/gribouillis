@@ -44,9 +44,8 @@ from math import floor, ceil, pi, atan
 
 import main
 
-from model import _pixbuf
+from model import _pixbuf, prefs
 from utils import virtualmethod, resolve_path
-from model.prefs import prefs, defaults
 
 pi2 = 2 * pi
 
@@ -435,7 +434,5 @@ class ToolsViewPort(ViewPortBase):
     def tools(self):
         return self._tools
 
-
-defaults['view-filter-threshold'] = DocumentViewPort.DEFAULT_FILTER_THRESHOLD
-defaults['view-color-passepartout'] = (0.33, 0.33, 0.33, 1.0)
-prefs.update(defaults)
+prefs.add_default('view-filter-threshold', DocumentViewPort.DEFAULT_FILTER_THRESHOLD)
+prefs.add_default('view-color-passepartout', (0.33, 0.33, 0.33, 1.0))

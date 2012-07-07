@@ -24,11 +24,12 @@
 ###############################################################################
 
 import cairo
+
 from math import floor, ceil, radians, pi, atan, hypot, cos, sin, exp, degrees
 
 import utils
-from model import _pixbuf
-from model.prefs import prefs
+
+from model import _pixbuf, prefs
 from view.viewport import ViewPortBase
 
 compute_angle = ViewPortBase.compute_angle

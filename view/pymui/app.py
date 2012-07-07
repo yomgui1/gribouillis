@@ -34,7 +34,7 @@ import main, view
 from view.contexts import new_context
 from utils import _T
 from model.document import LASTS_FILENAME
-from model.prefs import defaults, prefs
+from model import prefs
 
 from layermgr import *
 from cmdhistoric import *
@@ -47,8 +47,7 @@ from docinfo import *
 
 __all__ = [ 'Application' ]
 
-defaults['pymui-window-open-at-startup'] = ['splash']
-prefs.update(defaults)
+prefs.add_default('pymui-window-open-at-startup', ['splash'])
 
 BASE = "Gribouillis"
 COPYRIGHT = "\xa92009-2012, Guillaume Roguez"

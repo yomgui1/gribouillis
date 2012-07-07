@@ -149,7 +149,7 @@ class _MyTemplate(Template):
     idpattern = '[_a-z][_a-z0-9\-]*'
 
 def resolve_path(path):
-    from model.prefs import prefs
+    from model import prefs
     path = path.replace('/', os.path.sep)
     old_path = None
     while path != old_path:

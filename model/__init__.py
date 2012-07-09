@@ -107,7 +107,7 @@ class DocumentProxy(Proxy):
         del DocumentProxy.__instances[self.data.name]
         self.data = None
         hp_name = 'HP_' + self.getProxyName()
-        self.facade.removeProxy(self.getProxyName(hp_name))
+        self.facade.removeProxy(self.getProxyName())
         if DocumentProxy.__active is self:
             # Proxy is not responsible to determinate who is the next active
             DocumentProxy.__active = None
@@ -202,7 +202,7 @@ class DocumentProxy(Proxy):
     def set_brush(self, brush):
         self.__brush = brush
         self.document.brush.set_from_brush(brush)
-        self.sendNotification(main.BRUSH_UPDATED, self)
+        self.sendNotification(main.DOC_BRUSH_UPDATED, self)
 
     def set_brush_name(self, name):
         brush = self.data.brush

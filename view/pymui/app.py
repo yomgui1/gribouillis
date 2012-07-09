@@ -245,6 +245,8 @@ class Application(pymui.Application, view.mixin.ApplicationMixin):
         self.appprefwin.init_from_prefs()
         self.appprefwin.apply_config()
         
+        self.mediator.sendNotification(main.DOC_ACTIVATE)
+        
         # Auto-open, usefull only if MUI remembers window position
         open_splash = False
         for name in prefs['pymui-window-open-at-startup']:
@@ -253,8 +255,8 @@ class Application(pymui.Application, view.mixin.ApplicationMixin):
             else:
                 # Splash window should be open after all others to be the front window
                 open_splash = True
+
         self.splash.Open = open_splash
-        
         self.Run()
 
     def quit(self):

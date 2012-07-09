@@ -50,6 +50,7 @@ del commands
 # Needed by view module
 Application = app.Application
 
+
 class GenericMediator(utils.Mediator):
     def show_dialog(self, title, msg):
         pymui.DoRequest(app=self.viewComponent, title=title, format=msg, gadgets='*_Ok')
@@ -91,7 +92,7 @@ class ApplicationMediator(GenericMediator):
         component.menu_items['redo'].Bind(self._menu_redo)
         component.menu_items['flush'].Bind(self._menu_flush)
         component.menu_items['new-doc'].Bind(self.new_document)
-        component.menu_items['load-doc'].Bind(self.load_document)
+        component.menu_items['load-doc'].Bind(self.request_document)
         component.menu_items['save-doc'].Bind(self._menu_save_document)
         component.menu_items['save-as-doc'].Bind(self._menu_save_as_document)
         component.menu_items['clear_layer'].Bind(self._menu_clear_active_layer)
@@ -161,8 +162,7 @@ class ApplicationMediator(GenericMediator):
 
     def _on_last_sel(self, evt, filename):
         evt.Source.WindowObject.object.Open = False
-        vo = model.vo.FileDocumentConfigVO(filename)
-        self.sendNotification(main.NEW_DOCUMENT, vo)
+        self.open_document(filename)
 
     ## Menu items binding
 
@@ -236,18 +236,13 @@ class ApplicationMediator(GenericMediator):
 
     @mvcHandler(main.NEW_DOCUMENT_RESULT)
     def _new_document_result(self, docproxy):
-        if not docproxy:
-            self.sendNotification(main.SHOW_ERROR_DIALOG,
-                                  "Failed to create document.")
-            return
         self.add_docproxy(docproxy)
 
     @mvcHandler(main.DOC_ACTIVATED)
     def _activate_document(self, docproxy):
         if not self.document_mediator.has_doc(docproxy):
             self.add_docproxy(docproxy)
-        else:
-            self.viewComponent.on_doc_activated(docproxy)
+        self.viewComponent.on_doc_activated(docproxy)
 
     @mvcHandler(main.QUIT)
     def _quit(self, note):
@@ -270,17 +265,23 @@ class ApplicationMediator(GenericMediator):
         # TODO: ask for document type
         vo = model.vo.EmptyDocumentConfigVO()
         if self.viewComponent.get_new_document_type(vo):
+            try:
+                self.sendNotification(main.NEW_DOCUMENT, vo)
+            except:
+                self.show_error_dialog(_T("Failed to create document"))
+                
+    def open_document(self, filename):
+        vo = model.vo.FileDocumentConfigVO(filename)
+        try:
             self.sendNotification(main.NEW_DOCUMENT, vo)
-
-    def load_document(self, *a):
+        except IOError:
+            self.show_error_dialog(_T("Can't open file:\n%s" % filename))
+    
+    def request_document(self, *a):
         win = self.document_mediator.get_win(model.DocumentProxy.get_active())
         filename = self.viewComponent.get_document_filename(parent=win, read=False)
         if filename:
-            vo = model.vo.FileDocumentConfigVO(filename)
-            try:
-                self.sendNotification(main.NEW_DOCUMENT, vo)
-            except IOError:
-                self.show_error_dialog(_T("Can't open file:\n%s" % filename))
+            self.open_document(filename)
 
 
 class DocumentMediator(GenericMediator):
@@ -310,7 +311,7 @@ class DocumentMediator(GenericMediator):
         self.sendNotification(main.DOC_DELETE, win.docproxy)
 
     def _on_win_activated(self, evt):
-        evt.Source.docproxy.activate()
+        self.sendNotification(main.DOC_ACTIVATE, evt.Source.docproxy)
 
     ### notification handlers ###
 

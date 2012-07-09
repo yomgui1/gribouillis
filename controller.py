@@ -36,6 +36,7 @@ import os
 import utils
 import main
 import model
+import view
 
 from puremvc.patterns.command import SimpleCommand, MacroCommand
 from puremvc.interfaces import ICommand
@@ -72,8 +73,7 @@ class InitModelCmd(SimpleCommand, ICommand):
 class InitViewCmd(SimpleCommand, ICommand):
     def execute(self, note):
         # View knows the list of its Mediators
-        #self.facade.registerMediator(view.ApplicationMediator(note.getBody()))
-        pass
+        self.facade.registerMediator(view.ApplicationMediator(note.getBody()))
 
 
 class UndoCmd(SimpleCommand, ICommand):
@@ -99,7 +99,6 @@ class FlushCmd(SimpleCommand, ICommand):
 class NewDocumentCmd(SimpleCommand, ICommand):
     """Try to open/create document model as specified by given
     DocumentConfigVO instance.
-    Exception raised if document cannot be created/open.
     """
     def execute(self, note):
         vo = note.getBody()  # DocumentConfigVO
@@ -124,6 +123,7 @@ class NewDocumentCmd(SimpleCommand, ICommand):
 
             vo.name = name
             docproxy = model.DocumentProxy.new_proxy(vo)
+            
         else:
             # FileDocumentConfigVO
             # Search first if document isn't created yet,
@@ -138,8 +138,8 @@ class NewDocumentCmd(SimpleCommand, ICommand):
                 docproxy = model.DocumentProxy.get_active()
                 if not docproxy or not docproxy.document.close_safe:
                     docproxy = model.DocumentProxy.new_proxy(vo)
-
-                docproxy.load(vo.name)
+                else:
+                    docproxy.load(vo.name)
 
         self.sendNotification(main.DOC_ACTIVATE, docproxy)
 
@@ -182,13 +182,16 @@ class SaveDocumentCmd(SimpleCommand, ICommand):
 class ActivateDocumentCmd(SimpleCommand, ICommand):
     def execute(self, note):
         docproxy = note.getBody()
-        docproxy.active = docproxy
-
+        if docproxy:
+            docproxy.active = docproxy
+        else:
+            docproxy = model.DocumentProxy.get_active()
+            
         # activate the commands history proxy of the document
         hp = self.facade.retrieveProxy('HP_' + docproxy.getProxyName())
         hp.activate()
 
-        self.sendNotification(main.DOC_ACTIVATED, self)
+        self.sendNotification(main.DOC_ACTIVATED, docproxy)
 
 
 class RenameLayerCmd(UndoableCommand):

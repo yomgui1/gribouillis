@@ -55,45 +55,14 @@ class StartupCmd(MacroCommand, ICommand):
 
 class InitModelCmd(SimpleCommand, ICommand):
     def execute(self, note):
-        pp = model.PrefsProxy()
-        self.facade.registerProxy(pp)
-        pp.load('config.xml')
-        model.prefs = pp
-        
-        # Load the default document
-        docpath = pp.data.get('default-document')
-        if docpath is None:
-            vo = model.vo.EmptyDocumentConfigVO()
-        else:
-            vo = model.vo.FileDocumentConfigVO(docpath)
-        
-        self.sendNotification(main.NEW_DOCUMENT, vo)
+        # Static proxies init only
+        self.facade.registerProxy(model.PrefsProxy())
 
 
 class InitViewCmd(SimpleCommand, ICommand):
     def execute(self, note):
-        # View knows the list of its Mediators
+        # ApplicationMediator is responsible to register others mediators
         self.facade.registerMediator(view.ApplicationMediator(note.getBody()))
-
-
-class UndoCmd(SimpleCommand, ICommand):
-    def execute(self, note):
-        hp = utils.CommandsHistoryProxy.get_active()
-        if hp.canUndo():
-            hp.getPrevious().undo()
-
-
-class RedoCmd(SimpleCommand, ICommand):
-    def execute(self, note):
-        hp = utils.CommandsHistoryProxy.get_active()
-        if hp.canRedo():
-            hp.getNext().redo()
-
-
-class FlushCmd(SimpleCommand, ICommand):
-    def execute(self, note):
-        hp = utils.CommandsHistoryProxy.get_active()
-        hp.flush()
 
 
 class NewDocumentCmd(SimpleCommand, ICommand):
@@ -363,18 +332,17 @@ class MergeDownLayerCmd(UndoableCommand):
 
 
 class ClearLayerCmd(UndoableCommand):
+    # data: LayerCmdVO
+
     def execute(self, note):
         vo = note.getBody()
         self.__name = "Clear layer %s" % vo.layer.name
         super(ClearLayerCmd, self).execute(note)
-        self.registerUndoCommand(_UnsnapshotLayerContentCmd)
+        self.registerUndoCommand(_UnsnaphotLayerCmd)
 
     def executeCommand(self):
         vo = self.getNote().getBody()
-        vo.snapshot = vo.layer.surface.snapshot()
-        vo.dirty_area = vo.layer.area
-        vo.layer.clear()
-        self.sendNotification(main.DOC_DIRTY, (vo.docproxy, vo.dirty_area))
+        vo.snaphost = vo.layer.clear()
 
     def getCommandName(self):
         return self.__name
@@ -483,6 +451,25 @@ class SetLayerMatrixCmd(UndoableCommand):
         return self.__name
 
 
+class UndoCmd(SimpleCommand, ICommand):
+    def execute(self, note):
+        hp = utils.CommandsHistoryProxy.get_active()
+        if hp.canUndo():
+            hp.getPrevious().undo()
+
+
+class RedoCmd(SimpleCommand, ICommand):
+    def execute(self, note):
+        hp = utils.CommandsHistoryProxy.get_active()
+        if hp.canRedo():
+            hp.getNext().redo()
+
+
+class FlushCmd(SimpleCommand, ICommand):
+    def execute(self, note):
+        hp = utils.CommandsHistoryProxy.get_active()
+        hp.flush()
+
 ### Hidden commands, only used in this module
 
 class _UnMergeLayerCmd(SimpleCommand, ICommand):
@@ -494,8 +481,7 @@ class _UnMergeLayerCmd(SimpleCommand, ICommand):
         docproxy.insert_layer(lsrc, pos + 1, activate=True)
 
 
-class _UnsnapshotLayerContentCmd(SimpleCommand, ICommand):
+class _UnsnaphotLayerCmd(SimpleCommand, ICommand):
     def execute(self, note):
         vo = note.getBody()
         vo.layer.unsnapshot(vo.snapshot)
-        self.sendNotification(main.DOC_DIRTY, (vo.docproxy, vo.dirty_area))

@@ -28,6 +28,7 @@ from puremvc.patterns.proxy import Proxy
 
 import main
 import utils
+import model
 import model.vo as _vo
 
 from utils import _T
@@ -41,10 +42,17 @@ __all__ = ['DocumentProxy']
 
 class PrefsProxy(Proxy):
     NAME = "Preferences"
+    PREFS_CHANGED = 'prefs-changed'
     
     def __init__(self, data=None):
         Proxy.__init__(self, self.NAME, _prefs.prefs)
-        
+
+        # load saved config
+        self.load('config.xml')
+
+        # export prefs instance into model module
+        model.prefs = self
+
     def __getitem__(self, key):
         return self.data[key]
         
@@ -63,6 +71,43 @@ class PrefsProxy(Proxy):
             return Proxy.__getattribute__(self, name)
 
 
+class LayerProxy(Proxy):
+    """LayerProxy()
+
+    Dynamic proxy for document's layers.
+    """
+
+    NAME = "LayerProxy"
+
+    ###
+    ### Notifications
+    
+    LAYER_DIRTY = 'layer-dirty'
+    
+    ###
+    ### Object API
+    
+    def __init__(self, layer=None):
+        super(LayerProxy, self).__init__("%s_%X" % (self.NAME, id(layer)), layer)
+
+    ###
+    ### Public API
+
+    def handle_dirty(self, area):
+        if self.data.dirty:
+            self.sendNotification(self.LAYER_DIRTY, self)
+            self.data.dirty = 0
+
+    def clear(self):
+        snapshot = self.data.snapshot()
+        self.handle_dirty(snapshot.area)
+        return snapshot
+
+    def unsnapshot(self, snapshot):
+        self.data.unsnapshot(snapshot)
+        self.handle_dirty(snapshot.area)
+
+
 class DocumentProxy(Proxy):
     """DocumentProxy(document)
 
@@ -71,6 +116,15 @@ class DocumentProxy(Proxy):
       - provide document's API.
       - check documents unicity over names.
     """
+
+    ###
+    ### Notifications
+
+    # document related
+    DOC_ADDED = 'doc-added'
+    DOC_UPDATED = 'doc-updated'  # one or more document properties has been modified
+    DOC_LAYER_ADDED = 'doc-layer-added'
+    
 
     ####
     #### Private API ####
@@ -161,6 +215,14 @@ class DocumentProxy(Proxy):
             doc.load(filename)
         finally:
             DocumentProxy.__instances[doc.name] = self
+
+    def create_default_doc(self):
+        path = model.prefs.get('default-document')
+        if docpath is None:
+            vo = model.vo.EmptyDocumentConfigVO()
+        else:
+            vo = model.vo.FileDocumentConfigVO(docpath)
+        self.sendNotification(main.NEW_DOCUMENT, vo)
 
     ####
     #### Document access API ####
@@ -351,10 +413,7 @@ class DocumentProxy(Proxy):
         self.sendNotification(main.DOC_LAYER_DELETED, (self, layer))
         self.sendNotification(main.DOC_LAYER_ACTIVATED, (self, self.active_layer))
 
-    def clear_layer(self, layer):
-        self.sendNotification(main.DOC_LAYER_CLEAR,
-                              model.vo.LayerCommandVO(self, layer),
-                              type=utils.RECORDABLE_COMMAND)
+
 
     def copy_layer(self, layer, pos=None):
         if pos is None:

@@ -65,17 +65,7 @@ class EmptyDocumentConfigVO(DocumentConfigVO):
         super(EmptyDocumentConfigVO, self).__init__(name=_T('New document'), colorspace=colorspace, **k)
 
 
-class LayerCommandVO(GenericVO):
-    def __init__(self, docproxy, layer=None, **k):
-        super(LayerCommandVO, self).__init__(docproxy=docproxy, layer=layer, **k)
 
-
-class LayerConfigVO(LayerCommandVO):
-    """
-    Instance of this class is used to communicate layer
-    configuration when system needs to create a new layer.
-    """
-
-    def __init__(self, name='New Layer', **k):
-        super(LayerConfigVO, self).__init__(name=name, **k)
-
+class LayerCmdVO(GenericVO):
+    def __init__(self, layer, **k):
+        super(LayerCmdVO, self).__init__(layer=layer, **k)

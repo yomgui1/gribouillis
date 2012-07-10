@@ -23,7 +23,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import cairo, random
+import cairo
+import random
 from math import floor, ceil
 
 from model.surface import *
@@ -31,6 +32,7 @@ from model import _pixbuf
 from utils import virtualmethod
 
 __all__ = [ 'Layer', 'PlainLayer', 'TiledLayer' ]
+
 
 class Layer(object):
     """Layer() -> Layer object instance
@@ -73,9 +75,9 @@ class Layer(object):
     OPERATORS_LIST += " darken lighten dodge burn hard-light soft-light xor"
     OPERATORS_LIST  = OPERATORS_LIST.split()
 
-    _dirty = False
     _visible = True
     locked = False
+    dirty = False
     
     def __init__(self, surface, name, alpha=1.0, alphamask=None, operator='normal', opacity=1.0, **options):
         self._surface   = surface # drawing surface
@@ -109,8 +111,9 @@ class Layer(object):
         return self._surface.snapshot()
 
     def unsnapshot(self, snapshot, redo=False):
-        self._surface.unsnapshot(snapshot, redo)
-        self._dirty = True
+        self.dirty = True
+        return self._surface.unsnapshot(snapshot, redo)
+
 
     def translate(self, *delta):
         x, y = self.inv_matrix.transform_distance(*delta)

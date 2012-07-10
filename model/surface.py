@@ -57,9 +57,11 @@ class TileSurfaceSnapshot(dict):
     # These values are set in order to dirty_area returns 0 sized area
     dirty_area = (0, 0, 0, 0)
     
-    def __init__(self, tiles):
+    def __init__(self, tiles, area=None):
+        # Fast tiles copy
         dict.__init__(self, tiles)
         self._mod = {} # will contains added tiles after reduce()
+        self.area = area
         
         # mark all tiles as readonly:
         # any modifications will replace this tiles by new ones with ro set to False
@@ -247,10 +249,11 @@ class UnboundedTiledSurface(Surface):
         return not bool(self.__tilemgr.tiles)
 
     def snapshot(self):
-        return TileSurfaceSnapshot(self.__tilemgr.tiles)
+        return TileSurfaceSnapshot(self.__tilemgr.tiles,
+                                   self.area)
 
     def unsnapshot(self, snapshot, *args):
-        return snapshot.blit(self.__tilemgr.tiles, *args)
+        snapshot.blit(self.__tilemgr.tiles, *args)
 
     def rasterize(self, area, *args):
         self.__tilemgr.rasterize(area, args)

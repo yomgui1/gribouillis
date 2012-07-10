@@ -23,13 +23,16 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import gtk, gobject, cairo
+import gtk
+import gobject
+import cairo
 
 from gtk import gdk
 from random import random
 from math import ceil
 
-import view, main
+import view
+import main
 
 from model.devices import *
 from model.profile import Transform
@@ -42,7 +45,8 @@ from .app import Application
 from .cms import *
 from .eventparser import EventParser
 
-__all__ = [ 'DocViewer' ]
+__all__ = ['DocViewer']
+
 
 def _menu_signal(name):
     return gobject.signal_new(name, gtk.Window,
@@ -75,7 +79,7 @@ class DocDisplayArea(gtk.DrawingArea, viewport.BackgroundMixin):
 
     width = height = 0
     _cur_area = None
-    _cur_pos = (0,0)
+    _cur_pos = (0, 0)
     _cur_on = False
     _evtcontext = None
     _swap_x = _swap_y = None

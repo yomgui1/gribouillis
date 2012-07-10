@@ -25,7 +25,9 @@
 
 import gtk
 
-import view, utils, main
+import view
+import utils
+import main
 
 from utils import _T
 from view.contexts import action

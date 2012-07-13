@@ -56,14 +56,13 @@ class DocumentConfigVO(GenericVO):
 
 
 class FileDocumentConfigVO(DocumentConfigVO):
-    def __init__(self, filename, **k):
-        super(FileDocumentConfigVO, self).__init__(filename, **k)
+    def __init__(self, filename, docproxy=None, **k):
+        super(FileDocumentConfigVO, self).__init__(filename, docproxy, **k)
 
 
 class EmptyDocumentConfigVO(DocumentConfigVO):
     def __init__(self, colorspace='RGB', **k):
-        super(EmptyDocumentConfigVO, self).__init__(name=_T('New document'), colorspace=colorspace, **k)
-
+        super(EmptyDocumentConfigVO, self).__init__(colorspace=colorspace, **k)
 
 
 class LayerCmdVO(GenericVO):

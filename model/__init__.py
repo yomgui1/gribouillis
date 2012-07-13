@@ -24,6 +24,7 @@
 ###############################################################################
 
 import cairo
+import re
 from puremvc.patterns.proxy import Proxy
 
 import main
@@ -130,9 +131,9 @@ class DocumentProxy(Proxy):
     #### Private API ####
 
     __instances = {}  # All registered DocumentProxy instances
-    __active = None   # Current working docproxy
     __brush = None    # Brush instance owned by the Brush House.
     profile = None    # Color profile
+    docname_num_match = re.compile('(.* #)([0-9]+)').match
 
     def __init__(self, doc):
         assert isinstance(doc, Document)
@@ -162,12 +163,29 @@ class DocumentProxy(Proxy):
         self.data = None
         hp_name = 'HP_' + self.getProxyName()
         self.facade.removeProxy(self.getProxyName())
-        if DocumentProxy.__active is self:
-            # Proxy is not responsible to determinate who is the next active
-            DocumentProxy.__active = None
 
     ####
     #### Public API ####
+
+    @classmethod
+    def get_unique_name(cls, basename=None):
+        """Return a unique document name.
+        A base name can be given.
+        """
+        
+        if not basename:
+            basename = _T("New Empty Document")
+
+        base = cls.__instances.get(basename)
+        if base:
+            match =  cls.docname_num_match(base)
+            if match:
+                basename, n = match.groups()
+                basename += str(int(n) + 1)
+            else:
+                basename += ' #2'
+
+        return basename
 
     @classmethod
     def from_doc_name(cls, name):
@@ -197,16 +215,6 @@ class DocumentProxy(Proxy):
             # Docproxy ready to be used
             self.sendNotification(main.NEW_DOCUMENT_RESULT, self)
             return self
-
-    @staticmethod
-    def get_active():
-        return DocumentProxy.__active
-
-    @staticmethod
-    def set_active(proxy):
-        assert isinstance(proxy, DocumentProxy)
-        assert proxy.docname in DocumentProxy.__instances
-        DocumentProxy.__active = proxy
 
     def load(self, filename):
         doc = self.data
@@ -413,8 +421,6 @@ class DocumentProxy(Proxy):
         self.sendNotification(main.DOC_LAYER_DELETED, (self, layer))
         self.sendNotification(main.DOC_LAYER_ACTIVATED, (self, self.active_layer))
 
-
-
     def copy_layer(self, layer, pos=None):
         if pos is None:
             pos = self.data.get_layer_index(layer) + 1
@@ -495,7 +501,6 @@ class DocumentProxy(Proxy):
     ####
     #### Properties ###
 
-    active = property(fget=get_active, fset=lambda self, v: self.set_active(v))
     document = property(fget=lambda self: self.data)
     docname = property(fget=lambda self: self.data.name, fset=set_name)
     brush = property(fget=lambda self: self.__brush, fset=set_brush)

@@ -55,7 +55,6 @@ class StartupCmd(MacroCommand, ICommand):
 
 class InitModelCmd(SimpleCommand, ICommand):
     def execute(self, note):
-        # Static proxies init only
         self.facade.registerProxy(model.PrefsProxy())
 
 
@@ -73,26 +72,8 @@ class NewDocumentCmd(SimpleCommand, ICommand):
         vo = note.getBody()  # DocumentConfigVO
 
         if isinstance(vo, model.vo.EmptyDocumentConfigVO):
-            basename = vo.name
-            bases = (basename, basename + ' #')
-            given = [name for name in model.DocumentProxy.iternames()
-                     if name.startswith(bases)]
-
-            name = None
-            if bases[0] not in given:
-                name = bases[0]
-            else:
-                x = 1
-                fmt = bases[1] + '%u'
-                while x < 1000:
-                    name = fmt % x
-                    if name not in given:
-                        break
-                    x += 1
-
-            vo.name = name
+            vo.name = model.DocumentProxy.get_unique_name(vo.name)
             docproxy = model.DocumentProxy.new_proxy(vo)
-            
         else:
             # FileDocumentConfigVO
             # Search first if document isn't created yet,
@@ -104,7 +85,7 @@ class NewDocumentCmd(SimpleCommand, ICommand):
                 # If the active docproxy is in 'safe' state (empty or
                 # untouched), it's going to be used as container for the
                 # wanted document. Otherwise a new docproxy is created.
-                docproxy = model.DocumentProxy.get_active()
+                docproxy = vo.docproxy
                 if not docproxy or not docproxy.document.close_safe:
                     docproxy = model.DocumentProxy.new_proxy(vo)
                 else:
@@ -151,10 +132,7 @@ class SaveDocumentCmd(SimpleCommand, ICommand):
 class ActivateDocumentCmd(SimpleCommand, ICommand):
     def execute(self, note):
         docproxy = note.getBody()
-        if docproxy:
-            docproxy.active = docproxy
-        else:
-            docproxy = model.DocumentProxy.get_active()
+        assert docproxy is not None
             
         # activate the commands history proxy of the document
         hp = self.facade.retrieveProxy('HP_' + docproxy.getProxyName())

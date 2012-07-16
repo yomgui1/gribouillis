@@ -57,7 +57,8 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
     This class can also dispay tools and cursor.
     """
 
-    width = height = 0
+    width = height = None
+
     _cur_area = None
     _cur_pos = (0, 0)
     _cur_on = False
@@ -117,25 +118,41 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
     #
 
     def on_expose(self, widget, evt):
-        width = self.allocation.width
-        height = self.allocation.height
+        "Partial or full viewport repaint"
 
-        # Update ViewPorts size if size changed
+        # Repainting each layers is the most CPU comsuming task.
+        # So the idea is to limit painting surface to the maximum,
+        # even if more pre-computation must be done for that.
+        # So the painting pipeline is mainly based on rectangulars
+        # clipping computations to find the exact surface to redraw.
+        #
+        # GTK Note: by default widgets paint is double-buffered.
+        # So we don't have to support that here.
+        #
+        
+        area = evt.area
+        width = area[2]
+        height = area[3]
+
+        # Full or limited repaint?
         if self.width != width or self.height != height:
             self.width = width
             self.height = height
 
-            # Process document and tools viewports
             self._docvp.set_view_size(width, height)
             self._toolsvp.set_view_size(width, height)
 
             self._docvp.repaint()
             self._toolsvp.repaint()
+        else:
+            self._docvp.repaint(area)
+            self._toolsvp.repaint(area)
 
-        # Blit model and tools viewports on window RastPort (pixfmt compatible = ARGB)
+        # Blitting all surfaces now (Cairo)
+        #
         cr = self.window.cairo_create()
 
-        cr.rectangle(*evt.area)
+        cr.rectangle(*area)
         cr.clip()
 
         cr.set_operator(cairo.OPERATOR_SOURCE)
@@ -150,17 +167,20 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
         cr.paint()
         cr.translate(-dx, -dy)
 
+        # Paint document surface
         cr.set_operator(cairo.OPERATOR_OVER)
         cr.set_source_surface(self._docvp.cairo_surface, 0, 0)
         cr.paint()
-    
+
         if self._debug:
             cr.set_source_rgba(1,0,0,random()*.7)
             cr.paint()
             
+        # Paint tools surface
         cr.set_source_surface(self._toolsvp.cairo_surface, 0, 0)
         cr.paint()
 
+        # Paint cursor surface
         self._cur_area = None
         if self._cur_on:
             self._cur_area = self._get_cursor_clip(*self._cur_pos)

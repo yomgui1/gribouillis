@@ -26,7 +26,12 @@
 # Python 2.5 compatibility
 from __future__ import with_statement
 
-import os, sys, cairo, PIL.Image, array
+import os
+import sys
+import cairo
+import PIL.Image
+import array
+
 from cStringIO import StringIO
 from math import floor, ceil
 
@@ -47,9 +52,16 @@ from .layer import TiledLayer
 from .brush import DrawableBrush
 from .openraster import OpenRasterFileWriter, OpenRasterFileReader
 
+from utils import _T
+
 __all__ = [ 'Document' ]
 
-LASTS_FILENAME = 'ENVARC:Gribouillis/lasts'
+if os.name == 'morphos':
+    LASTS_FILENAME = 'ENVARC:Gribouillis/lasts'
+elif os.name == 'posix':
+    LASTS_FILENAME = os.path.expanduser('~/.gribouillis/lasts')
+else:
+    raise SystemError(_T("LASTS_FILENAME not defined on your platform"))
 
 # DEPRECATED
 class _IntegerBuffer(object):

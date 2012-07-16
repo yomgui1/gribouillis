@@ -51,13 +51,15 @@ class DocumentConfigVO(GenericVO):
     configuration when system needs to create a new docucment.
     """
 
-    def __init__(self, name=None, **k):
+    def __init__(self, name='', **k):
         super(DocumentConfigVO, self).__init__(name=name, **k)
 
 
 class FileDocumentConfigVO(DocumentConfigVO):
     def __init__(self, filename, docproxy=None, **k):
-        super(FileDocumentConfigVO, self).__init__(filename, docproxy, **k)
+        super(FileDocumentConfigVO, self).__init__(filename,
+                                                   docproxy=docproxy,
+                                                   **k)
 
 
 class EmptyDocumentConfigVO(DocumentConfigVO):

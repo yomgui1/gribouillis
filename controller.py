@@ -100,7 +100,7 @@ class DeleteDocumentCmd(SimpleCommand, ICommand):
 
         # delete from view
         appmed = self.facade.retrieveMediator(view.ApplicationMediator.NAME)
-        appmed.rem_docproxy(docproxy)
+        appmed.del_doc(docproxy)
 
         # delete from model
         self.facade.removeProxy('HP_' + docproxy.getProxyName())

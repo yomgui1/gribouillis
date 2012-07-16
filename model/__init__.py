@@ -125,7 +125,7 @@ class DocumentProxy(Proxy):
     DOC_ADDED = 'doc-added'
     DOC_UPDATED = 'doc-updated'  # one or more document properties has been modified
     DOC_LAYER_ADDED = 'doc-layer-added'
-    
+    DOC_DIRTY = 'doc-dirty'
 
     ####
     #### Private API ####
@@ -149,6 +149,16 @@ class DocumentProxy(Proxy):
     def _check_name(self, name):
         if name in DocumentProxy.__instances:
             raise NameError(_T('document name already exists'))
+
+    
+    @staticmethod
+    def _new_doc(vo):
+        if isinstance(vo, _vo.FileDocumentConfigVO):
+            return Document.new_from(vo.name)
+        elif isinstance(vo, _vo.EmptyDocumentConfigVO):
+            return Document(vo.name, colorspace=vo.colorspace)
+
+        raise TypeError("Bad vo argument type %s" % type(vo))
 
     ####
     #### MVC API ####
@@ -176,9 +186,8 @@ class DocumentProxy(Proxy):
         if not basename:
             basename = _T("New Empty Document")
 
-        base = cls.__instances.get(basename)
-        if base:
-            match =  cls.docname_num_match(base)
+        if basename in cls.__instances:
+            match =  cls.docname_num_match(basename)
             if match:
                 basename, n = match.groups()
                 basename += str(int(n) + 1)
@@ -202,27 +211,27 @@ class DocumentProxy(Proxy):
         depending on DocumentConfigVO given.
         """
 
-        if isinstance(vo, _vo.FileDocumentConfigVO):
-            doc = Document.new_from(vo.name)
-        elif isinstance(vo, _vo.EmptyDocumentConfigVO):
-            doc = Document(name=vo.name, colorspace=vo.colorspace)
-        else:
-            raise TypeError("Bad vo argument type %s" % type(vo))
+        self = cls(cls._new_doc(vo))
 
-        if doc:
-            self = cls(doc)
-
-            # Docproxy ready to be used
-            self.sendNotification(main.NEW_DOCUMENT_RESULT, self)
-            return self
+        # Docproxy ready to be used
+        self.sendNotification(cls.DOC_ADDED, self)
+        return self
 
     def load(self, filename):
-        doc = self.data
-        del DocumentProxy.__instances[doc.name]
-        try:
-            doc.load(filename)
-        finally:
-            DocumentProxy.__instances[doc.name] = self
+        """Replace current document by loading a new one.
+        """
+
+        # New document from file
+        vo = _vo.FileDocumentConfigVO(filename)
+        doc = self._new_doc(vo)
+        
+        # Replace
+        proxy = DocumentProxy.__instances.pop(self.docname)
+        self.data = doc
+        DocumentProxy.__instances[doc.name] = self
+
+        # Notify
+        self.sendNotification(self.DOC_UPDATED, self)
 
     def create_default_doc(self):
         path = model.prefs.get('default-document')

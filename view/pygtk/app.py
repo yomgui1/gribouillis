@@ -130,14 +130,18 @@ class Application(view.mixin.ApplicationMixin):
         return self.select_filename('Select Image', *a, **k)
 
     def get_new_document_type(self, vo, parent=None):
-        dlg = gtk.Dialog("New Document", parent,
+        """Open a dialog window to ask document type to user.
+        The given DocumentVO is modified accordingly.
+        """
+
+        dlg = gtk.Dialog(_T("New Document"), parent,
                          buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
                                   gtk.STOCK_NEW, gtk.RESPONSE_OK))
 
-        # Doc name
+        # Document name
         hbox = gtk.HBox()
         dlg.vbox.pack_start(hbox)
-        hbox.pack_start(gtk.Label("Document name:"))
+        hbox.pack_start(gtk.Label(_T("Document name:")))
 
         name = gtk.Entry()
         hbox.pack_start(name)
@@ -150,7 +154,7 @@ class Application(view.mixin.ApplicationMixin):
         dlg.vbox.pack_start(combo)
 
         # Add entries
-        combo.append_text("Select document type:")
+        combo.append_text(_T("Select document type:"))
         for text in ['RGB']:
             combo.append_text(text)
         combo.set_active(0)

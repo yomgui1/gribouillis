@@ -34,6 +34,9 @@ import app
 
 from utils import _T, mvcHandler
 
+from .docviewer import DocWindow
+from .viewport import DocViewport
+
 pygtk.require('2.0')
 gdk = gtk.gdk
 
@@ -42,6 +45,10 @@ Application = app.Application
 
 
 class GenericMediator(utils.Mediator):
+    """Base class for all PyGTK mediators.
+    Gives framework to display text dialog.
+    """
+
     def show_dialog(self, title, msg):
         dlg = gtk.MessageDialog(self.viewComponent,
                                 type=type,
@@ -64,7 +71,6 @@ class ApplicationMediator(GenericMediator):
     NAME = "ApplicationMediator"
 
     document_mediator = None
-    viewport_mediator = None
 
     #### Private API ####
 
@@ -79,30 +85,19 @@ class ApplicationMediator(GenericMediator):
         #self.facade.registerMediator(BrushEditorWindowMediator(self.viewComponent.brusheditor))
         #self.facade.registerMediator(ColorWindowMediator(self.viewComponent.colorwin))
 
-        #self.viewport_mediator = DocViewPortMediator(self.viewComponent)
-        #self.facade.registerMediator(self.viewport_mediator)
+        self.facade.registerMediator(DocViewportMediator(self.viewComponent))
 
         self.document_mediator = DocumentMediator(self.viewComponent)
         self.facade.registerMediator(self.document_mediator)
+
+        # Add a default empty document
+        vo = model.vo.EmptyDocumentConfigVO()
+        self.sendNotification(main.NEW_DOCUMENT, vo)
 
     def get_document_filename(self, parent=None):
         return self.viewComponent.get_filename(parent)
 
     ### notification handlers ###
-
-    @mvcHandler(model.DocumentProxy.DOC_ADDED)
-    def _on_new_document_result(self, docproxy):
-        if not docproxy:
-            self.sendNotification(main.SHOW_ERROR_DIALOG,
-                                  "Failed to create document.")
-            return
-        self.new_doc(docproxy)
-
-    @mvcHandler(main.DOC_ACTIVATED)
-    def _on_activate_document(self, docproxy):
-        return
-        if not self.document_mediator.has_doc(docproxy):
-            self.new_doc(docproxy)
 
     @mvcHandler(main.QUIT)
     def _on_quit(self, note):
@@ -111,21 +106,218 @@ class ApplicationMediator(GenericMediator):
 
     #### Public API ####
 
-    def new_doc(self, docproxy):
-        # Create and attach a window to view/edit the document
-        component = DocWindow(docproxy)
- 
-        # Register it to document mediator
-        self.document_mediator.add_doc(docproxy, component)
-
     def del_doc(self, docproxy):
         # Detach the window from the appplication and destroy it
-        win = self.document_mediator.del_doc(docproxy)
-        win.destroy()
+        self.document_mediator.del_doc(docproxy)
 
         # Close the application if no document remains.
         if not len(self.document_mediator):
             self.viewComponent.quit()
+
+
+class DocumentMediator(GenericMediator):
+    """DocumentMeditor()
+    
+    Handles document windows.
+    """
+
+    NAME = "DocumentMediator"
+
+    __focused = None
+    viewport_mediator = None
+    
+    #### Private API ####
+
+    def __init__(self, component):
+        assert isinstance(component, Application)
+        super(DocumentMediator, self).__init__(viewComponent=component)
+
+        self.__docmap = {}
+        self.viewport_mediator = self.facade.retrieveMediator(DocViewportMediator.NAME)
+
+    def __len__(self):
+        return len(self.__docmap)
+
+    ### UI events handlers ###
+
+    def _on_focus_in_event(self, win, evt):
+        self.__focused = win
+        self.sendNotification(main.DOC_ACTIVATE, win.docproxy)
+
+    def _on_delete_event(self, win, evt=None):
+        self.sendNotification(main.DOC_DELETE, win.docproxy)
+
+    def _on_menu_quit(self, win):
+        self.sendNotification(main.QUIT)
+
+    def _on_menu_new_doc(self, win):
+        "Interactive new document opening (ask for doc type)"
+        vo = model.vo.EmptyDocumentConfigVO()
+        if self.viewComponent.get_new_document_type(vo, parent=win):
+            self.sendNotification(main.NEW_DOCUMENT, vo)
+
+    def _on_menu_load_doc(self, win):
+        self.load_new_doc(win)
+
+    def _on_menu_save_doc(self, win):
+        filename = self.viewComponent.get_document_filename(parent=win, read=False)
+        if filename:
+            self.sendNotification(main.DOC_SAVE, (win.docproxy, filename))
+            win.set_doc_name(win.docproxy.document.name)
+
+    def _on_menu_clear_layer(self, win):
+        self.sendNotification(main.DOC_LAYER_CLEAR,
+                              model.vo.LayerCommandVO(win.docproxy, win.docproxy.active_layer))
+
+    def _on_menu_undo(self, win):
+        self.sendNotification(main.UNDO)
+
+    def _on_menu_redo(self, win):
+        self.sendNotification(main.REDO)
+
+    def _on_menu_flush(self, win):
+        self.sendNotification(main.FLUSH)
+
+    def _on_menu_load_image_as_layer(self, win):
+        self.load_image_as_layer()
+
+    ### notification handlers ###
+
+    @mvcHandler(model.DocumentProxy.DOC_ADDED)
+    def _on_doc_added(self, docproxy):
+        self.add_new_doc(docproxy)
+
+    @mvcHandler(model.DocumentProxy.DOC_UPDATED)
+    def _on_doc_updated(self, docproxy):
+        win = self.get_win(docproxy)
+        if win:
+            win.proxy_updated()
+
+    @mvcHandler(main.DOC_ACTIVATED)
+    def _on_activate_document(self, docproxy):
+        win = self.get_win(docproxy)
+        # present() causes a focus-in GTK event
+        # and focus-in event trigs DOC_ACTIVATE.
+        # So __focused is checked to break the loop
+        if win and win is not self.__focused:
+            win.present()
+
+    @mvcHandler(main.BRUSH_PROP_CHANGED)
+    def _on_brush_prop_changed(self, brush, name):
+        if name is 'color':
+            return
+
+        # synchronize storage brushes with drawing brushes.
+        v = getattr(brush, name)
+        for docproxy in self.__docmap.iterkeys():
+            if docproxy.brush is brush:
+                setattr(docproxy.document.brush, name, v)
+
+        # For the cursor
+        if name == 'radius_max':
+            self.get_win(docproxy).set_cursor_radius(v)
+
+    #### Public API ####
+
+    def has_doc(self, docproxy):
+        return docproxy in self.__docmap
+
+    def get_win(self, docproxy):
+        return self.__docmap[docproxy]
+
+    def add_new_doc(self, docproxy):
+        "Register and associate a document proxy to a new document window"
+
+        win = DocWindow(docproxy)
+        self.__docmap[docproxy] = win
+
+        # Associate Window's events to callbacks
+        win.connect("delete-event", self._on_delete_event)
+        win.connect("focus-in-event", self._on_focus_in_event)
+        win.connect("menu_quit", self._on_menu_quit)
+        win.connect("menu_new_doc", self._on_menu_new_doc)
+        win.connect("menu_load_doc", self._on_menu_load_doc)
+        win.connect("menu_close_doc", self._on_delete_event)
+        win.connect("menu_save_doc", self._on_menu_save_doc)
+        win.connect("menu_undo", self._on_menu_undo)
+        win.connect("menu_redo", self._on_menu_redo)
+        win.connect("menu_flush", self._on_menu_flush)
+        win.connect("menu_clear_layer", self._on_menu_clear_layer)
+        win.connect("menu_load_image_as_layer", self._on_menu_load_image_as_layer)
+
+        # Attach viewports to mediators
+        map(self.viewport_mediator.add_viewport, win.viewports)
+
+    def del_doc(self, docproxy):
+        win = self.__docmap.pop(docproxy)
+        win.destroy()
+
+    def load_new_doc(self, win):
+        filename = self.viewComponent.get_document_filename(parent=win)
+        if filename:
+            vo = model.vo.FileDocumentConfigVO(filename, win.docproxy)
+            self.sendNotification(main.NEW_DOCUMENT, vo)
+
+
+class DocViewportMediator(GenericMediator):
+    NAME = "DocViewportMediator"
+
+    #### Private API ####
+
+    def __init__(self, component):
+        assert isinstance(component, Application)
+        super(DocViewportMediator, self).__init__(viewComponent=component)
+        self.__vpmap = {}
+
+    ### public API ####
+
+    def add_viewport(self, viewport):
+        dp = viewport.docproxy
+        vpl = self.__vpmap.get(dp)
+        if vpl:
+            vpl.append(viewport)
+        else:
+            self.__vpmap[dp] = [viewport]
+
+    ### notification handlers ###
+
+    @mvcHandler(model.DocumentProxy.DOC_UPDATED)
+    def _on_doc_updated(self, docproxy, area=None):
+        """Called when specific document area need to be rasterized.
+        If area is None, full visible area is considered.
+        Rasterization is processed on whole document,
+        for all viewports.
+        """
+
+        repaint = DocViewport.repaint
+
+        if area:
+            for vp in self.__vpmap[docproxy]:
+                repaint(vp.get_view_area(*area))
+        else:
+            map(repaint, self.__vpmap[docproxy])
+
+    @mvcHandler(model.LayerProxy.LAYER_DIRTY)
+    def _on_doc_dirty(self, vo):
+        "Redraw given area. If area is None => full redraw."
+        repaint = DocViewport.repaint
+        area = vo.get('area')
+        if area:
+            for vp in self.__vpmap[vo.docproxy]:
+                repaint(vp.get_view_area(*area))
+        else:
+            map(repaint, self.__vpmap[vo.docproxy])
+
+    @mvcHandler(model.DocumentProxy.DOC_LAYER_ADDED)
+    @mvcHandler(main.DOC_LAYER_STACK_CHANGED)
+    @mvcHandler(main.DOC_LAYER_UPDATED)
+    @mvcHandler(main.DOC_LAYER_DELETED)
+    def _on_layer_dirty(self, docproxy, layer, *args):
+        "Specific layer repaint, limited to its area."
+        if not layer.empty:
+            area = layer.area
+            for vp in self.__vpmap[docproxy]:
+                vp.repaint(vp.get_view_area(*area))
 
 
 class BrushEditorWindowMediator(GenericMediator):
@@ -280,155 +472,6 @@ class ColorWindowMediator(GenericMediator):
         self.viewComponent.set_color_rgb(brush.rgb)
 
 
-class DocumentMediator(GenericMediator):
-    """
-    This class creates one instance for the application.
-    This instance handles creation/destruction of document viewer components.
-    This instance connects events from these components to its methods
-    in a way to do actions on the model/controller.
-    """
-
-    NAME = "DocumentMediator"
-
-    #### Private API ####
-
-    def __init__(self, component):
-        assert isinstance(component, Application)
-        super(DocumentMediator, self).__init__(viewComponent=component)
-
-        self.__docmap = {}
-        self.__focused = None
-
-        self.viewport_mediator = self.facade.retrieveMediator(DocViewPortMediator.NAME)
-
-    def __len__(self):
-        return len(self.__docmap)
-
-    def _safe_close_viewer(self, win):
-        #if not win.docproxy.document.empty and not win.confirm_close():
-        #    return
-        self.sendNotification(main.DOC_DELETE, win.docproxy)
-
-    ### UI events handlers ###
-
-    def _on_focus_in_event(self, win, evt):
-        self.__focused = win
-        self.sendNotification(main.DOC_ACTIVATE, win.docproxy)
-
-    def _on_delete_event(self, win, evt):
-        self.sendNotification(main.DOC_DELETE, win.docproxy)
-
-    def _on_menu_close_doc(self, win):
-        self.sendNotification(main.DOC_DELETE, win.docproxy)
-
-    def _on_menu_quit(self, win):
-        self.sendNotification(main.QUIT)
-
-    def _on_menu_new_doc(self, win):
-        vo = model.vo.EmptyDocumentConfigVO('New document')
-        if self.viewComponent.get_new_document_type(vo, parent=win):
-            self.sendNotification(main.NEW_DOCUMENT, vo)
-
-    def _on_menu_load_doc(self, win):
-        self._load_new_doc(win)
-
-    def _on_menu_save_doc(self, win):
-        filename = self.viewComponent.get_document_filename(parent=win, read=False)
-        if filename:
-            self.sendNotification(main.DOC_SAVE, (win.docproxy, filename))
-            win.set_doc_name(win.docproxy.document.name)
-
-    def _on_menu_clear_layer(self, win):
-        self.sendNotification(main.DOC_LAYER_CLEAR,
-                              model.vo.LayerCommandVO(win.docproxy, win.docproxy.active_layer))
-
-    def _on_menu_undo(self, *a):
-        self.sendNotification(main.UNDO)
-
-    def _on_menu_redo(self, *a):
-        self.sendNotification(main.REDO)
-
-    def _on_menu_flush(self, *a):
-        self.sendNotification(main.FLUSH)
-
-    def _on_menu_load_image_as_layer(self, *a):
-        self.load_image_as_layer()
-
-    ### notification handlers ###
-
-    @mvcHandler(main.DOC_SAVE_RESULT)
-    def _on_save_document_result(self, *args):
-        pass
-
-    @mvcHandler(main.DOC_ACTIVATED)
-    def _on_activate_document(self, docproxy):
-        win = self.get_win(docproxy)
-        if win is not self.__focused:
-            win.present()
-            #Application().brusheditor.set_transient_for(win)
-
-    @mvcHandler(main.BRUSH_PROP_CHANGED)
-    def _on_brush_prop_changed(self, brush, name):
-        if name is 'color':
-            return
-
-        # synchronize storage brushes with drawing brushes.
-        v = getattr(brush, name)
-        for docproxy in self.__docmap.iterkeys():
-            if docproxy.brush is brush:
-                setattr(docproxy.document.brush, name, v)
-
-        # For the cursor
-        if name == 'radius_max':
-            self.get_win(docproxy).set_cursor_radius(v)
-
-    #### Public API ####
-
-    def load_new_doc(self, win):
-        filename = self.viewComponent.get_document_filename(parent=win)
-        if filename:
-            vo = model.vo.FileDocumentConfigVO(filename)
-            self.sendNotification(main.NEW_DOCUMENT, vo)
-
-    def has_doc(self, docproxy):
-        return docproxy in self.__docmap
-
-    def get_win(self, docproxy):
-        return self.__docmap[docproxy]
-
-    def add_doc(self, docproxy, component):
-        self.__docmap[docproxy] = component
-
-        # Create document's ViewPort mediators
-        for viewport in component.viewports:
-            self.viewport_mediator.add_viewport(viewport)
-
-        component.connect("delete-event", lambda wd, *a: self._safe_close_viewer(wd))
-        component.connect("focus-in-event", self._on_focus_in_event)
-        component.connect("menu_quit", self._on_menu_quit)
-        component.connect("menu_new_doc", self._on_menu_new_doc)
-        component.connect("menu_load_doc", self._on_menu_load_doc)
-        component.connect("menu_close_doc", self._on_menu_close_doc)
-        component.connect("menu_save_doc", self._on_menu_save_doc)
-        component.connect("menu_undo", self._on_menu_undo)
-        component.connect("menu_redo", self._on_menu_redo)
-        component.connect("menu_flush", self._on_menu_flush)
-        component.connect("menu_clear_layer", self._on_menu_clear_layer)
-        component.connect("menu_load_image_as_layer", self._on_menu_load_image_as_layer)
-
-    def del_doc(self, docproxy):
-        component = self.__docmap.pop(docproxy)
-        return component
-
-    def load_image_as_layer(self):
-        docproxy = model.DocumentProxy.get_active()
-        dv = self._get_viewer(docproxy)
-        filename = self.viewComponent.get_image_filename(parent=dv)
-        if filename:
-            self.sendNotification(main.DOC_LOAD_IMAGE_AS_LAYER,
-                                  model.vo.LayerConfigVO(docproxy=docproxy, filename=filename))
-
-
 class LayerManagerMediator(GenericMediator):
     NAME = "LayerManagerMediator"
 
@@ -549,70 +592,3 @@ class LayerManagerMediator(GenericMediator):
         if self.__docproxy is docproxy and layer is not self.viewComponent.active:
             self.viewComponent.active = layer
 
-
-class DocViewPortMediator(GenericMediator):
-    NAME = "DocViewPortMediator"
-
-    #### Private API ####
-
-    def __init__(self, component):
-        assert isinstance(component, Application)
-        super(DocViewPortMediator, self).__init__(viewComponent=component)
-        self.__vpmap = {}
-        self._vp = None  # viewport with focus
-
-    ### public API ####
-
-    def add_viewport(self, viewport):
-        dp = viewport.docproxy
-        if dp in self.__vpmap:
-            self.__vpmap[dp].append(viewport)
-        else:
-            self.__vpmap[dp] = [viewport]
-        self._vp = viewport
-
-    def reset_view(self, vp=None):
-        if vp is None:
-            vp = self._vp
-        vp.reset_view()
-
-    def _get_active(self):
-        return self._vp
-
-    def _set_active(self, vp):
-        self._vp = vp
-
-    active = property(fget=_get_active, fset=_set_active)
-
-    ### notification handlers ###
-
-    @mvcHandler(model.DocumentProxy.DOC_UPDATED)
-    def _on_doc_dirty(self, docproxy, area=None):
-        "Redraw given area. If area is None => full redraw."
-        for vp in self.__vpmap[docproxy]:
-            if area:
-                vp.repaint(vp.get_view_area(*area))
-            else:
-                vp.repaint()
-
-    @mvcHandler(model.LayerProxy.LAYER_DIRTY)
-    def _on_doc_dirty(self, vo):
-        "Redraw given area. If area is None => full redraw."
-        area = vo.get('area')
-        if area:
-            for vp in self.__vpmap[vo.layer.doc]:
-                vp.repaint(vp.get_view_area(*area))
-        else:
-            for vp in self.__vpmap[vo.layer.doc]:
-                vp.repaint()
-
-    @mvcHandler(model.DocumentProxy.DOC_LAYER_ADDED)
-    @mvcHandler(main.DOC_LAYER_STACK_CHANGED)
-    @mvcHandler(main.DOC_LAYER_UPDATED)
-    @mvcHandler(main.DOC_LAYER_DELETED)
-    def _on_layer_dirty(self, docproxy, layer, *args):
-        "Specific layer repaint, limited to its area."
-        if not layer.empty:
-            area = layer.area
-            for vp in self.__vpmap[docproxy]:
-                vp.repaint(vp.get_view_area(*area))

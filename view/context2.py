@@ -23,42 +23,46 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-__all__ = ["command", "Context", "ModalContext"]
+import model
+
+__all__ = ["command", "get_commands", "Context", "ModalContext"]
+
 
 def command(name):
     def wrapper(func):
-        func._cmdname = name
+        Context.commands[name] = func
         return func
     return wrapper
 
 
+def get_commands():
+    return Context.commands.keys()
+
+
 class MetaContext(type):
+    __commands = {}
+
     def __new__(meta, name, bases, dct):
-        d = {}
+        emap =  dct.get('EVENTS_MAP')
+        if emap is not None:
+            # Update events mapping with user prefs
+            user_maps = model.prefs.get('view-events-maps')
+            if user_maps and name in user_maps:
+                emap.update(user_maps[name])
 
-        # Inherit commands map
-        for cls in bases:
-            if hasattr(cls, '_cmdmap'):
-                d.update(cls._cmdmap)
+            # Create a new mapping betwwen events name and cmd's functions
+            d = dct['_EVENTS_MAP'] = {}
+            for k, v in emap.iteritems():
+                d[k] = MetaContext.__commands[v]
 
-        # Update with local commands
-        for v in dct.itervalues():
-            if hasattr(v, '_cmdname'):
-                d[v._cmdname] = v
-                del v._cmdname
-
-        dct['_cmdmap'] = d
         return type.__new__(meta, name, bases, dct)
 
-    @staticmethod
-    def setup(ctx):
-        pass
+    @property
+    def commands(cls):
+        return MetaContext.__commands
 
-    @staticmethod
-    def cleanup(ctx):
-        pass
 
-class Context(dict):
+class Context(object):
     """Context() class
 
     Contexts are used to defined a named event mapping.
@@ -75,36 +79,34 @@ class Context(dict):
     """
 
     __metaclass__ = MetaContext
-    __ctx = MetaContext
+
+    EVENTS_MAP = {}
 
     def __init__(self, **data):
         self.__dict__.update(data)
-        self.switch(self.__class__)
+        self._map = {}
+        self._ctx = Context
+        self.switch(self.__class__)        
 
     @classmethod
-    def remap(cls, d):
-        omap = d.get('_oldmap')
-        if omap:
-            d.clear()
-            d.update(omap)
-            del d._oldmap
-        d.update(cls.EVENTS_MAP)
+    def remap(cls, ctx):
+        omap = getattr(ctx, '_oldmap', None)
+        if omap is not None:
+            ctx._map = omap
+            del ctx._oldmap
+        ctx._map.update(cls._EVENTS_MAP)
 
     def switch(self, ctx):
         print "CTX: %s" % ctx.__name__
-        self.__ctx.cleanup(self)
-        self.__ctx = ctx
+        self._ctx.cleanup(self)
+        self._ctx = ctx
         ctx.remap(self)
         ctx.setup(self)
 
     def execute(self, evt):
-        cmd = self[str(evt)]
-        if not self.__ctx._cmdmap[cmd](self, evt):
+        cmd = self._map[str(evt)]
+        if not cmd(self, evt):
             return True
-
-    @property
-    def ctx(self):
-        return self.__ctx
 
     @staticmethod
     def setup(ctx):
@@ -114,10 +116,10 @@ class Context(dict):
     def cleanup(ctx):
         pass
 
+
 class ModalContext(Context):
     @classmethod
-    def remap(cls, d):
-        assert not hasattr(d, '_oldmap')
-        d._oldmap = d.copy()
-        d.clear()
-        d.update(cls.EVENTS_MAP)
+    def remap(cls, ctx):
+        assert not hasattr(ctx, '_oldmap')
+        ctx._oldmap = ctx._map
+        ctx._map = cls._EVENTS_MAP

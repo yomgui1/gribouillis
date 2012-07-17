@@ -82,6 +82,9 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
         self._curvp = tools.Cursor()
         self._curvp.set_radius(docproxy.document.brush.radius_max)
 
+        if self._debug:
+            self._curvp.set_radius(20.0)
+
         # Aliases
         self.get_view_area = self._docvp.get_view_area
         self.enable_fast_filter = self._docvp.enable_fast_filter
@@ -131,11 +134,12 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
         #
         
         area = evt.area
-        width = area[2]
-        height = area[3]
+        width = self.allocation.width
+        height = self.allocation.height
 
         # Full or limited repaint?
         if self.width != width or self.height != height:
+            # full repaint
             self.width = width
             self.height = height
 
@@ -145,6 +149,7 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
             self._docvp.repaint()
             self._toolsvp.repaint()
         else:
+            # limited repaint
             self._docvp.repaint(area)
             self._toolsvp.repaint(area)
 

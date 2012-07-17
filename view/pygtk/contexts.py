@@ -23,12 +23,15 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-from view.context2 import *
+import view.context2 as context
 
-class ViewportCtx(Context):
+command = context.command
+
+
+class ViewportCtx(context.Context):
     EVENTS_MAP = {
         "mouse-bt-1-press": "viewport-draw-start",
-        "cursor-motion": "viewport-cursor-move",
+        "cursor-motion": "viewport-cursor-motion",
         }
 
     @staticmethod
@@ -37,19 +40,20 @@ class ViewportCtx(Context):
             ctx.viewport.show_brush_cursor(True)
 
     @command("viewport-draw-start")
-    def draw_start(self, evt):
-        self.switch(ViewportDrawingCtx)
+    def vp_draw_start(ctx, evt):
+        ctx.switch(ViewportDrawingCtx)
 
-    @command("viewport-cursor-move")
-    def on_motion(self, evt):
+
+    @command("viewport-cursor-motion")
+    def vp_cursor_move(ctx, evt):
         pos = evt.get_cursor_position()
-        self.viewport.repaint_cursor(*pos)
+        ctx.viewport.repaint_cursor(*pos)
 
 
-class ViewportDrawingCtx(ModalContext):
+class ViewportDrawingCtx(context.ModalContext):
     EVENTS_MAP = {
-        "cursor-motion": "draw-stroke",
-        "mouse-bt-1-release": "draw-stop",
+        "cursor-motion": "drawing-stroke",
+        "mouse-bt-1-release": "drawing-stop",
         }
 
     @staticmethod
@@ -63,15 +67,15 @@ class ViewportDrawingCtx(ModalContext):
     @staticmethod
     def cleanup(ctx):
         vp = ctx.viewport
-        vp.docproxy.draw_end(vp.device)
+        vp.docproxy.draw_end()
         vp.show_brush_cursor(True)
 
-    @command("draw-stop")
-    def stop(self, evt):
-        self.switch(ViewportCtx)
-    
-    @command("draw-stroke")
-    def draw(self, evt):
-        vp = self.viewport
+    @command("drawing-stop")
+    def dr_stop(ctx, evt):
+        ctx.switch(ViewportCtx)
+
+    @command("drawing-stroke")
+    def dr_stroke(ctx, evt):
+        vp = ctx.viewport
         vp.docproxy.record(vp.device.current)
-        
+

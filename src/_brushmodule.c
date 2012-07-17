@@ -869,7 +869,11 @@ _draw_stroke(PyBrush *self, Point *pt[4], MyRec *area)
     float ytilt = (pt[1]->p_YTilt + pt[2]->p_YTilt) * .5;
         
     /* Discretized direction brush angle [0, 1023] */
-    float angle = atanf(xtilt/ytilt) + self->b_BasicValues[BV_ANGLE]*M_TWOPI/360.;
+    float angle;
+    if (ytilt != 0.0)
+		angle = atanf(xtilt/ytilt) + self->b_BasicValues[BV_ANGLE]*M_TWOPI/360.;
+    else
+		angle = 0.0;
     int dir_angle = angle * 1024./M_TWOPI;
     if (dir_angle == 1024)
 		dir_angle = 0;

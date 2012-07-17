@@ -23,6 +23,11 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
+"""This module implement a class to uniquely represent
+a GTK event (keys, mouse motion, ...).
+This object is used jointly with view.Context as mapping keys.
+"""
+
 from gtk import gdk
 
 from view.interfaces import EventParserI
@@ -74,17 +79,23 @@ class EventParser(EventParserI):
     __bad_devices = []
     
     def __init__(self, event):
-        self._event = event
+        self._evt = event
+
+    def __hash__(self):
+        return hash(self._evt)
+    def __str__(self):
+        return self.get_key()
 
     def get_time(self):
-        if self._time is None
-            self._time = evt.time * 1e-3 # GDK timestamp in milliseconds
+        if self._time is None:
+            # GDK timestamp in milliseconds
+            self._time = self._evt.time * 1e-3
         return self._time
-    
+
     def get_modificators(self):
         if self._mods is None:
             self._mods = mods = []
-            state = self._event.state
+            state = self._evt.state
             if state & gdk.MOD1_MASK:
                 mods.append('alt1')
             if state & gdk.MOD5_MASK:
@@ -98,77 +109,70 @@ class EventParser(EventParserI):
         return ' '.join(self._mods) or None
     
     def get_key(self):
+        evt = self._evt
         if self._key is None:
-            if self._event.type == gdk.MOTION_NOTIFY:
-                key = 'cursor_move'
-            elif self._event.type == gdk.ENTER_NOTIFY:
-                key = 'cursor_enter'
-            elif self._event.type == gdk.LEAVE_NOTIFY:
-                key = 'cursor_leave'
-            elif self._event.type in (gdk.BUTTON_PRESS, gdk.BUTTON_RELEASE):
-                if self._event.button == 1:
-                    key = 'mouse_left'
-                elif self._event.button == 2:
-                    key = 'mouse_middle'
-                elif self._event.button == 3:
-                    key = 'mouse_right'
-                elif self._event.button == 4:
-                    key = 'mouse_fourth'
+            if evt.type == gdk.MOTION_NOTIFY:
+                key = 'cursor-motion'
+            elif evt.type == gdk.ENTER_NOTIFY:
+                key = 'cursor-enter'
+            elif evt.type == gdk.LEAVE_NOTIFY:
+                key = 'cursor-leave'
+            elif evt.type in (gdk.BUTTON_PRESS, gdk.BUTTON_RELEASE):
+                key = 'mouse-bt-%u' % evt.button
+                if evt.type == gdk.BUTTON_PRESS:
+                    key += '-press'
                 else:
-                    key = ''
-            elif self._event.type in (gdk.KEY_PRESS, gdk.KEY_RELEASE):
-                key = _KEYVALS.get(self._event.keyval)
+                    key += '-release'
+            elif evt.type in (gdk.KEY_PRESS, gdk.KEY_RELEASE):
+                key = _KEYVALS.get(evt.keyval)
                 if not key:
                     if key <= 0xff:
-                        key = chr(self._event.keyval).lower()
+                        key = chr(evt.keyval).lower()
                     else:
-                        key = hex(self._event.keyval)
-            elif self._event.type == gdk.SCROLL:
-                if self._event.direction == gdk.SCROLL_UP:
-                    key = 'wheel_up'
-                elif self._event.direction == gdk.SCROLL_DOWN:
-                    key = 'wheel_down'
+                        key = hex(evt.keyval)
+            elif evt.type == gdk.SCROLL:
+                if evt.direction == gdk.SCROLL_UP:
+                    key = 'wheel-up'
+                elif evt.direction == gdk.SCROLL_DOWN:
+                    key = 'wheel-down'
                 else:
                     key = ''
             else:
-                print '[*DBG*] unknown event type:', self._event.type
+                print '[*DBG*] unknown event type:', evt.type
                 key = ''
             self._key = key
         return self._key
 
-    def get_screen_position(self):
-        if self._scr_pos is None:
-            self._scr_pos = self.get_pointer()
-        return self._scr_pos
-
     def get_cursor_position(self):
         if self._cur_pos is None:
-            self._cur_pos = (evt.get_axis(gdk.AXIS_X)), int(evt.get_axis(gdk.AXIS_Y))
+            self._cur_pos = (
+                int(self._evt.get_axis(gdk.AXIS_X)),
+                int(self._evt.get_axis(gdk.AXIS_Y)))
         return self._cur_pos
 
     def get_cursor_xtilt(self):
         if self._cur_xtilt is None:
-            self._cur_xtilt = evt.get_axis(gdk.AXIS_XTILT) or 0.
+            self._cur_xtilt = self._evt.get_axis(gdk.AXIS_XTILT) or 0.
         return self._cur_xtilt
 
     def get_cursor_ytilt(self):
         if self._cur_ytilt is None:
-            self._cur_ytilt = evt.get_axis(gdk.AXIS_YTILT) or 0.
+            self._cur_ytilt = self._evt.get_axis(gdk.AXIS_YTILT) or 0.
         return self._cur_ytilt
 
     def get_pressure(self):
         if self._pressure is None:
             # Is pressure value not in supposed range?
-            p = self._event.get_axis(gdk.AXIS_PRESSURE)
+            p = self._evt.get_axis(gdk.AXIS_PRESSURE)
             if p is not None:
                 if p < 0. or p > 1.:
-                    if evt.device.name not in self.__bad_devices:
+                    if self._evt.device.name not in self.__bad_devices:
                         print 'WARNING: device "%s" is reporting bad pressure %+f' % (evt.device.name, p)
-                        self.__bad_devices.append(evt.device.name)
+                        self.__bad_devices.append(self._evt.device.name)
                         # Over limits?
                     if p < -10000. or p > 10000.:
                         p = .5
-                else:
-                    p = .5
+            else:
+                p = .5
             self._pressure = p
         return self._pressure

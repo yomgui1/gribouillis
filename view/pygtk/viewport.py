@@ -42,7 +42,8 @@ from utils import delayedmethod, _T
 
 #from .app import Application
 #from .cms import *
-#from .eventparser import EventParser
+from .eventparser import EventParser
+from .contexts import ViewportCtx
 
 gdk = gtk.gdk
 
@@ -62,7 +63,7 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
     _cur_area = None
     _cur_pos = (0, 0)
     _cur_on = False
-    _evtcontext = None
+    _ctx = None
     _swap_x = _swap_y = None
     _debug = 0
     selpath = None
@@ -80,9 +81,6 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
         
         self._curvp = tools.Cursor()
         self._curvp.set_radius(docproxy.document.brush.radius_max)
-
-        #self._evmgr = event.EventManager(vp=self)
-        #self._evmgr.set_current('Viewport')
 
         # Aliases
         self.get_view_area = self._docvp.get_view_area
@@ -113,6 +111,8 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
 
         fn = utils.resolve_path(main.Gribouillis.TRANSPARENT_BACKGROUND)
         self.set_background(fn)
+
+        self._ctx = ViewportCtx(viewport=self)
 
     # PyGTK events
     #
@@ -199,21 +199,22 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
     def on_button_press(self, widget, evt):
         # ignore double-click events
         if evt.type == gdk.BUTTON_PRESS:
-            eat, self._evtcontext = self._evtcontext.process('key-pressed', EventParser(evt))
-            return eat
-
+            self.update_dev_state(EventParser(evt))
+            return self._ctx.execute(EventParser(evt))
+            
     def on_button_release(self, widget, evt):
+        # ignore double-click events
         if evt.type == gdk.BUTTON_RELEASE:
-            eat, self._evtcontext = self._evtcontext.process('key-released', EventParser(evt))
-            return eat
+            self.update_dev_state(EventParser(evt))
+            return self._ctx.execute(EventParser(evt))
         
     def on_motion_notify(self, widget, evt):
         # We always receive the event event if not in focus
         if not self.has_focus():
             return
         
-        #eat, self._evtcontext = self._evtcontext.process('cursor-motion', EventParser(evt))
-        #return eat
+        self.update_dev_state(EventParser(evt))
+        return self._ctx.execute(EventParser(evt))
 
     def on_scroll(self, widget, evt):
         # There is only one event in GDK for mouse wheel change,
@@ -224,22 +225,16 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
         return eat1 or eat2
 
     def on_enter(self, widget, evt):
-        #eat, self._evtcontext = self._evtcontext.process('cursor-enter', EventParser(evt))
-        #return eat
         pass
 
     def on_leave(self, widget, evt):
-        #eat, self._evtcontext = self._evtcontext.process('cursor-leave', EventParser(evt))
-        #return eat
         pass
 
     def on_key_pressed(self, widget, evt):
-        eat, self._evtcontext = self._evtcontext.process('key-pressed', EventParser(evt))
-        return eat
+        pass
 
     def on_key_released(self, widget, evt):
-        eat, self._evtcontext = self._evtcontext.process('key-released', EventParser(evt))
-        return eat
+        pass
         
     # Public API
     #
@@ -258,7 +253,6 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
 
     def lock_focus(self): pass
     def unlock_focus(self): pass
-    
     #### Rendering ####
 
     def redraw(self, clip=None):
@@ -308,7 +302,7 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
     
     def show_brush_cursor(self, state=False):
         if state:
-            self.repaint_cursor(self.devices.current.cpos)
+            self.repaint_cursor(*self.device.current.cpos)
         else:
             self._cur_on = False
 
@@ -376,16 +370,16 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
         state = DeviceState()
 
         # Get raw device position and pressure
-        state.vpos = (evt.get_axis(gdk.AXIS_X)), int(evt.get_axis(gdk.AXIS_Y))
+        state.vpos = evt.get_cursor_position()
         state.cpos = self.get_pointer()
-        state.pressure = self.get_pressure(evt)
+        state.pressure = evt.get_pressure()
 
         # Get device tilt
-        state.xtilt = evt.get_axis(gdk.AXIS_XTILT) or 0.
-        state.ytilt = evt.get_axis(gdk.AXIS_YTILT) or 0.
+        state.xtilt = evt.get_cursor_xtilt()
+        state.ytilt = evt.get_cursor_ytilt()
 
         # timestamp
-        state.time = evt.time * 1e-3 # GDK timestamp in milliseconds
+        state.time = evt.get_time()
 
         # Filter view pos by tools
         # TODO

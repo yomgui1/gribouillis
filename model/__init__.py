@@ -88,15 +88,16 @@ class LayerProxy(Proxy):
     ###
     ### Object API
     
-    def __init__(self, layer=None):
+    def __init__(self, layer, docproxy):
         super(LayerProxy, self).__init__("%s_%X" % (self.NAME, id(layer)), layer)
+        self.docproxy = docproxy
 
     ###
     ### Public API
 
     def handle_dirty(self, area):
         if self.data.dirty:
-            self.sendNotification(self.LAYER_DIRTY, self)
+            self.sendNotification(self.LAYER_DIRTY, (self.docproxy, self, area))
             self.data.dirty = 0
 
     def clear(self):
@@ -379,37 +380,41 @@ class DocumentProxy(Proxy):
         self.record = self._record
         surface = layer.surface
         self._dev = device
-        self._layer = layer
+        self._layer = LayerProxy(layer, self)
         self._snapshot = layer.snapshot()  # for undo
         state = device.current
         self._stroke = [state]
         doc.brush.start(surface, state)
 
     def draw_end(self):
-        if self._layer is None:
-            return
+        layer = self._layer.data
         doc = self.data
         area = doc.brush.stop()
         if area:
-            doc._dirty = True
-            self.sendNotification(main.DOC_DIRTY, (self, self._layer.document_area(*area)))
-        ss = self._snapshot
-        if ss.reduce(self._layer.surface):
-            self.sendNotification(main.DOC_RECORD_STROKE,
-                                  model.vo.LayerCommandVO(self,
-                                                          self._layer,
-                                                          snapshot=ss,
-                                                          stroke=self._stroke),
-                                  type=utils.RECORDABLE_COMMAND)
-        del self._snapshot, self._layer, self._stroke, self._dev
+            layer.dirty = True
+            area = layer.document_area(*area)
+            self._layer.handle_dirty(area)
 
-    def _record(self, state):
+        ss = self._snapshot
+        if ss.reduce(layer.surface):
+            """
+            self.sendNotification(
+                main.DOC_RECORD_STROKE,
+                model.vo.LayerCommandVO(self,
+                                        self._layer,
+                                        snapshot=ss,
+                                        stroke=self._stroke))
+            """
+            del self._snapshot, self._layer, self._stroke, self._dev
+
+    def _record(self):
+        state = self._dev.current
         self._stroke.append(state)
         area = self.data.brush.draw_stroke(state)
         if area:
-            self._layer._dirty = True
-            self.sendNotification(main.DOC_DIRTY,
-                                  (self, self._layer.document_area(*area)))
+            self._layer.data.dirty = True
+            area = self._layer.data.document_area(*area)
+            self._layer.handle_dirty(area)
 
     ####
     #### Document layers handling ####
@@ -417,8 +422,9 @@ class DocumentProxy(Proxy):
     def new_layer(self, vo):
         layer = self.data.new_layer(**vo)
         self.sendNotification(main.DOC_LAYER_ADDED,
-                              (self, layer, self.data.get_layer_index(layer)))
-        return layer
+                              (self, layer,
+                               self.data.get_layer_index(layer)))
+        return lp
 
     def insert_layer(self, layer, pos=None, **k):
         self.data.insert_layer(layer, pos, **k)

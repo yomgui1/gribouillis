@@ -24,11 +24,14 @@
 ###############################################################################
 
 import model
+import utils
 
 __all__ = ["command", "get_commands", "Context", "ModalContext"]
 
 
 def command(name):
+    "Function decorator used to add new command"
+
     def wrapper(func):
         Context.commands[name] = func
         return func
@@ -36,6 +39,7 @@ def command(name):
 
 
 def get_commands():
+    "Returns all registered command names"
     return Context.commands.keys()
 
 
@@ -56,6 +60,10 @@ class MetaContext(type):
                 d[k] = MetaContext.__commands[v]
 
         return type.__new__(meta, name, bases, dct)
+
+    @staticmethod
+    def get_cmd(name):
+        return MetaContext.__commands.get(name)
 
     @property
     def commands(cls):
@@ -82,31 +90,53 @@ class Context(object):
 
     EVENTS_MAP = {}
 
-    def __init__(self, **data):
-        self.__dict__.update(data)
+    _post_cleanup = id
+
+    def __init__(self, cls, **kwds):
         self._map = {}
-        self._ctx = Context
-        self.switch(self.__class__)        
+        self._cls = Context
+        self.switch(cls, **kwds)
 
-    @classmethod
-    def remap(cls, ctx):
-        omap = getattr(ctx, '_oldmap', None)
-        if omap is not None:
-            ctx._map = omap
-            del ctx._oldmap
-        ctx._map.update(cls._EVENTS_MAP)
+    def switch(self, cls, **kwds):
+        _cls = self._cls
+        print "CTX: %s -> %s" % (_cls.__name__, cls.__name__)
+        _cls.cleanup(self)
+        self._cls = cls
+        self._map = cls._EVENTS_MAP
+        self.__dict__.update(kwds)
+        cls.setup(self)
 
-    def switch(self, ctx):
-        print "CTX: %s" % ctx.__name__
-        self._ctx.cleanup(self)
-        self._ctx = ctx
-        ctx.remap(self)
-        ctx.setup(self)
+    def switch_modal(self, cls, **kwds):
+        # In modal context we save attributes
+        # for restoring later and forbid context switch.
 
-    def execute(self, evt):
-        cmd = self._map[str(evt)]
-        if not cmd(self, evt):
-            return True
+        _cls = self._cls
+        print "CTX: %s -> %s (Modal)" % (_cls.__name__, cls.__name__)
+        _cls.cleanup(self)
+        self._cls = cls  # must be before dict copy!!
+        self.__odict = self.__dict__.copy()
+        self.switch = utils.idle_cb
+        self._map = cls._EVENTS_MAP
+        self.__dict__.update(kwds)
+        cls.setup(self)
+
+    def stop_modal(self):
+        self.__dict__ = self.__odict
+
+    def on_event(self, evt):
+        d = self._map
+        k = evt.get_key()
+        cmd = d.get(str(evt)) or d.get(':'+k) or d.get(k)
+        if cmd:
+            self.evt = evt
+            r = cmd(self)
+            del self.evt
+            return r
+        print "EVT(%s): %s" % (self._cls.__name__, str(evt))
+
+    def execute(self, name):
+        cmd = MetaContext.get_cmd(name)
+        return cmd and not cmd(self)
 
     @staticmethod
     def setup(ctx):
@@ -115,11 +145,3 @@ class Context(object):
     @staticmethod
     def cleanup(ctx):
         pass
-
-
-class ModalContext(Context):
-    @classmethod
-    def remap(cls, ctx):
-        assert not hasattr(ctx, '_oldmap')
-        ctx._oldmap = ctx._map
-        ctx._map = cls._EVENTS_MAP

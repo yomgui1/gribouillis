@@ -69,9 +69,6 @@ BRUSH_PROP_CHANGED = 'brush-prop-changed'
 # refactored ok
 STARTUP = 'startup'
 QUIT = 'quit'  # user want to quit the application
-UNDO = 'undo'  # undo last recorded command
-REDO = 'redo'  # redo last undo'ed command
-FLUSH = 'flush'  # flush undo/redo historic buffer
 NEW_DOCUMENT = 'new-doc'  # user want to create a new document
 LAYER_CLEAR = 'layer-clear' # clear layer contents (undoable, data: LayerCmdVO)
 
@@ -112,9 +109,6 @@ class Gribouillis(puremvc.patterns.facade.Facade):
         super_.initializeController()
 
         super_.registerCommand(STARTUP, controller.StartupCmd)
-        super_.registerCommand(UNDO, controller.UndoCmd)
-        super_.registerCommand(REDO, controller.RedoCmd)
-        super_.registerCommand(FLUSH, controller.FlushCmd)
 
         super_.registerCommand(NEW_DOCUMENT, controller.NewDocumentCmd)
         super_.registerCommand(DOC_ACTIVATE, controller.ActivateDocumentCmd)

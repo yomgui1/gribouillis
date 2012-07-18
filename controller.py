@@ -327,33 +327,23 @@ class ClearLayerCmd(UndoableCommand):
 
 
 class RecordStrokeCmd(UndoableCommand):
-    """vo parameters:
+    """vo parameter: LayerCmdVo
 
-        docproxy: document proxy
-        layer   : layer where stroke is applied
-        snapshot: layer snapshot before the stroke
-        stroke  : stroke to record
+        layerproxy : layerproxy where the stroke is applied
+        snapshot   : layer snapshot before the stroke
+        stroke     : stroke to record
     """
 
     def execute(self, note):
         vo = note.getBody()
         super(RecordStrokeCmd, self).execute(note)
-        vo.dirty_area = vo.layer.document_area(*vo.snapshot.dirty_area)
-        self.registerUndoCommand(_UnsnapshotLayerContentCmd)
+        vo.dirty_area = vo.layerproxy.data.document_area(*vo.snapshot.dirty_area)
+        self.__name = 'Stroke (%2.3fMB)' % (vo.snapshot.size / (1024. * 1024))
+        self.registerUndoCommand(_UnsnaphotLayerCmd)
 
     def executeCommand(self):
         vo = self.getNote().getBody()
-        layer = vo.layer
-
-        if vo.stroke is not None:
-            self.__name = 'Stroke (%2.3fMB)' % (vo.snapshot.size / (1024. * 1024))
-            vo.stroke = None
-        else:
-            layer.unsnapshot(vo.snapshot, True)
-            self.sendNotification(main.DOC_DIRTY, (vo.docproxy, vo.dirty_area))
-
-        # Update the last color used also
-        LastColorModal.push_color(vo.docproxy.get_brush_color_rgb())
+        vo.layerproxy.unsnapshot(vo.snapshot, True)
 
     def getCommandName(self):
         return self.__name
@@ -428,27 +418,8 @@ class SetLayerMatrixCmd(UndoableCommand):
     def getCommandName(self):
         return self.__name
 
-
-class UndoCmd(SimpleCommand, ICommand):
-    def execute(self, note):
-        hp = utils.CommandsHistoryProxy.get_active()
-        if hp.canUndo():
-            hp.getPrevious().undo()
-
-
-class RedoCmd(SimpleCommand, ICommand):
-    def execute(self, note):
-        hp = utils.CommandsHistoryProxy.get_active()
-        if hp.canRedo():
-            hp.getNext().redo()
-
-
-class FlushCmd(SimpleCommand, ICommand):
-    def execute(self, note):
-        hp = utils.CommandsHistoryProxy.get_active()
-        hp.flush()
-
 ### Hidden commands, only used in this module
+
 
 class _UnMergeLayerCmd(SimpleCommand, ICommand):
     def execute(self, note):
@@ -462,4 +433,4 @@ class _UnMergeLayerCmd(SimpleCommand, ICommand):
 class _UnsnaphotLayerCmd(SimpleCommand, ICommand):
     def execute(self, note):
         vo = note.getBody()
-        vo.layer.unsnapshot(vo.snapshot)
+        vo.layerproxy.unsnapshot(vo.snapshot)

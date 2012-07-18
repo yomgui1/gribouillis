@@ -29,7 +29,8 @@ from utils import _T
 
 __all__ = [ 'DocumentConfigVO', 'FileDocumentConfigVO',
             'EmptyDocumentConfigVO', 'LayerConfigVO',
-            'LayerCommandVO' ]
+            'LayerCmdVO' ]
+
 
 class GenericVO(dict):
     def __getattribute__(self, name):
@@ -68,5 +69,5 @@ class EmptyDocumentConfigVO(DocumentConfigVO):
 
 
 class LayerCmdVO(GenericVO):
-    def __init__(self, layer, **k):
-        super(LayerCmdVO, self).__init__(layer=layer, **k)
+    def __init__(self, layerproxy, **k):
+        super(LayerCmdVO, self).__init__(layerproxy=layerproxy, **k)

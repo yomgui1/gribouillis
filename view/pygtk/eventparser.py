@@ -84,6 +84,9 @@ class EventParser(EventParserI):
     def __hash__(self):
         return hash(self._evt)
     def __str__(self):
+        mod = self.get_modificators()
+        if mod:
+            return '%s %s' % (mod, self.get_key())
         return self.get_key()
 
     def get_time(self):
@@ -96,50 +99,55 @@ class EventParser(EventParserI):
         if self._mods is None:
             self._mods = mods = []
             state = self._evt.state
-            if state & gdk.MOD1_MASK:
-                mods.append('alt1')
-            if state & gdk.MOD5_MASK:
-                mods.append('alt2')
             if state & gdk.CONTROL_MASK:
-                mods.append('control')
+                mods.append('C')
+            if state & gdk.MOD1_MASK:
+                mods.append('M')
+            if state & gdk.MOD5_MASK:
+                mods.append('M')
             if state & gdk.SHIFT_MASK:
-                mods.append('shift')
+                mods.append('S')
             if state & gdk.MOD4_MASK:
-                mods.append('command')
-        return ' '.join(self._mods) or None
+                mods.append('s')
+        return '-'.join(self._mods) or None
+    
+    def _check_key(self, key, evt):
+        if not key:
+            key = evt.keyval
+            if key <= 0xff:
+                key = chr(evt.keyval).lower()
+            else:
+                key = hex(evt.keyval)
+        return key
     
     def get_key(self):
         evt = self._evt
+        t = evt.type
         if self._key is None:
-            if evt.type == gdk.MOTION_NOTIFY:
+            if t == gdk.MOTION_NOTIFY:
                 key = 'cursor-motion'
-            elif evt.type == gdk.ENTER_NOTIFY:
+            elif t == gdk.ENTER_NOTIFY:
                 key = 'cursor-enter'
-            elif evt.type == gdk.LEAVE_NOTIFY:
+            elif t == gdk.LEAVE_NOTIFY:
                 key = 'cursor-leave'
-            elif evt.type in (gdk.BUTTON_PRESS, gdk.BUTTON_RELEASE):
-                key = 'mouse-bt-%u' % evt.button
-                if evt.type == gdk.BUTTON_PRESS:
-                    key += '-press'
-                else:
-                    key += '-release'
-            elif evt.type in (gdk.KEY_PRESS, gdk.KEY_RELEASE):
-                key = _KEYVALS.get(evt.keyval)
-                if not key:
-                    if key <= 0xff:
-                        key = chr(evt.keyval).lower()
-                    else:
-                        key = hex(evt.keyval)
-            elif evt.type == gdk.SCROLL:
+            elif t == gdk.BUTTON_PRESS:
+                key = 'mouse-bt-%u-press' % evt.button
+            elif t == gdk.BUTTON_RELEASE:
+                key = 'mouse-bt-%u-release' % evt.button
+            elif t == gdk.KEY_PRESS:
+                key = 'key-%s-press' % self._check_key(_KEYVALS.get(evt.keyval), evt)
+            elif t == gdk.KEY_RELEASE:
+                key = 'key-%s-release' % self._check_key(_KEYVALS.get(evt.keyval), evt)
+            elif t == gdk.SCROLL:
                 if evt.direction == gdk.SCROLL_UP:
-                    key = 'wheel-up'
+                    key = 'scroll-up'
                 elif evt.direction == gdk.SCROLL_DOWN:
-                    key = 'wheel-down'
+                    key = 'scroll-down'
                 else:
-                    key = ''
+                    key = 'scroll'
             else:
-                print '[*DBG*] unknown event type:', evt.type
-                key = ''
+                print '[*DBG*] unknown event type:', t
+                key = 'unknown'
             self._key = key
         return self._key
 

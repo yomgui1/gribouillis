@@ -26,7 +26,12 @@
 import gtk
 import gobject
 
+from view.context2 import Context
 from .viewport import DocViewport
+from .contexts import DocWindowCtx
+from .eventparser import EventParser
+from .app import Application
+
 from utils import _T
 
 gdk = gtk.gdk
@@ -44,9 +49,6 @@ sig_menu_load_doc            = _menu_signal('menu_load_doc')
 sig_menu_save_doc            = _menu_signal('menu_save_doc')
 sig_menu_close_doc           = _menu_signal('menu_close_doc')
 sig_menu_clear_layer         = _menu_signal('menu_clear_layer')
-sig_menu_undo                = _menu_signal('menu_undo')
-sig_menu_redo                = _menu_signal('menu_redo')
-sig_menu_redo                = _menu_signal('menu_flush')
 sig_menu_load_background     = _menu_signal('menu_load_background')
 sig_menu_load_image_as_layer = _menu_signal('menu_load_image_as_layer')
 
@@ -72,7 +74,6 @@ class DocWindow(gtk.Window):
                 <menuitem action="cmd-win"/>
             </menu>
             <menu action='View'>
-                <menuitem action="view-reset"/>
                 <menuitem action="view-load-background"/>
             </menu>
             <menu action='Layers'>
@@ -103,7 +104,11 @@ class DocWindow(gtk.Window):
         super(DocWindow, self).__init__()
 
         self.viewports = []
-        self.docproxy = docproxy        
+        self.docproxy = docproxy
+        self._ctx = Context(DocWindowCtx,
+                            app=Application(),
+                            window=self,
+                            docproxy=docproxy)
 
         # UI
         uimanager = gtk.UIManager()
@@ -121,39 +126,109 @@ class DocWindow(gtk.Window):
         self.actiongroup = actiongroup
 
         actiongroup.add_actions([
-            ('File', None, 'Gribouillis'),
-            ('Edit', None, 'Edit'),
-            ('Layers', None, 'Layers'),
-            ('Brush', None, 'Brush'),
-            ('Color', None, 'Color'),
-            ('View', None, 'View'),
-            ('Tools', None, 'Tools'),
+                # Menu Titles
+                ('File', None, _T('Gribouillis')),
+                ('Edit', None, _T('Edit')),
+                ('Layers', None, _T('Layers')),
+                ('Brush', None, _T('Brush')),
+                ('Color', None, _T('Color')),
+                ('View', None, _T('View')),
+                ('Tools', None, _T('Tools')),
 
-            ('new-doc', gtk.STOCK_NEW, 'New Document...', None, None, lambda *a: self.emit('menu_new_doc')),
-            ('open-doc', gtk.STOCK_OPEN, 'Open Document...', None, None, lambda *a: self.emit('menu_load_doc')),
-            ('save-doc', gtk.STOCK_SAVE, 'Save Document...', None, None, lambda *a: self.emit('menu_save_doc')),
-            ('close-doc', gtk.STOCK_CLOSE, 'Close Document', None, None, lambda *a: self.emit('menu_close_doc')),
-            ('quit', gtk.STOCK_QUIT, 'Quit!', None, 'Quit the Program', lambda *a: self.emit('menu_quit')),
-            ('cmd-undo', gtk.STOCK_UNDO, 'Undo last command', '<Control>z', None, lambda *a: self.emit('menu_undo')),
-            ('cmd-redo', gtk.STOCK_REDO, 'Redo last command', '<Control><Shift>z', None, lambda *a: self.emit('menu_redo')),
-            ('cmd-flush', gtk.STOCK_APPLY, 'Flush commands historic', '<Control><Alt>z', None, lambda *a: self.emit('menu_flush')),
-            ('cmd-win', gtk.STOCK_PROPERTIES, 'Open commands historic', '<Alt>h', None, lambda *a: Application().open_cmdhistoric()),
-            ('layers-load-image', gtk.STOCK_ADD, 'Load image as new layer...', '<Control><Alt>z', None, lambda *a: self.emit('menu_load_image_as_layer')),
-            ('layers-win', gtk.STOCK_PROPERTIES, 'Open layers list window', '<Control>l', None, lambda *a: Application().open_layer_mgr()),
-            ('layers-clear-active', gtk.STOCK_CLEAR, 'Clear active layer', '<Control>k', None, lambda *a: self.emit('menu_clear_layer')),
-            ('view-reset', None, 'Reset', 'equal', None, lambda *a: self.vp.reset()),
-            ('view-load-background', None, 'Load background image', '<Control><Alt>b', None, lambda *a: self.emit('menu_load_background')),
-            ('color-win', gtk.STOCK_PROPERTIES, 'Open color editor', '<Control>c', None, lambda *a: Application().open_colorwin()),
-            ('brush-house-win', None, 'Open brush house window', None, None, lambda *a: Application().open_brush_house()),
-            ('brush-win', gtk.STOCK_PROPERTIES, 'Edit brush properties', '<Control>b', None, lambda *a: Application().open_brush_editor()),
-            ('brush-radius-inc', gtk.STOCK_ADD, 'Increase brush size', 'plus', None, lambda *a: self.increase_brush_radius()),
-            ('brush-radius-dec', gtk.STOCK_REMOVE, 'Decrease brush size', 'minus', None, lambda *a: self.decrease_brush_radius()),
-            ('line-ruler-toggle', None, 'Toggle line ruler', None, None, lambda a: self._toggle_line_ruler()),
-            ('ellipse-ruler-toggle', None, 'Toggle ellipse ruler', None, None, lambda a: self._toggle_ellipse_ruler()),
-            ('navigator-toggle', None, 'Toggle Navigator', None, None, lambda a: self._toggle_navigator()),
-            ('assign-profile', None, 'Assign Color Profile', None, None, lambda a: self.assign_icc()),
-            ('convert-profile', None, 'Convert to Color Profile', None, None, lambda a: self.convert_icc()),
-            #('', None, '', None, None, lambda *a: self.emit('')),
+                # Sub-menu items
+                ('new-doc', gtk.STOCK_NEW, _T('New Document...'),
+                 None, None,
+                 lambda *a: self.emit('menu_new_doc')),
+
+                ('open-doc', gtk.STOCK_OPEN, _T('Open Document...'),
+                 None, None,
+                 lambda *a: self.emit('menu_load_doc')),
+
+                ('save-doc', gtk.STOCK_SAVE, _T('Save Document...'),
+                 None, None,
+                 lambda *a: self.emit('menu_save_doc')),
+
+                ('close-doc', gtk.STOCK_CLOSE, _T('Close Document'),
+                 None, None,
+                 lambda *a: self.emit('menu_close_doc')),
+
+                ('quit', gtk.STOCK_QUIT, _T('Quit!'),
+                 None, None,
+                 lambda *a: self.emit('menu_quit')),
+
+                ('cmd-undo', gtk.STOCK_UNDO, _T('Undo last command'),
+                 '<Control>z', None,
+                 lambda *a: self._ctx.execute("doc-hist-undo")),
+
+                ('cmd-redo', gtk.STOCK_REDO, _T('Redo last command'),
+                 '<Control><Shift>z', None,
+                 lambda *a: self._ctx.execute("doc-hist-redo")),
+
+                ('cmd-flush', gtk.STOCK_APPLY, _T('Flush commands historic'),
+                 '<Control><Alt>z', None,
+                 lambda *a: self._ctx.execute("doc-hist-flush")),
+
+                ('cmd-win', gtk.STOCK_PROPERTIES, _T('Open commands historic'),
+                 '<Alt>h', None,
+                 None),
+
+                ('layers-load-image', gtk.STOCK_ADD, _T('Load image as new layer...'),
+                 '<Control><Alt>z', None,
+                 lambda *a: self.emit('menu_load_image_as_layer')),
+
+                ('layers-win', gtk.STOCK_PROPERTIES, _T('Open layers list window'),
+                 '<Control>l', None,
+                 None),
+
+                ('layers-clear-active', gtk.STOCK_CLEAR, _T('Clear active layer'),
+                 '<Control>k', None,
+                 lambda *a: self.emit('menu_clear_layer')),
+
+                ('view-load-background', None, _T('Load background image'),
+                 '<Control><Alt>b', None,
+                 lambda *a: self.emit('menu_load_background')),
+
+                ('color-win', gtk.STOCK_PROPERTIES, _T('Open color editor'),
+                 '<Control>c', None,
+                 None),
+
+                ('brush-house-win', None, _T('Open brush house window'),
+                 None, None,
+                 None),
+
+                ('brush-win', gtk.STOCK_PROPERTIES, _T('Edit brush properties'),
+                 '<Control>b', None,
+                 None),
+                
+                ('brush-radius-inc', gtk.STOCK_ADD, _T('Increase brush size'),
+                 'plus', None,
+                 lambda *a: self._ctx.execute("increase-brush-radius")),
+
+                ('brush-radius-dec', gtk.STOCK_REMOVE, _T('Decrease brush size'),
+                 'minus', None,
+                 lambda *a: self._ctx.execute("decrease-brush-radius")),
+
+                ('line-ruler-toggle', None, _T('Toggle line ruler'),
+                 None, None,
+                 None),
+
+                ('ellipse-ruler-toggle', None, _T('Toggle ellipse ruler'),
+                 None, None,
+                 None),
+
+                ('navigator-toggle', None, _T('Toggle Navigator'),
+                 None, None,
+                 None),
+
+                ('assign-profile', None, _T('Assign Color Profile'),
+                 None, None,
+                 None),
+
+                ('convert-profile', None, _T('Convert to Color Profile'),
+                 None, None,
+                 None),
+
+            #('', None, '', None, None, callable),
             ])
 
         #actiongroup.add_toggle_actions([
@@ -166,13 +241,17 @@ class DocWindow(gtk.Window):
         topbox.pack_start(menubar, False)
 
         # Default viewport
-        vp = DocViewport(self, docproxy)
+        vp = DocViewport(self, docproxy, self._ctx)
         self._add_vp(vp)
 
-        self.set_can_focus(True)
+        #self.set_can_focus(True)
+        self.move(0, 0)
         self.set_default_size(600, 400)
-        self.move(0,0)
         self.show_all()
+
+        self.set_sensitive(True)
+        self.connect("key-press-event", self._on_event)
+        self.connect("key-release-event", self._on_event)
 
         # UI is ready to show doc properties
         self.proxy_updated()
@@ -181,6 +260,9 @@ class DocWindow(gtk.Window):
         self.viewports.append(vp)
         self._topbox.pack_start(vp, True, True, 0)
         self.vp = vp
+
+    def _on_event(self, widget, evt):
+        return self._ctx.on_event(EventParser(evt))
 
     #### Public API ####
 
@@ -192,7 +274,7 @@ class DocWindow(gtk.Window):
         self.set_title(self.__title_fmt % name)
 
     def confirm_close(self):
-        dlg = gtk.Dialog("Sure?", self,
+        dlg = gtk.Dialog(_T("Sure?"), self,
                          gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
                          (gtk.STOCK_YES, gtk.RESPONSE_OK,
                           gtk.STOCK_NO, gtk.RESPONSE_CANCEL))
@@ -205,10 +287,6 @@ class DocWindow(gtk.Window):
         filename = Application().get_image_filename(parent=self)
         if filename:
             self.vp.set_background(filename)
-
-    def set_cursor_radius(self, r):
-        for vp in self.viewports:
-            vp.set_cursor_radius(r)
 
     def assign_icc(self):
         dlg = AssignCMSDialog(self.docproxy, self)

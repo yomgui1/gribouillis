@@ -68,10 +68,11 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
     _debug = 0
     selpath = None
 
-    def __init__(self, win, docproxy):
+    def __init__(self, win, docproxy, ctx):
         super(DocViewport, self).__init__()
         
         self._win = win
+        self._ctx = ctx
         self.docproxy = docproxy
         self.device = InputDevice()
 
@@ -106,16 +107,14 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
         self.connect("motion-notify-event" , self.on_motion_notify)
         self.connect("button-press-event"  , self.on_button_press)
         self.connect("button-release-event", self.on_button_release)
-        self.connect("scroll-event"        , self.on_scroll)
+        self.connect("scroll-event"        , self.on_event)
         self.connect("enter-notify-event"  , self.on_enter)
-        self.connect("leave-notify-event"  , self.on_leave)
-        self.connect("key-press-event"     , self.on_key_pressed)
-        self.connect("key-release-event"   , self.on_key_released)
+        self.connect("leave-notify-event"  , self.on_event)
+        self.connect("key-press-event"     , self.on_event)
+        self.connect("key-release-event"   , self.on_event)
 
         fn = utils.resolve_path(main.Gribouillis.TRANSPARENT_BACKGROUND)
         self.set_background(fn)
-
-        self._ctx = ViewportCtx(viewport=self)
 
     # PyGTK events
     #
@@ -204,42 +203,25 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
     def on_button_press(self, widget, evt):
         # ignore double-click events
         if evt.type == gdk.BUTTON_PRESS:
-            self.update_dev_state(EventParser(evt))
-            return self._ctx.execute(EventParser(evt))
+            return self._ctx.on_event(EventParser(evt))
             
     def on_button_release(self, widget, evt):
         # ignore double-click events
         if evt.type == gdk.BUTTON_RELEASE:
-            self.update_dev_state(EventParser(evt))
-            return self._ctx.execute(EventParser(evt))
+            return self._ctx.on_event(EventParser(evt))
         
     def on_motion_notify(self, widget, evt):
-        # We always receive the event event if not in focus
-        if not self.has_focus():
-            return
-        
-        self.update_dev_state(EventParser(evt))
-        return self._ctx.execute(EventParser(evt))
-
-    def on_scroll(self, widget, evt):
-        # There is only one event in GDK for mouse wheel change,
-        # so split it as two key events.
-        ep = EventParser(evt)
-        eat1, self._evtcontext = self._evtcontext.process('key-pressed', ep)
-        eat2, self._evtcontext = self._evtcontext.process('key-released', ep)
-        return eat1 or eat2
+        # We always receive this event event if not in focus,
+        # that's not what we want.
+        if self.has_focus():
+            return self._ctx.on_event(EventParser(evt))
 
     def on_enter(self, widget, evt):
-        pass
+        self._ctx.switch(ViewportCtx, viewport=self)
+        return self._ctx.on_event(EventParser(evt))
 
-    def on_leave(self, widget, evt):
-        pass
-
-    def on_key_pressed(self, widget, evt):
-        pass
-
-    def on_key_released(self, widget, evt):
-        pass
+    def on_event(self, widget, evt):
+        return self._ctx.on_event(EventParser(evt))
         
     # Public API
     #
@@ -258,6 +240,7 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
 
     def lock_focus(self): pass
     def unlock_focus(self): pass
+    
     #### Rendering ####
 
     def redraw(self, clip=None):

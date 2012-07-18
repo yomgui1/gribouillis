@@ -28,7 +28,32 @@ import view.context2 as context
 command = context.command
 
 
-class ViewportCtx(context.Context):
+class DocWindowCtx(context.Context):
+    EVENTS_MAP = {
+        }
+
+    @command("doc-hist-undo")
+    def hist_undo(ctx):
+        ctx.docproxy.undo()
+
+    @command("doc-hist-redo")
+    def hist_redo(ctx):
+        ctx.docproxy.redo()
+
+    @command("doc-hist-flush")
+    def hist_flush(ctx):
+        ctx.docproxy.flush()
+
+    @command("increase-brush-radius")
+    def more_radius(ctx):
+        ctx.docproxy.add_brush_radius_min(1)
+
+    @command("decrease-brush-radius")
+    def less_radius(ctx):
+        ctx.docproxy.add_brush_radius_min(-1)
+
+
+class ViewportCtx(DocWindowCtx):
     EVENTS_MAP = {
         "mouse-bt-1-press": "viewport-draw-start",
         "cursor-motion": "viewport-cursor-motion",
@@ -40,17 +65,17 @@ class ViewportCtx(context.Context):
             ctx.viewport.show_brush_cursor(True)
 
     @command("viewport-draw-start")
-    def vp_draw_start(ctx, evt):
-        ctx.switch(ViewportDrawingCtx)
-
+    def vp_draw_start(ctx):
+        ctx.viewport.update_dev_state(ctx.evt)
+        ctx.switch_modal(ViewportDrawingCtx)
 
     @command("viewport-cursor-motion")
-    def vp_cursor_move(ctx, evt):
-        pos = evt.get_cursor_position()
+    def vp_cursor_move(ctx):
+        pos = ctx.evt.get_cursor_position()
         ctx.viewport.repaint_cursor(*pos)
 
 
-class ViewportDrawingCtx(context.ModalContext):
+class ViewportDrawingCtx(ViewportCtx):
     EVENTS_MAP = {
         "cursor-motion": "drawing-stroke",
         "mouse-bt-1-release": "drawing-stop",
@@ -62,6 +87,7 @@ class ViewportDrawingCtx(context.ModalContext):
 
         # Hide cursor during drawing
         vp.show_brush_cursor(False)
+
         vp.docproxy.draw_start(vp.device)
 
     @staticmethod
@@ -71,11 +97,13 @@ class ViewportDrawingCtx(context.ModalContext):
         vp.show_brush_cursor(True)
 
     @command("drawing-stop")
-    def dr_stop(ctx, evt):
+    def dr_stop(ctx):
+        ctx.stop_modal()
         ctx.switch(ViewportCtx)
 
     @command("drawing-stroke")
-    def dr_stroke(ctx, evt):
+    def dr_stroke(ctx):
         vp = ctx.viewport
-        vp.docproxy.record(vp.device.current)
+        vp.update_dev_state(ctx.evt)
+        vp.docproxy.record()
 

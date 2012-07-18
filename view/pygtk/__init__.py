@@ -239,9 +239,6 @@ class DocumentMediator(GenericMediator):
         win.connect("menu_load_doc", self._on_menu_load_doc)
         win.connect("menu_close_doc", self._on_delete_event)
         win.connect("menu_save_doc", self._on_menu_save_doc)
-        win.connect("menu_undo", self._on_menu_undo)
-        win.connect("menu_redo", self._on_menu_redo)
-        win.connect("menu_flush", self._on_menu_flush)
         win.connect("menu_clear_layer", self._on_menu_clear_layer)
         win.connect("menu_load_image_as_layer", self._on_menu_load_image_as_layer)
 
@@ -298,15 +295,14 @@ class DocViewportMediator(GenericMediator):
             map(repaint, self.__vpmap[docproxy])
 
     @mvcHandler(model.LayerProxy.LAYER_DIRTY)
-    def _on_doc_dirty(self, vo):
+    def _on_doc_dirty(self, docproxy, layer, area=None):
         "Redraw given area. If area is None => full redraw."
         repaint = DocViewport.repaint
-        area = vo.get('area')
         if area:
-            for vp in self.__vpmap[vo.docproxy]:
-                repaint(vp.get_view_area(*area))
+            for vp in self.__vpmap[docproxy]:
+                repaint(vp, vp.get_view_area(*area))
         else:
-            map(repaint, self.__vpmap[vo.docproxy])
+            map(repaint, self.__vpmap[docproxy])
 
     @mvcHandler(model.DocumentProxy.DOC_LAYER_ADDED)
     @mvcHandler(main.DOC_LAYER_STACK_CHANGED)

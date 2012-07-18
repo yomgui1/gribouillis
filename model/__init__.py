@@ -134,7 +134,6 @@ class DocumentProxy(Proxy):
     #### Private API ####
 
     __instances = {}  # All registered DocumentProxy instances
-    __brush = None    # Brush instance owned by the Brush House.
     profile = None    # Color profile
     docname_num_match = re.compile('(.* #)([0-9]+)').match
 
@@ -295,7 +294,6 @@ class DocumentProxy(Proxy):
     #### Brush handling ####
 
     def set_brush(self, brush):
-        self.__brush = brush
         self.document.brush.set_from_brush(brush)
         self.sendNotification(main.DOC_BRUSH_UPDATED, self)
 
@@ -323,7 +321,7 @@ class DocumentProxy(Proxy):
             self.sendNotification(main.BRUSH_PROP_CHANGED, (brush, 'color'))
 
     def set_brush_radius(self, r):
-        brush = self.__brush
+        brush = self.data.brush
         r = brush.bound_radius(r)
         r = min(max(r, brush.RADIUS_MIN), brush.RADIUS_MAX)
         if brush.radius_max != r:
@@ -336,7 +334,7 @@ class DocumentProxy(Proxy):
                                   (brush, 'radius_min'))
 
     def add_brush_radius(self, dr):
-        brush = self.__brush
+        brush = self.data.brush
         r = min(max(0.5, dr + max(brush.radius_min, brush.radius_max)), 150)
         if brush.radius_max != r:
             brush.radius_max = r
@@ -348,7 +346,7 @@ class DocumentProxy(Proxy):
                                   (brush, 'radius_min'))
 
     def set_brush_radius_max(self, r):
-        brush = self.__brush
+        brush = self.data.brush
         r = min(max(r, 0.5), 150)
         if brush.radius_max != r:
             brush.radius_max = r
@@ -356,7 +354,7 @@ class DocumentProxy(Proxy):
                                   (brush, 'radius_max'))
 
     def add_brush_radius_max(self, dr):
-        brush = self.__brush
+        brush = self.data.brush
         r = min(max(0.5, brush.radius_max + dr), 150)
         if brush.radius_max != r:
             brush.radius_max = r
@@ -364,7 +362,7 @@ class DocumentProxy(Proxy):
                                   (brush, 'radius_max'))
 
     def set_brush_radius_min(self, r):
-        brush = self.__brush
+        brush = self.data.brush
         r = min(max(r, 0.5), 150)
         if brush.radius_min != r:
             brush.radius_min = r
@@ -372,7 +370,7 @@ class DocumentProxy(Proxy):
                                   (brush, 'radius_min'))
 
     def add_brush_radius_min(self, dr):
-        brush = self.__brush
+        brush = self.data.brush
         r = min(max(0.5, brush.radius_min + dr), 150)
         if brush.radius_min != r:
             brush.radius_min = r
@@ -544,6 +542,6 @@ class DocumentProxy(Proxy):
 
     document = property(fget=lambda self: self.data)
     docname = property(fget=lambda self: self.data.name, fset=set_name)
-    brush = property(fget=lambda self: self.__brush, fset=set_brush)
+    brush = property(fget=lambda self: self.data.brush, fset=set_brush)
     drawbrush = property(fget=lambda self: self.data.brush)
     active_layer = property(fget=lambda self: self.data.active)

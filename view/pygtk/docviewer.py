@@ -244,14 +244,13 @@ class DocWindow(gtk.Window):
         vp = DocViewport(self, docproxy, self._ctx)
         self._add_vp(vp)
 
+        vp = DocViewport(self, docproxy, self._ctx)
+        self._add_vp(vp)
+
         #self.set_can_focus(True)
         self.move(0, 0)
         self.set_default_size(600, 400)
         self.show_all()
-
-        self.set_sensitive(True)
-        self.connect("key-press-event", self._on_event)
-        self.connect("key-release-event", self._on_event)
 
         # UI is ready to show doc properties
         self.proxy_updated()
@@ -260,9 +259,6 @@ class DocWindow(gtk.Window):
         self.viewports.append(vp)
         self._topbox.pack_start(vp, True, True, 0)
         self.vp = vp
-
-    def _on_event(self, widget, evt):
-        return self._ctx.on_event(EventParser(evt))
 
     #### Public API ####
 

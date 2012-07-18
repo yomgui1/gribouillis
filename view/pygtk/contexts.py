@@ -46,33 +46,75 @@ class DocWindowCtx(context.Context):
 
     @command("increase-brush-radius")
     def more_radius(ctx):
-        ctx.docproxy.add_brush_radius_min(1)
+        ctx.docproxy.add_brush_radius_min(0.5)
+        ctx.docproxy.add_brush_radius_max(0.5)
 
     @command("decrease-brush-radius")
     def less_radius(ctx):
-        ctx.docproxy.add_brush_radius_min(-1)
+        ctx.docproxy.add_brush_radius_min(-0.5)
+        ctx.docproxy.add_brush_radius_max(-0.5)
 
 
 class ViewportCtx(DocWindowCtx):
     EVENTS_MAP = {
+        "cursor-enter": "viewport-show-cursor",
+        "cursor-leave": "viewport-hide-cursor",
         "mouse-bt-1-press": "viewport-draw-start",
+        "mouse-bt-2-press": "viewport-scroll-start",
         "cursor-motion": "viewport-cursor-motion",
+        "key-=-release": "viewport-reset",
+        "scroll-up": "viewport-scale-up",
+        "scroll-down": "viewport-scale-down",
+        "key-x-release": "viewport-swap-x",
+        "key-y-release": "viewport-swap-y",
         }
 
-    @staticmethod
-    def setup(ctx):
-        if ctx.viewport.device.current:
-            ctx.viewport.show_brush_cursor(True)
+    @command("viewport-show-cursor")
+    def vp_show_cur(ctx):
+        ctx.viewport.show_brush_cursor(True)
+
+    @command("viewport-hide-cursor")
+    def vp_hide_cur(ctx):
+        ctx.viewport.show_brush_cursor(False)
 
     @command("viewport-draw-start")
     def vp_draw_start(ctx):
         ctx.viewport.update_dev_state(ctx.evt)
         ctx.switch_modal(ViewportDrawingCtx)
 
+    @command("viewport-scroll-start")
+    def vp_draw_start(ctx):
+        ctx.viewport.update_dev_state(ctx.evt)
+        ctx.switch_modal(ViewportScrollCtx)
+
     @command("viewport-cursor-motion")
     def vp_cursor_move(ctx):
         pos = ctx.evt.get_cursor_position()
         ctx.viewport.repaint_cursor(*pos)
+
+    @command("viewport-reset")
+    def vp_reset(ctx):
+        ctx.viewport.reset()
+
+    @command("viewport-scale-up")
+    def vp_scale_up(ctx):
+        pos = ctx.viewport.cursor_position
+        ctx.viewport.scale_up(*pos)
+
+    @command("viewport-scale-down")
+    def vp_scale_down(ctx):
+        pos = ctx.viewport.cursor_position
+        ctx.viewport.scale_down(*pos)
+
+    @command("viewport-swap-x")
+    def vp_swap_x(ctx):
+        pos = ctx.viewport.cursor_position
+        ctx.viewport.swap_x(pos[0])
+
+    @command("viewport-swap-y")
+    def vp_swap_y(ctx):
+        pos = ctx.viewport.cursor_position
+        ctx.viewport.swap_y(pos[1])
 
 
 class ViewportDrawingCtx(ViewportCtx):
@@ -84,20 +126,15 @@ class ViewportDrawingCtx(ViewportCtx):
     @staticmethod
     def setup(ctx):
         vp = ctx.viewport
-
-        # Hide cursor during drawing
         vp.show_brush_cursor(False)
-
         vp.docproxy.draw_start(vp.device)
 
-    @staticmethod
-    def cleanup(ctx):
+    @command("drawing-stop")
+    def stop(ctx):
         vp = ctx.viewport
         vp.docproxy.draw_end()
+        ctx.execute("viewport-cursor-motion")
         vp.show_brush_cursor(True)
-
-    @command("drawing-stop")
-    def dr_stop(ctx):
         ctx.stop_modal()
         ctx.switch(ViewportCtx)
 
@@ -107,3 +144,30 @@ class ViewportDrawingCtx(ViewportCtx):
         vp.update_dev_state(ctx.evt)
         vp.docproxy.record()
 
+
+class ViewportScrollCtx(ViewportCtx):
+    EVENTS_MAP = {
+        "cursor-motion": "viewport-scroll",
+        "mouse-bt-2-release": "scroll-stop",
+        }
+
+    @staticmethod
+    def setup(ctx):
+        vp = ctx.viewport
+        vp.show_brush_cursor(False)
+        ctx.x, ctx.y = ctx.evt.get_cursor_position()
+
+    @command("scroll-stop")
+    def stop(ctx):
+        ctx.execute("viewport-cursor-motion")
+        ctx.viewport.show_brush_cursor(True)
+        ctx.stop_modal()
+        ctx.switch(ViewportCtx)
+
+    @command("viewport-scroll")
+    def vp_scroll(ctx):
+        x, y = ctx.evt.get_cursor_position()
+        vp = ctx.viewport
+        vp.scroll(x - ctx.x, y - ctx.y)
+        ctx.x = x
+        ctx.y = y

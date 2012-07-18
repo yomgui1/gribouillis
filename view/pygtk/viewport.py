@@ -211,12 +211,10 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
             return self._ctx.on_event(EventParser(evt))
         
     def on_motion_notify(self, widget, evt):
-        # We always receive this event event if not in focus,
-        # that's not what we want.
-        if self.has_focus():
-            return self._ctx.on_event(EventParser(evt))
+        return self._ctx.on_event(EventParser(evt))
 
     def on_enter(self, widget, evt):
+        self.grab_focus()
         self._ctx.switch(ViewportCtx, viewport=self)
         return self._ctx.on_event(EventParser(evt))
 
@@ -237,10 +235,11 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
 
     def get_model_point(self, *a):
         return self._docvp.get_model_point(*a)
-
-    def lock_focus(self): pass
-    def unlock_focus(self): pass
     
+    @property
+    def cursor_position(self):
+        return self._cur_pos
+
     #### Rendering ####
 
     def redraw(self, clip=None):
@@ -290,7 +289,7 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
     
     def show_brush_cursor(self, state=False):
         if state:
-            self.repaint_cursor(*self.device.current.cpos)
+            self.repaint_cursor(*self._cur_pos)
         else:
             self._cur_on = False
 
@@ -333,9 +332,9 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
         self._docvp.update_matrix()
         self.repaint()
 
-    def swap_x(self):
+    def swap_x(self, x):
         if self._swap_x is None:
-            self._swap_x = self.device.current.vpos[0]
+            self._swap_x = x
             self._docvp.swap_x(self._swap_x)
         else:
             self._docvp.swap_x(self._swap_x)
@@ -343,9 +342,9 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
         self._docvp.update_matrix()
         self.repaint()
         
-    def swap_y(self):
+    def swap_y(self, y):
         if self._swap_y is None:
-            self._swap_y = self.device.current.vpos[1]
+            self._swap_y = y
             self._docvp.swap_y(self._swap_y)
         else:
             self._docvp.swap_y(self._swap_y)
@@ -397,4 +396,3 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
 
     def to_front(self):
         self.get_toplevel().present()
-

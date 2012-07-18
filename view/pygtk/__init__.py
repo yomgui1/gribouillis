@@ -24,6 +24,8 @@
 ###############################################################################
 
 import pygtk
+pygtk.require('2.0')
+
 import gtk
 
 import main
@@ -37,7 +39,6 @@ from utils import _T, mvcHandler
 from .docviewer import DocWindow
 from .viewport import DocViewport
 
-pygtk.require('2.0')
 gdk = gtk.gdk
 
 # Needed by view module
@@ -49,22 +50,22 @@ class GenericMediator(utils.Mediator):
     Gives framework to display text dialog.
     """
 
-    def show_dialog(self, title, msg):
-        dlg = gtk.MessageDialog(self.viewComponent,
-                                type=type,
+    def show_dialog(self, tp, msg, parent=None):
+        dlg = gtk.MessageDialog(parent=parent,
+                                type=tp,
                                 buttons=gtk.BUTTONS_OK,
                                 message_format=msg)
         dlg.run()
         dlg.destroy()
 
-    def show_error_dialog(self, msg):
-        self.show_dialog(gtk.MESSAGE_ERROR, msg)
+    def show_error_dialog(self, msg, **k):
+        self.show_dialog(gtk.MESSAGE_ERROR, msg, **k)
 
-    def show_warning_dialog(self, msg):
-        self.show_dialog(gtk.MESSAGE_WARNING, msg)
+    def show_warning_dialog(self, msg, **k):
+        self.show_dialog(gtk.MESSAGE_WARNING, msg, **k)
 
-    def show_info_dialog(self, msg):
-        self.show_dialog(gtk.MESSAGE_INFO, msg)
+    def show_info_dialog(self, msg, **k):
+        self.show_dialog(gtk.MESSAGE_INFO, msg, **k)
 
 
 class ApplicationMediator(GenericMediator):
@@ -98,6 +99,18 @@ class ApplicationMediator(GenericMediator):
         return self.viewComponent.get_filename(parent)
 
     ### notification handlers ###
+
+    @mvcHandler(main.SHOW_ERROR_DIALOG)
+    def _on_show_error(self, msg, **k):
+        self.show_error_dialog(msg, **k)
+
+    @mvcHandler(main.SHOW_WARNING_DIALOG)
+    def _on_show_warn(self, msg, **k):
+        self.show_warning_dialog(msg, **k)
+
+    @mvcHandler(main.SHOW_INFO_DIALOG)
+    def _on_show_info(self, msg, **k):
+        self.show_info_dialog(msg, **k)
 
     @mvcHandler(main.QUIT)
     def _on_quit(self, note):
@@ -163,7 +176,6 @@ class DocumentMediator(GenericMediator):
         filename = self.viewComponent.get_document_filename(parent=win, read=False)
         if filename:
             self.sendNotification(main.DOC_SAVE, (win.docproxy, filename))
-            win.set_doc_name(win.docproxy.document.name)
 
     def _on_menu_clear_layer(self, win):
         self.sendNotification(main.DOC_LAYER_CLEAR,
@@ -182,6 +194,18 @@ class DocumentMediator(GenericMediator):
         self.load_image_as_layer()
 
     ### notification handlers ###
+
+    @mvcHandler(main.DOC_SAVE_RESULT)
+    def _on_doc_save_result(self, docproxy, result, err=None):
+        win = self.get_win(docproxy)
+        print win
+        if not result:
+            self.show_error_dialog("%s:\n'%s'\n\n%s:\n\n%s" % (_T("Failed to save document"),
+                                                         docproxy.docname,
+                                                         _T("Reason"), err),
+                                   parent=win)
+        else:
+            self.show_info_dialog(_T("Document saved"), parent=win)
 
     @mvcHandler(model.DocumentProxy.DOC_ADDED)
     def _on_doc_added(self, docproxy):
@@ -203,7 +227,7 @@ class DocumentMediator(GenericMediator):
             win.present()
 
     @mvcHandler(main.BRUSH_PROP_CHANGED)
-    def _on_brush_prop_changed(self, brush, name):
+    def _on_brush_prop_changed(self, brush, name, docproxy=None):
         if name is 'color':
             return
 
@@ -212,10 +236,6 @@ class DocumentMediator(GenericMediator):
         for docproxy in self.__docmap.iterkeys():
             if docproxy.brush is brush:
                 setattr(docproxy.document.brush, name, v)
-
-        # For the cursor
-        if name == 'radius_max':
-            self.get_win(docproxy).set_cursor_radius(v)
 
     #### Public API ####
 
@@ -315,6 +335,13 @@ class DocViewportMediator(GenericMediator):
             for vp in self.__vpmap[docproxy]:
                 vp.repaint(vp.get_view_area(*area))
 
+    @mvcHandler(main.BRUSH_PROP_CHANGED)
+    def _on_brush_prop_changed(self, brush, name, docproxy=None):
+        if name is 'radius_max' and docproxy:
+            r = getattr(brush, name)
+            for vp in self.__vpmap[docproxy]:
+                vp.set_cursor_radius(r)
+
 
 class BrushEditorWindowMediator(GenericMediator):
     NAME = "BrushEditorWindowMediator"
@@ -382,7 +409,7 @@ class BrushHouseWindowMediator(GenericMediator):
             self._docproxy = None
 
     @mvcHandler(main.BRUSH_PROP_CHANGED)
-    def _on_brush_prop_changed(self, brush, name):
+    def _on_brush_prop_changed(self, brush, name, *a):
         if name is 'color':
             return
         setattr(self._docproxy.brush, name, getattr(brush, name))

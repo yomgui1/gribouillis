@@ -116,6 +116,7 @@ class Context(object):
         self._cls = cls  # must be before dict copy!!
         self.__odict = self.__dict__.copy()
         self.switch = utils.idle_cb
+        self.switch_modal = utils.idle_cb
         self._map = cls._EVENTS_MAP
         self.__dict__.update(kwds)
         cls.setup(self)

@@ -113,18 +113,17 @@ class SaveDocumentCmd(SimpleCommand, ICommand):
     def execute(self, note):
         docproxy, filename = note.getBody()
         if docproxy.document.empty:
-            self.sendNotification(main.SHOW_ERROR_DIALOG,
-                                  _T("Failed to save document as %s.\nReason: Empty document") % filename)
+            self.sendNotification(main.DOC_SAVE_RESULT,
+                                  (docproxy, False, _T("Empty document")))
             return
 
         try:
             docproxy.document.save_as(filename)
             docproxy.docname = filename
 
-        except Exception, e:
-            self.sendNotification(main.SHOW_ERROR_DIALOG,
-                                  _T("Failed to save document as %s.\nReason: %s") % (filename, e))
-
+        except (IOError, TypeError), e:
+            self.sendNotification(main.DOC_SAVE_RESULT,
+                                  (docproxy, False, str(e)))
         else:
             self.sendNotification(main.DOC_SAVE_RESULT, (docproxy, True))
 

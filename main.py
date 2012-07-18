@@ -69,6 +69,11 @@ BRUSH_PROP_CHANGED = 'brush-prop-changed'
 # refactored ok
 STARTUP = 'startup'
 QUIT = 'quit'  # user want to quit the application
+
+SHOW_ERROR_DIALOG = 'show-error-dlg'
+SHOW_WARNING_DIALOG = 'show-warning-dlg'
+SHOW_INFO_DIALOG = 'show-info-dlg'
+
 NEW_DOCUMENT = 'new-doc'  # user want to create a new document
 LAYER_CLEAR = 'layer-clear' # clear layer contents (undoable, data: LayerCmdVO)
 

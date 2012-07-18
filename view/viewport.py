@@ -76,17 +76,15 @@ class ViewPortBase(object):
         height = int(height)
         assert width > 0 and height > 0
 
-        if self.width != width or self.height != height:
-            self.width = width
-            self.height = height
+        self.width = width
+        self.height = height
+        self.update_matrix()
 
-            self.update_matrix()
-
-            # create new cairo surface/context
-            self._buf = _pixbuf.Pixbuf(_pixbuf.FORMAT_ARGB8, width, height)
-            self.stride = self._buf.stride
-            self.__surf = cairo.ImageSurface.create_for_data(self._buf, cairo.FORMAT_ARGB32, width, height)
-            self._ctx = cairo.Context(self.__surf)
+        # create new cairo surface/context
+        self._buf = _pixbuf.Pixbuf(_pixbuf.FORMAT_ARGB8, width, height)
+        self.stride = self._buf.stride
+        self.__surf = cairo.ImageSurface.create_for_data(self._buf, cairo.FORMAT_ARGB32, width, height)
+        self._ctx = cairo.Context(self.__surf)
 
         return (0, 0, width, height)
 

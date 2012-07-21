@@ -432,4 +432,4 @@ class _UnMergeLayerCmd(SimpleCommand, ICommand):
 class _UnsnaphotLayerCmd(SimpleCommand, ICommand):
     def execute(self, note):
         vo = note.getBody()
-        vo.layerproxy.unsnapshot(vo.snapshot)
+        vo.docproxy.layerproxy.unsnapshot(vo.layer, vo.snapshot)

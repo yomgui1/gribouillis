@@ -23,7 +23,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import os
+import os, sys
 
 import puremvc.interfaces
 import puremvc.patterns.mediator
@@ -45,6 +45,14 @@ idle_cb = lambda *a, **k: None
 def _T(s):
     # TODO: auto translation function
     return s
+
+if os.environ.get('GB_DEBUG'):
+    def dbg_log(*a):
+        sys.stderr.write(*a)
+        sys.stderr.flush()
+else:
+    def dbg_log(*a):
+        pass
 
 class VirtualCalledError(SyntaxError):
     def __init__(self, instance, func):

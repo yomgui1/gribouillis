@@ -83,6 +83,7 @@ class EventParser(EventParserI):
 
     def __hash__(self):
         return hash(self._evt)
+
     def __str__(self):
         mod = self.get_modificators()
         if mod:
@@ -121,9 +122,9 @@ class EventParser(EventParserI):
         return key
     
     def get_key(self):
-        evt = self._evt
-        t = evt.type
         if self._key is None:
+            e = self._evt
+            t = e.type
             if t == gdk.MOTION_NOTIFY:
                 key = 'cursor-motion'
             elif t == gdk.ENTER_NOTIFY:
@@ -131,13 +132,13 @@ class EventParser(EventParserI):
             elif t == gdk.LEAVE_NOTIFY:
                 key = 'cursor-leave'
             elif t == gdk.BUTTON_PRESS:
-                key = 'mouse-bt-%u-press' % evt.button
+                key = 'mouse-bt-%u-press' % e.button
             elif t == gdk.BUTTON_RELEASE:
-                key = 'mouse-bt-%u-release' % evt.button
+                key = 'mouse-bt-%u-release' % e.button
             elif t == gdk.KEY_PRESS:
-                key = 'key-%s-press' % self._check_key(_KEYVALS.get(evt.keyval), evt)
+                key = 'key-%s-press' % self._check_key(_KEYVALS.get(e.keyval), e)
             elif t == gdk.KEY_RELEASE:
-                key = 'key-%s-release' % self._check_key(_KEYVALS.get(evt.keyval), evt)
+                key = 'key-%s-release' % self._check_key(_KEYVALS.get(e.keyval), e)
             elif t == gdk.SCROLL:
                 if evt.direction == gdk.SCROLL_UP:
                     key = 'scroll-up'
@@ -153,9 +154,7 @@ class EventParser(EventParserI):
 
     def get_cursor_position(self):
         if self._cur_pos is None:
-            self._cur_pos = (
-                int(self._evt.get_axis(gdk.AXIS_X)),
-                int(self._evt.get_axis(gdk.AXIS_Y)))
+            self._cur_pos = (int(self._evt.x), int(self._evt.y))
         return self._cur_pos
 
     def get_cursor_xtilt(self):

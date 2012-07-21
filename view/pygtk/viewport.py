@@ -83,9 +83,6 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
         self._curvp = tools.Cursor()
         self._curvp.set_radius(docproxy.document.brush.radius_max)
 
-        if self._debug:
-            self._curvp.set_radius(20.0)
-
         # Aliases
         self.get_view_area = self._docvp.get_view_area
         self.enable_fast_filter = self._docvp.enable_fast_filter
@@ -159,17 +156,17 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
         cr.rectangle(*area)
         cr.clip()
 
-        cr.set_operator(cairo.OPERATOR_SOURCE)
-        
         # Paint background first
-        dx, dy = self._docvp.offset
-        cr.translate(dx, dy)
-        if self._backpat:
-            cr.set_source(self._backpat)
-        else:
-            cr.set_source_rgb(*self._backcolor)
-        cr.paint()
-        cr.translate(-dx, -dy)
+        if 0:
+            cr.set_operator(cairo.OPERATOR_SOURCE)
+            dx, dy = self._docvp.offset
+            cr.translate(dx, dy)
+            if self._backpat:
+                cr.set_source(self._backpat)
+            else:
+                cr.set_source_rgb(*self._backcolor)
+            cr.paint()
+            cr.translate(-dx, -dy)
 
         # Paint document surface
         cr.set_operator(cairo.OPERATOR_OVER)
@@ -357,8 +354,7 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
         state = DeviceState()
 
         # Get raw device position and pressure
-        state.vpos = evt.get_cursor_position()
-        state.cpos = self.get_pointer()
+        state.cpos = evt.get_cursor_position()
         state.pressure = evt.get_pressure()
 
         # Get device tilt
@@ -368,12 +364,13 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
         # timestamp
         state.time = evt.get_time()
 
-        # Filter view pos by tools
-        # TODO
+        # vpos = cpos + tools filters
+        state.vpos = state.cpos  # TODO
 
         # Translate to surface coordinates
         pos = self._docvp.get_model_point(*state.vpos)
         state.spos = self.docproxy.get_layer_pos(*pos)
+
         self.device.add_state(state) # for recording
         return state
 

@@ -23,6 +23,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
+import model
 import view.context2 as context
 
 command = context.command
@@ -67,6 +68,7 @@ class ViewportCtx(DocWindowCtx):
         "scroll-down": "viewport-scale-down",
         "key-x-release": "viewport-swap-x",
         "key-y-release": "viewport-swap-y",
+        "key-backspace-release": "viewport-erase-layer",
         }
 
     @command("viewport-show-cursor")
@@ -115,6 +117,10 @@ class ViewportCtx(DocWindowCtx):
     def vp_swap_y(ctx):
         pos = ctx.viewport.cursor_position
         ctx.viewport.swap_y(pos[1])
+
+    @command("viewport-erase-layer")
+    def vp_erase_layer(ctx):
+        ctx.docproxy.clear_layer()
 
 
 class ViewportDrawingCtx(ViewportCtx):

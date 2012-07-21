@@ -244,8 +244,8 @@ class DocWindow(gtk.Window):
         vp = DocViewport(self, docproxy, self._ctx)
         self._add_vp(vp)
 
-        vp = DocViewport(self, docproxy, self._ctx)
-        self._add_vp(vp)
+        #vp = DocViewport(self, docproxy, self._ctx)
+        #self._add_vp(vp)
 
         #self.set_can_focus(True)
         self.move(0, 0)

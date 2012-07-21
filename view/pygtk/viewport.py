@@ -138,7 +138,7 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
         # Aliases
         self.get_view_area = self._docvp.get_view_area
         self.enable_fast_filter = self._docvp.enable_fast_filter
-        
+
         self.set_events(gdk.EXPOSURE_MASK
                         | gdk.BUTTON_PRESS_MASK
                         | gdk.BUTTON_RELEASE_MASK
@@ -245,8 +245,6 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
         return True
 
     # Events dispatchers
-    #
-    
     def _on_button_press(self, widget, evt):
         # ignore double-click events
         if evt.type == gdk.BUTTON_PRESS:
@@ -286,26 +284,20 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
         return self._ctx.on_event(EventParser(evt, name))
         
     # Public API
-    #
-
-    def enable_motion_events(self, state=True):
-        pass # Possible?
-    
-    def is_tool_hit(self, tool, *pos):
-        return self._toolsvp.is_tool_hit(tool, *pos)
-
     def get_model_distance(self, *a):
         return self._docvp.get_model_distance(*a)
 
     def get_model_point(self, *a):
         return self._docvp.get_model_point(*a)
     
+    def is_tool_hit(self, tool, *pos):
+        return self._toolsvp.is_tool_hit(tool, *pos)
+
     @property
     def cursor_position(self):
         return self._cur_pos
 
-    #### Rendering ####
-
+    # Rendering
     def redraw(self, clip=None):
         if clip:
             clip = tuple(clip)
@@ -338,8 +330,7 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
         self._cur_pos = pos
         self.redraw(self._get_cursor_clip(*pos))
     
-    #### Cursor related ####
-
+    # Cursor related
     def _get_cursor_clip(self, dx, dy):
         w = self._curvp.width
         h = self._curvp.height
@@ -362,8 +353,7 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
                 self.redraw(self._cur_area)
         return self._cur_pos
     
-    #### View transformations ####
-
+    # View transformations
     def reset(self):
         self._swap_x = self._swap_y = None
         self._docvp.reset_view()
@@ -416,7 +406,7 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
         self._docvp.update_matrix()
         self.repaint()
 
-    #### Device state handling ####
+    # Device state handling
     def update_dev_state(self, evt):
         state = DeviceState()
 
@@ -441,8 +431,7 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
         self.device.add_state(state) # for recording
         return state
 
-    #### Tools ####
-
+    # Tools
     def add_tool(self, tool):
         self._toolsvp.add_tool(tool)
         self.redraw(tool.area)
@@ -456,7 +445,11 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
     def tools(self):
         return self._toolsvp.tools
 
-    #### UI ####
+    def get_offset(self):
+        return self._docvp.offset
 
-    def to_front(self):
-        self.get_toplevel().present()
+    def set_offset(self, offset):
+        self._docvp.offset = offset
+        self._docvp.update_matrix()
+
+    offset = property(get_offset, set_offset)

@@ -25,6 +25,7 @@
 
 import model
 import view.context2 as context
+import view.cairo_tools as tools
 
 command = context.command
 
@@ -155,25 +156,46 @@ class ViewportScrollCtx(ViewportCtx):
     EVENTS_MAP = {
         "cursor-motion": "viewport-scroll",
         "mouse-bt-2-release": "scroll-stop",
+        "mouse-bt-3-press": "scroll-reset-stop",
         }
+
+    TEXT_FMT = "dx=%d, dy=%d"
 
     @staticmethod
     def setup(ctx):
         vp = ctx.viewport
         vp.show_brush_cursor(False)
-        ctx.x, ctx.y = ctx.evt.get_cursor_position()
+        ctx._x0, ctx._y0 = ctx.evt.get_cursor_position()
+        ctx.x = ctx._x0
+        ctx.y = ctx._y0
+        ctx._offset = vp.offset
+        ctx._text = tools.Text()
+        ctx._text.set_text(ViewportScrollCtx.TEXT_FMT % (0, 0))
+        vp.add_tool(ctx._text)
 
     @command("scroll-stop")
     def stop(ctx):
+        vp = ctx.viewport
+        vp.rem_tool(ctx._text)
         ctx.execute("viewport-cursor-motion")
-        ctx.viewport.show_brush_cursor(True)
+        vp.show_brush_cursor(True)
         ctx.stop_modal()
         ctx.switch(ViewportCtx)
+
+    @command("scroll-reset-stop")
+    def scroll_reset(ctx):
+        vp = ctx.viewport
+        vp.offset = ctx._offset
+        ctx.viewport.repaint()
+        ctx.execute("scroll-stop")
 
     @command("viewport-scroll")
     def vp_scroll(ctx):
         x, y = ctx.evt.get_cursor_position()
         vp = ctx.viewport
+        d = x - ctx._x0, y - ctx._y0
+        ctx._text.set_text(ViewportScrollCtx.TEXT_FMT % d)
+        vp.repaint_tools(ctx._text.area, 0)
         vp.scroll(x - ctx.x, y - ctx.y)
         ctx.x = x
         ctx.y = y

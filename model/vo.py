@@ -69,5 +69,5 @@ class EmptyDocumentConfigVO(DocumentConfigVO):
 
 
 class LayerCmdVO(GenericVO):
-    def __init__(self, layerproxy, **k):
-        super(LayerCmdVO, self).__init__(layerproxy=layerproxy, **k)
+    def __init__(self, layer, **k):
+        super(LayerCmdVO, self).__init__(layer=layer, **k)

@@ -84,32 +84,31 @@ class LayerProxy(Proxy):
     ### Notifications
     
     LAYER_DIRTY = 'layer-dirty'
-    
+
     ###
     ### Object API
-    
-    def __init__(self, layer, docproxy):
-        super(LayerProxy, self).__init__("%s_%X" % (self.NAME, id(layer)),
-                                         layer)
+
+    def __init__(self, docproxy):
+        super(LayerProxy, self).__init__()
         self.docproxy = docproxy
 
     ###
     ### Public API
 
-    def handle_dirty(self, area):
-        if self.data.dirty:
-            self.sendNotification(self.LAYER_DIRTY,
-                                  (self.docproxy, self, area))
-            self.data.dirty = 0
+    def handle_dirty(self, layer, area):
+        if layer.dirty:
+            self.sendNotification(self.LAYER_DIRTY, (self.docproxy, layer, area))
+            layer.dirty = 0
 
-    def clear(self):
-        snapshot = self.data.snapshot()
-        self.handle_dirty(snapshot.area)
+    def clear(self, layer):
+        snapshot = layer.snapshot()
+        layer.clear()
+        self.handle_dirty(layer, snapshot.area)
         return snapshot
 
-    def unsnapshot(self, snapshot, *a):
-        self.data.unsnapshot(snapshot, *a)
-        self.handle_dirty(snapshot.dirty_area)
+    def unsnapshot(self, layer, snapshot, *a):
+        layer.unsnapshot(snapshot, *a)
+        self.handle_dirty(layer, snapshot.dirty_area)
 
 
 class DocumentProxy(Proxy):
@@ -136,6 +135,7 @@ class DocumentProxy(Proxy):
     __instances = {}  # All registered DocumentProxy instances
     profile = None    # Color profile
     docname_num_match = re.compile('(.* #)([0-9]+)').match
+    layerproxy = None
 
     def __init__(self, doc):
         assert isinstance(doc, Document)
@@ -152,7 +152,6 @@ class DocumentProxy(Proxy):
         if name in DocumentProxy.__instances:
             raise NameError(_T('document name already exists'))
 
-    
     @staticmethod
     def _new_doc(vo):
         if isinstance(vo, _vo.FileDocumentConfigVO):
@@ -169,12 +168,15 @@ class DocumentProxy(Proxy):
         self._check_name(self.data.name)
         self._attach_cmd_hist()
         DocumentProxy.__instances[self.data.name] = self
+        self.layerproxy = LayerProxy(self)
+        self.facade.registerProxy(self.layerproxy)
 
     def onRemove(self):
         del DocumentProxy.__instances[self.data.name]
         self.data = None
         hp_name = 'HP_' + self.getProxyName()
         self.facade.removeProxy(self.getProxyName())
+        self.facade.removeProxy(self.layerproxy)
 
     ####
     #### Public API ####
@@ -338,7 +340,7 @@ class DocumentProxy(Proxy):
 
     def add_brush_radius(self, dr):
         brush = self.data.brush
-        r = min(max(0.5, dr + max(brush.radius_min, brush.radius_max)), 150)
+        r = min(max(0.5, dr + max(brush.radius_min, brush.radius_max)), brush.RADIUS_MAX)
         if brush.radius_max != r:
             brush.radius_max = r
             self.sendNotification(main.BRUSH_PROP_CHANGED,
@@ -350,7 +352,7 @@ class DocumentProxy(Proxy):
 
     def set_brush_radius_max(self, r):
         brush = self.data.brush
-        r = min(max(r, 0.5), 150)
+        r = min(max(r, 0.5), brush.RADIUS_MAX)
         if brush.radius_max != r:
             brush.radius_max = r
             self.sendNotification(main.BRUSH_PROP_CHANGED,
@@ -358,7 +360,7 @@ class DocumentProxy(Proxy):
 
     def add_brush_radius_max(self, dr):
         brush = self.data.brush
-        r = min(max(0.5, brush.radius_max + dr), 150)
+        r = min(max(0.5, brush.radius_max + dr), brush.RADIUS_MAX)
         if brush.radius_max != r:
             brush.radius_max = r
             self.sendNotification(main.BRUSH_PROP_CHANGED,
@@ -366,7 +368,7 @@ class DocumentProxy(Proxy):
 
     def set_brush_radius_min(self, r):
         brush = self.data.brush
-        r = min(max(r, 0.5), 150)
+        r = min(max(r, 0.5), brush.RADIUS_MAX)
         if brush.radius_min != r:
             brush.radius_min = r
             self.sendNotification(main.BRUSH_PROP_CHANGED,
@@ -374,7 +376,7 @@ class DocumentProxy(Proxy):
 
     def add_brush_radius_min(self, dr):
         brush = self.data.brush
-        r = min(max(0.5, brush.radius_min + dr), 150)
+        r = min(max(0.5, brush.radius_min + dr), brush.RADIUS_MAX)
         if brush.radius_min != r:
             brush.radius_min = r
             self.sendNotification(main.BRUSH_PROP_CHANGED,
@@ -404,26 +406,27 @@ class DocumentProxy(Proxy):
         self.record = self._record
         surface = layer.surface
         self._dev = device
-        self._layer = LayerProxy(layer, self)
+        self._layer = layer
         self._snapshot = layer.snapshot()  # for undo
         state = device.current
         self._stroke = [state]
         doc.brush.start(surface, state)
 
     def draw_end(self):
-        layer = self._layer.data
+        layer = self._layer
         doc = self.data
         area = doc.brush.stop()
         if area:
             layer.dirty = True
             area = layer.document_area(*area)
-            self._layer.handle_dirty(area)
+            self.layerproxy.handle_dirty(layer, area)
 
         ss = self._snapshot
         if ss.reduce(layer.surface):
             self.sendNotification(
                 main.DOC_RECORD_STROKE,
-                model.vo.LayerCmdVO(layerproxy=self._layer,
+                model.vo.LayerCmdVO(docproxy=self,
+                                    layer=layer,
                                     snapshot=ss,
                                     stroke=self._stroke))
             del self._snapshot, self._layer, self._stroke, self._dev
@@ -433,9 +436,10 @@ class DocumentProxy(Proxy):
         self._stroke.append(state)
         area = self.data.brush.draw_stroke(state)
         if area:
-            self._layer.data.dirty = True
-            area = self._layer.data.document_area(*area)
-            self._layer.handle_dirty(area)
+            layer = self._layer
+            layer.dirty = True
+            area = layer.document_area(*area)
+            self.layerproxy.handle_dirty(layer, area)
 
     ####
     #### Document layers handling ####
@@ -539,6 +543,10 @@ class DocumentProxy(Proxy):
     def get_layer_dist(self, *dist):
         layer = self.data.active
         return layer.inv_matrix.transform_distance(*dist)
+
+    def clear_layer(self, layer=None):
+        vo = _vo.LayerCmdVO(docproxy=self, layer=self.active_layer)
+        self.sendNotification(main.LAYER_CLEAR, vo)
 
     ####
     #### Properties ###

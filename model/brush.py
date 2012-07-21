@@ -52,7 +52,7 @@ class Brush(object):
     PROPERTIES += 'icon'.split()
 
     RADIUS_MIN = 0.5
-    RADIUS_MAX = 150.
+    RADIUS_MAX = 500.
 
     # default values = pen
     radius_min = 1.0

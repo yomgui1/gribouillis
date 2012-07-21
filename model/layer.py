@@ -94,6 +94,7 @@ class Layer(object):
 
     def clear(self):
         self._surface.clear()
+        self.dirty = 1
 
     def copy(self, layer):
         self._alpha = layer._alpha

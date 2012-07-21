@@ -319,7 +319,7 @@ class ClearLayerCmd(UndoableCommand):
 
     def executeCommand(self):
         vo = self.getNote().getBody()
-        vo.snaphost = vo.layer.clear()
+        vo.docproxy.layerproxy.clear(vo.layer)
 
     def getCommandName(self):
         return self.__name
@@ -328,21 +328,21 @@ class ClearLayerCmd(UndoableCommand):
 class RecordStrokeCmd(UndoableCommand):
     """vo parameter: LayerCmdVo
 
-        layerproxy : layerproxy where the stroke is applied
-        snapshot   : layer snapshot before the stroke
-        stroke     : stroke to record
+    layer    : layer where the stroke is applied
+    snapshot : layer snapshot before the stroke
+    stroke   : stroke to record
     """
 
     def execute(self, note):
         vo = note.getBody()
         super(RecordStrokeCmd, self).execute(note)
-        vo.dirty_area = vo.layerproxy.data.document_area(*vo.snapshot.dirty_area)
+        vo.dirty_area = vo.layer.document_area(*vo.snapshot.dirty_area)
         self.__name = 'Stroke (%2.3fMB)' % (vo.snapshot.size / (1024. * 1024))
         self.registerUndoCommand(_UnsnaphotLayerCmd)
 
     def executeCommand(self):
         vo = self.getNote().getBody()
-        vo.layerproxy.unsnapshot(vo.snapshot, True)
+        vo.docproxy.layerproxy.unsnapshot(vo.layer, vo.snapshot, True)
 
     def getCommandName(self):
         return self.__name

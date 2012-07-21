@@ -74,7 +74,7 @@ class Cursor:
         self.set_radius(10.)
         
     def set_radius(self, r):
-        r = max(1., min(r, 255.))
+        r = max(1., min(r, 20.))
         if r == self._r:
             return
         self._r = r

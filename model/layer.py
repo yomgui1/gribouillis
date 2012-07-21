@@ -115,20 +115,11 @@ class Layer(object):
         self.dirty = True
         return self._surface.unsnapshot(snapshot, redo)
 
-
     def translate(self, *delta):
         x, y = self.inv_matrix.transform_distance(*delta)
         self._matrix.translate(x,y)
         self.inv_matrix.translate(-x,-y)
         self._dirty = True
-
-    @property
-    def surface(self):
-        return self._surface
-
-    @property
-    def empty(self):
-        return self._surface.empty
 
     def _set_name(self, name):
         self._name = name
@@ -175,7 +166,15 @@ class Layer(object):
         self._dirty = True
         
     matrix = property(lambda self: self._matrix, fset=set_matrix)
-    
+
+    @property
+    def surface(self):
+        return self._surface
+
+    @property
+    def empty(self):
+        return self._surface.empty
+
     @property
     def area(self):
         area = self.get_bbox()
@@ -192,7 +191,7 @@ class Layer(object):
 
     @property
     def modified(self):
-        return self._dirty
+        return self.dirty
         
     name = property(fget=lambda self: self._name, fset=_set_name)
     visible = property(fget=lambda self: self._visible, fset=_set_visible)

@@ -98,6 +98,8 @@ class Document(list):
 
         # Create the drawing brush with default properties
         self.brush = DrawableBrush()
+        self.brush.motion_track = 0.5
+        self.brush.hi_speed_track = 0.3
 
         # Default state
         self.clear()

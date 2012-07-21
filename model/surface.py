@@ -45,7 +45,11 @@ Channel: logical view of one component of a 2D pixels array surface.
 Pixel: a object to represent one surface's pixel color in the 2D pixels array.
 """
 
-import _pixbuf, _tilemgr, cairo, sys
+import sys
+import cairo
+
+import _pixbuf
+import _tilemgr
 
 from utils import virtualmethod
 

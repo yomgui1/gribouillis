@@ -35,29 +35,44 @@ class EventParserI:
 
     # Protected variables used for caching
 
+    _evt = None
+    _fullname = None
     _time = None
     _mods = None
     _key = None
-    _scr_pos = None
     _cur_pos = None
     _cur_xtilt = None
     _cur_ytilt = None
     _pressure = None
 
-    def get_time(self): pass
-    
-    def get_modificators(self):
+    def __init__(self, event, name):
+        self._evt = event
+        self.name = name
+
+    def __hash__(self):
+        return self.fullname
+
+    def __str__(self):
+        self.fullname
+
+    def get_fullname(self):
+        if self._fullname is None:
+            # event fullname
+            mods = self.mods
+            if mods:
+                self.fullname = '%s %s' % (mods, self.name)
+            else:
+                self.fullname = self.name
+        return self._fullname
+
+    def get_time(self):
+        pass
+
+    def get_mods(self):
         """Return a string containing zero or more following elements,
         separated by a space: 'shift', 'control', 'alt', 'command'.
         When the OS handles same modificator keys and diffenciates them
         a number is added at the end, like 'alt2'.
-        """
-        pass
-    
-    def get_key(self):
-        """Return a string representing the pressed key code.
-        The string can by empty if not recognized.
-        None possible if no key event.
         """
         pass
 
@@ -68,7 +83,19 @@ class EventParserI:
         """
         pass
 
-    def get_screen_position(self): pass
-    def get_cursor_position(self): pass
-    def get_cursor_xtilt(self): pass
-    def get_cursor_ytilt(self): pass
+    def get_cursor_position(self):
+        pass
+
+    def get_cursor_xtilt(self):
+        pass
+
+    def get_cursor_ytilt(self):
+        pass
+
+    fullname = property(fget=lambda self: self.get_fullname())
+    time = property(fget=lambda self: self.get_time())
+    mods = property(fget=lambda self: self.get_mods())
+    pressure = property(fget=lambda self: self.get_pressure())
+    cpos = property(fget=lambda self: self.get_cursor_position())
+    xtilt = property(fget=lambda self: self.get_cursor_xtilt())
+    ytilt = property(fget=lambda self: self.get_cursor_ytilt())

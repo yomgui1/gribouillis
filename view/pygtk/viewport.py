@@ -47,6 +47,58 @@ from .contexts import ViewportCtx
 
 gdk = gtk.gdk
 
+_KEYVALS = { 0x0020: 'space',
+             0xfe03: 'ralt',
+             0xff08: 'backspace',
+             0xff09: 'tab',
+             0xff0d: 'enter',
+             0xff13: 'pause',
+             0xff14: 'scrolllock',
+             0xff1b: 'esc',
+             0xff50: 'home',
+             0xff51: 'left',
+             0xff52: 'up',
+             0xff53: 'right',
+             0xff54: 'down',
+             0xff55: 'page_up',
+             0xff56: 'page_down',
+             0xff57: 'end',
+             0xff63: 'insert',
+             0xff67: 'menu',
+             0xff7f: 'numlock',
+             0xff8d: 'return',
+             0xffbe: 'f1',
+             0xffbf: 'f2',
+             0xffc0: 'f3',
+             0xffc1: 'f4',
+             0xffc2: 'f5',
+             0xffc3: 'f6',
+             0xffc4: 'f7',
+             0xffc5: 'f8',
+             0xffc6: 'f9',
+             0xffc7: 'f10',
+             0xffc8: 'f11',
+             0xffc9: 'f12',
+             0xffe1: 'lshift',
+             0xffe2: 'rshift',
+             0xffe3: 'lcontrol',
+             0xffe4: 'rcontrol',
+             0xffe5: 'capslock',
+             0xffe9: 'lalt',
+             0xffeb: 'lcommand',
+             0xffec: 'rcommand',
+             0xffff: 'delete',
+             }
+
+def _check_key(key, evt):
+    if not key:
+        key = evt.keyval
+        if key <= 0xff:
+            key = chr(evt.keyval).lower()
+        else:
+            key = hex(evt.keyval)
+    return key
+
 
 class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
     """DocDisplayArea class.
@@ -100,23 +152,21 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
         self.set_can_focus(True)
         self.set_sensitive(True)
         
-        self.connect("expose-event"        , self.on_expose)
-        self.connect("motion-notify-event" , self.on_motion_notify)
-        self.connect("button-press-event"  , self.on_button_press)
-        self.connect("button-release-event", self.on_button_release)
-        self.connect("scroll-event"        , self.on_event)
-        self.connect("enter-notify-event"  , self.on_enter)
-        self.connect("leave-notify-event"  , self.on_event)
-        self.connect("key-press-event"     , self.on_event)
-        self.connect("key-release-event"   , self.on_event)
+        self.connect("expose-event"        , self._on_expose)
+        self.connect("motion-notify-event" , self._on_motion_notify)
+        self.connect("button-press-event"  , self._on_button_press)
+        self.connect("button-release-event", self._on_button_release)
+        self.connect("scroll-event"        , self._on_scroll)
+        self.connect("enter-notify-event"  , self._on_enter)
+        self.connect("leave-notify-event"  , self._on_leave)
+        self.connect("key-press-event"     , self._on_key_press)
+        self.connect("key-release-event"   , self._on_key_release)
 
         fn = utils.resolve_path(main.Gribouillis.TRANSPARENT_BACKGROUND)
         self.set_background(fn)
 
-    # PyGTK events
-    #
-
-    def on_expose(self, widget, evt):
+    # Paint function
+    def _on_expose(self, widget, evt):
         "Partial or full viewport repaint"
 
         # Repainting each layers is the most CPU comsuming task.
@@ -197,26 +247,43 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
     # Events dispatchers
     #
     
-    def on_button_press(self, widget, evt):
+    def _on_button_press(self, widget, evt):
         # ignore double-click events
         if evt.type == gdk.BUTTON_PRESS:
-            return self._ctx.on_event(EventParser(evt))
-            
-    def on_button_release(self, widget, evt):
+            name = 'mouse-bt-%u-press' % evt.button
+            return self._ctx.on_event(EventParser(evt, name))
+
+    def _on_button_release(self, widget, evt):
         # ignore double-click events
         if evt.type == gdk.BUTTON_RELEASE:
-            return self._ctx.on_event(EventParser(evt))
+            name = 'mouse-bt-%u-release' % evt.button
+            return self._ctx.on_event(EventParser(evt, name))
         
-    def on_motion_notify(self, widget, evt):
-        return self._ctx.on_event(EventParser(evt))
+    def _on_motion_notify(self, widget, evt):
+        return self._ctx.on_event(EventParser(evt, 'cursor-motion'))
 
-    def on_enter(self, widget, evt):
+    def _on_enter(self, widget, evt):
         self.grab_focus()
         self._ctx.switch(ViewportCtx, viewport=self)
-        return self._ctx.on_event(EventParser(evt))
+        return self._ctx.on_event(EventParser(evt, 'cursor-enter'))
 
-    def on_event(self, widget, evt):
-        return self._ctx.on_event(EventParser(evt))
+    def _on_leave(self, widget, evt):
+        return self._ctx.on_event(EventParser(evt, 'cursor-leave'))
+
+    def _on_scroll(self, widget, evt):
+        name = 'scroll-%s' % evt.direction.value_nick
+        return self._ctx.on_event(EventParser(evt, name))
+
+    def _on_key_press(self, widget, evt):
+        name = 'key-%s-press' % _check_key(_KEYVALS.get(evt.keyval), evt)
+        return self._ctx.on_event(EventParser(evt, name))
+
+    def _on_key_release(self, widget, evt):
+        if evt.type == gdk.SCROLL:
+            name = 'scroll-%s-release' % evt.direction.value_nick
+        else:
+            name = 'key-%s-release' % _check_key(_KEYVALS.get(evt.keyval), evt)
+        return self._ctx.on_event(EventParser(evt, name))
         
     # Public API
     #

@@ -99,7 +99,8 @@ class Context(object):
 
     def switch(self, cls, **kwds):
         _cls = self._cls
-        print "CTX: %s -> %s" % (_cls.__name__, cls.__name__)
+        utils.dbg_log("CTX: %s -> %s\n" % (_cls.__name__, cls.__name__))
+
         _cls.cleanup(self)
         self._cls = cls
         self._map = cls._EVENTS_MAP
@@ -111,7 +112,9 @@ class Context(object):
         # for restoring later and forbid context switch.
 
         _cls = self._cls
-        print "CTX: %s -> %s (Modal)" % (_cls.__name__, cls.__name__)
+        utils.dbg_log("CTX: %s -> %s (Modal)\n" % (_cls.__name__,
+                                                   cls.__name__))
+
         _cls.cleanup(self)
         self._cls = cls  # must be before dict copy!!
         self.__odict = self.__dict__.copy()
@@ -126,14 +129,16 @@ class Context(object):
 
     def on_event(self, evt):
         d = self._map
-        k = evt.get_key()
-        cmd = d.get(str(evt)) or d.get(':'+k) or d.get(k)
+        n = evt.name
+        cmd = d.get(evt.fullname) or d.get(':'+n) or d.get(n)
         if cmd:
             self.evt = evt
             r = cmd(self)
             del self.evt
             return r
-        print "EVT(%s): %s" % (self._cls.__name__, str(evt))
+
+        utils.dbg_log("EVT(%s): %s\n" % (self._cls.__name__,
+                                         evt.fullname))
 
     def execute(self, name):
         cmd = MetaContext.get_cmd(name)

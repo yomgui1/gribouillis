@@ -32,63 +32,8 @@ from gtk import gdk
 
 from view.interfaces import EventParserI
 
-_KEYVALS = { 0x0020: 'space',
-             0xfe03: 'ralt',
-             0xff08: 'backspace',
-             0xff09: 'tab',
-             0xff0d: 'enter',
-             0xff13: 'pause',
-             0xff14: 'scrolllock',
-             0xff1b: 'esc',
-             0xff50: 'home',
-             0xff51: 'left',
-             0xff52: 'up',
-             0xff53: 'right',
-             0xff54: 'down',
-             0xff55: 'page_up',
-             0xff56: 'page_down',
-             0xff57: 'end',
-             0xff63: 'insert',
-             0xff67: 'menu',
-             0xff7f: 'numlock',
-             0xff8d: 'return',
-             0xffbe: 'f1',
-             0xffbf: 'f2',
-             0xffc0: 'f3',
-             0xffc1: 'f4',
-             0xffc2: 'f5',
-             0xffc3: 'f6',
-             0xffc4: 'f7',
-             0xffc5: 'f8',
-             0xffc6: 'f9',
-             0xffc7: 'f10',
-             0xffc8: 'f11',
-             0xffc9: 'f12',
-             0xffe1: 'lshift',
-             0xffe2: 'rshift',
-             0xffe3: 'lcontrol',
-             0xffe4: 'rcontrol',
-             0xffe5: 'capslock',
-             0xffe9: 'lalt',
-             0xffeb: 'lcommand',
-             0xffec: 'rcommand',
-             0xffff: 'delete',
-             }
-
 class EventParser(EventParserI):
     __bad_devices = []
-    
-    def __init__(self, event):
-        self._evt = event
-
-    def __hash__(self):
-        return hash(self._evt)
-
-    def __str__(self):
-        mod = self.get_modificators()
-        if mod:
-            return '%s %s' % (mod, self.get_key())
-        return self.get_key()
 
     def get_time(self):
         if self._time is None:
@@ -96,61 +41,20 @@ class EventParser(EventParserI):
             self._time = self._evt.time * 1e-3
         return self._time
 
-    def get_modificators(self):
+    def get_mods(self):
         if self._mods is None:
-            self._mods = mods = []
-            state = self._evt.state
-            if state & gdk.CONTROL_MASK:
-                mods.append('C')
-            if state & gdk.MOD1_MASK:
-                mods.append('M')
-            if state & gdk.MOD5_MASK:
-                mods.append('M')
-            if state & gdk.SHIFT_MASK:
-                mods.append('S')
-            if state & gdk.MOD4_MASK:
-                mods.append('s')
-        return '-'.join(self._mods) or None
-    
-    def _check_key(self, key, evt):
-        if not key:
-            key = evt.keyval
-            if key <= 0xff:
-                key = chr(evt.keyval).lower()
-            else:
-                key = hex(evt.keyval)
-        return key
-    
-    def get_key(self):
-        if self._key is None:
-            e = self._evt
-            t = e.type
-            if t == gdk.MOTION_NOTIFY:
-                key = 'cursor-motion'
-            elif t == gdk.ENTER_NOTIFY:
-                key = 'cursor-enter'
-            elif t == gdk.LEAVE_NOTIFY:
-                key = 'cursor-leave'
-            elif t == gdk.BUTTON_PRESS:
-                key = 'mouse-bt-%u-press' % e.button
-            elif t == gdk.BUTTON_RELEASE:
-                key = 'mouse-bt-%u-release' % e.button
-            elif t == gdk.KEY_PRESS:
-                key = 'key-%s-press' % self._check_key(_KEYVALS.get(e.keyval), e)
-            elif t == gdk.KEY_RELEASE:
-                key = 'key-%s-release' % self._check_key(_KEYVALS.get(e.keyval), e)
-            elif t == gdk.SCROLL:
-                if evt.direction == gdk.SCROLL_UP:
-                    key = 'scroll-up'
-                elif evt.direction == gdk.SCROLL_DOWN:
-                    key = 'scroll-down'
-                else:
-                    key = 'scroll'
-            else:
-                print '[*DBG*] unknown event type:', t
-                key = 'unknown'
-            self._key = key
-        return self._key
+            mods = ''
+            s = self._evt.state
+            if s & gdk.CONTROL_MASK:
+                mods += 'C-'
+            if s & (gdk.MOD1_MASK|gdk.MOD5_MASK):
+                mods += 'M-'
+            if s & gdk.SHIFT_MASK:
+                mods += 'S-'
+            if s & gdk.MOD4_MASK:
+                mods += 's-'
+            self._mods = mods[:-1]
+        return  self._mods
 
     def get_cursor_position(self):
         if self._cur_pos is None:

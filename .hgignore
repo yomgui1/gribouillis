@@ -1,9 +1,4 @@
 syntax: glob
-*.py[co]
+*.py[mco]
 *.o
 *.so
-*.swp
-*.orig
-
-syntax: regexp
-^build

@@ -112,8 +112,8 @@ class ViewPortBase(object):
         return self._mat_model2view
 
     def set_matrix(self, view_mat=None):
-        self._mat_view2model = get_imat(view_mat)
         self._mat_model2view = view_mat
+        self._mat_view2model = get_imat(view_mat)
 
         # Matrix operations aliases
         self.get_model_point = self._mat_view2model.transform_point
@@ -271,9 +271,13 @@ class ViewPortBase(object):
     # Properties
     #
 
-    @property
-    def offset(self):
+    def get_offset(self):
         return self._ox, self._oy
+
+    def set_offset(self, offset):
+        self._ox, self._oy = offset
+
+    offset = property(get_offset, set_offset)
 
     @property
     def scale(self):
@@ -288,6 +292,7 @@ class ViewPortBase(object):
     def cairo_surface(self):
         return self.__surf
 
+    matrix = property(fget=get_matrix, fset=set_matrix)
 
 class BackgroundMixin:
     _backcolor = None  # background as solid color

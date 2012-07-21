@@ -534,15 +534,16 @@ argb15x_to_argb8_noa(uint16_t *src1, uint8_t *dst1,
 
             if (alpha > 0)
             {
-                uint8_t r,g,b;
+                uint8_t a,r,g,b;
 
                 /* Un-multiply by alpha, rounding and convert to range [0, 255] */
+				a = (alpha * 255 + ROUND_ERROR_15BITS) >> 15;
                 r = ((((uint32_t)src[1]<<15) + alpha/2) / alpha * 255 + ROUND_ERROR_15BITS) >> 15;
                 g = ((((uint32_t)src[2]<<15) + alpha/2) / alpha * 255 + ROUND_ERROR_15BITS) >> 15;
                 b = ((((uint32_t)src[3]<<15) + alpha/2) / alpha * 255 + ROUND_ERROR_15BITS) >> 15;
 
                 /* ARGB8 */
-                dst[0] = (alpha * 255 + ROUND_ERROR_15BITS) >> 15;
+                dst[0] = a;
                 dst[1] = r;
                 dst[2] = g;
                 dst[3] = b;
@@ -575,25 +576,19 @@ argb15x_to_bgra8(uint16_t *src1, uint8_t *dst1,
 
         for (x=0; x < w; x++)
         {
-            uint32_t alpha = src[0];
+			uint8_t a,r,g,b;
 
-            if (alpha > 0)
-            {
-                uint8_t r,g,b;
+			/* Convert to range [0, 255], keep values alpha pre-multiplied */
+			a = ((uint32_t)src[0] * 255 + ROUND_ERROR_15BITS) >> 15;
+			r = ((uint32_t)src[1] * 255 + ROUND_ERROR_15BITS) >> 15;
+			g = ((uint32_t)src[2] * 255 + ROUND_ERROR_15BITS) >> 15;
+			b = ((uint32_t)src[3] * 255 + ROUND_ERROR_15BITS) >> 15;
 
-                /* Convert to range [0, 255], keep values alpha pre-multiplied */
-                r = ((uint32_t)src[1] * 255 + ROUND_ERROR_15BITS) >> 15;
-                g = ((uint32_t)src[2] * 255 + ROUND_ERROR_15BITS) >> 15;
-                b = ((uint32_t)src[3] * 255 + ROUND_ERROR_15BITS) >> 15;
-
-                /* BGRA8 */
-                dst[0] = b;
-                dst[1] = g;
-                dst[2] = r;
-                dst[3] = (alpha * 255 + ROUND_ERROR_15BITS) >> 15;
-            }
-            else
-                *(uint32_t *)dst = 0;
+			/* BGRA8 */
+			dst[0] = b;
+			dst[1] = g;
+			dst[2] = r;
+			dst[3] = a;
 
             /* Next ARGB pixel */
             src += 4;
@@ -1777,6 +1772,11 @@ pixbuf_get_size(PyPixbuf *self, void *closure)
 static PyObject *
 pixbuf_blit(PyPixbuf *self, PyObject *args)
 {
+	/* NOTE: This is the most important function in Gribouillis!
+	 * This function is called heavy called during all drawing operations.
+	 * So most of optimisation efforts must be here!
+	 */
+
     PyPixbuf *dst_pixbuf;
     int dxoff=0, dyoff=0;
     unsigned int sxoff=0, syoff=0;
@@ -1788,13 +1788,17 @@ pixbuf_blit(PyPixbuf *self, PyObject *args)
     width = self->width;
     height = self->height;
 
-    if (!PyArg_ParseTuple(args, "O!|iiIIIIi", &PyPixbuf_Type, &dst_pixbuf, &dxoff, &dyoff, &sxoff, &syoff, &width, &height, &endian_care))
+    if (!PyArg_ParseTuple(args, "O!|iiIIIIi", &PyPixbuf_Type, &dst_pixbuf,
+						  &dxoff, &dyoff, &sxoff, &syoff,
+						  &width, &height, &endian_care))
         return NULL;
 
     blit = get_blit_function(self->pixfmt, dst_pixbuf->pixfmt, endian_care);
     if (NULL == blit)
-        return PyErr_Format(PyExc_TypeError, "Don't know how to blit from format 0x%08x to format 0x%08x",
-                            self->pixfmt, dst_pixbuf->pixfmt);
+        return PyErr_Format(PyExc_TypeError,
+							"Don't know how to blit from format 0x%08x"
+							" to format 0x%08x",
+							self->pixfmt, dst_pixbuf->pixfmt);
 
     if (clip_area(self, dst_pixbuf, &dxoff, &dyoff, &sxoff, &syoff, &width, &height))
         Py_RETURN_NONE;

@@ -815,7 +815,7 @@ get_radius_from_pressure(PyBrush *self, float pressure)
     float min = self->b_BasicValues[BV_RADIUS_MIN];
     float max = self->b_BasicValues[BV_RADIUS_MAX];
     float radius = min + (max-min)*pressure;
-    return CLAMP(radius, 0.5, 128.0);
+    return CLAMP(radius, 0.5, 200.0);
 }
 static float
 get_opacity_from_pressure(PyBrush *self, float pressure)
@@ -1069,8 +1069,8 @@ brush_new(PyTypeObject *type, PyObject *args)
         self->b_BasicValues[BV_ERASE] = 1.0;
         self->b_BasicValues[BV_OPACITY_COMPENSATION] = 1.0;
         self->b_BasicValues[BV_SPACING] = 0.25;
-        self->b_BasicValues[BV_MOTION_TRACK] = 1.0;
-        self->b_BasicValues[BV_HI_SPEED_TRACK] = 1.0;
+        self->b_BasicValues[BV_MOTION_TRACK] = 0.3;
+        self->b_BasicValues[BV_HI_SPEED_TRACK] = 0.0;
 
         /* let remaining fields to 0 */
     }
@@ -1753,7 +1753,7 @@ static PyMethodDef _BrushMethods[] = {
 static int add_constants(PyObject *m)
 {
     INSI(m, "BV_RADIUS_MIN", BV_RADIUS_MIN);
-    INSI(m, "BV_RADIUS_MAx", BV_RADIUS_MAX);
+    INSI(m, "BV_RADIUS_MAX", BV_RADIUS_MAX);
     INSI(m, "BV_YRATIO", BV_YRATIO);
     INSI(m, "BV_ANGLE", BV_ANGLE);
     INSI(m, "BV_HARDNESS", BV_HARDNESS);

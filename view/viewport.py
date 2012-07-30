@@ -59,7 +59,7 @@ def get_imat(m):
 class ViewPortBase(object):
     _debug = 0
 
-    SCALES = [0.2, 0.25, 0.33333, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 10., 20.]
+    SCALES = [0.05, 0.1, 0.2, 0.25, 0.33333, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 10., 20.]
     MAX_SCALE = len(SCALES) - 1
 
     width = height = stride = 0

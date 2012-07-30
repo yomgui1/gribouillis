@@ -377,16 +377,19 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
             self.scroll(int(cx-x), int(cy-y))
 
     def scroll(self, *delta):
-        self._docvp.scroll(*delta)
-        self._docvp.update_matrix()
+        dvp = self._docvp
+        dvp.scroll(*delta)
+        dvp.update_matrix()
 
         dx, dy = delta
 
         # Scroll the internal docvp buffer
-        self._docvp.pixbuf.scroll(dx, dy)
+        dvp.pixbuf.scroll(dx, dy)
 
-        ## Compute the damaged rectangles list...
-        # 4 damaged rectangles possible, but only two per delta:
+        ## Compute and render only damaged area
+        #
+        # 4 damaged rectangles possible,
+        # but in fact only two per delta:
         #
         # +==================+
         # |        #3        |      #1 exists if dx > 0
@@ -402,31 +405,25 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
         w = self.width
         h = self.height
         
-        drects = []
+        f = dvp.repaint
         
         if dy > 0:
-            drects.append([0, 0, w, dy]) #3
+            f([0, 0, w, dy]) #3
         elif dy < 0:
-            drects.append([0, h+dy, w, h]) #4
+            f([0, h+dy, w, h]) #4
         
         if dx > 0:
             if dy >= 0:
-                drects.append([0, dy, dx, h]) #1
+                f([0, dy, dx, h]) #1
             else:
-                drects.append([0, 0, dx, h+dy]) #1
+                f([0, 0, dx, h+dy]) #1
         elif dx < 0:
             if dy >= 0:
-                drects.append([w+dx, dy, w, h]) #2
+                f([w+dx, dy, w, h]) #2
             else:
-                drects.append([w+dx, 0, w, h+dy]) #2
+                f([w+dx, 0, w, h+dy]) #2
 
-        # Re-render only damaged parts
-        for clip in drects:
-            self._docvp.repaint(clip)
-
-        # Rasterize full area
-        clip = (0, 0, self.width, self.height)
-        self.redraw(clip)
+        self.redraw()
 
     def rotate(self, angle):
         self._docvp.rotate(angle)
@@ -491,6 +488,10 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
     @property
     def tools(self):
         return self._toolsvp.tools
+
+    @property
+    def center(self):
+        return self.width/2, self.height/2
 
     def get_offset(self):
         return self._docvp.offset

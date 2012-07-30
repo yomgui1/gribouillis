@@ -23,11 +23,14 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
+from math import radians
+
 import model
 import view.context2 as context
 import view.cairo_tools as tools
 
 command = context.command
+ANGLE = radians(22.5)
 
 
 class DocWindowCtx(context.Context):
@@ -64,12 +67,14 @@ class ViewportCtx(DocWindowCtx):
         "mouse-bt-1-press": "viewport-draw-start",
         "mouse-bt-2-press": "viewport-scroll-start",
         "cursor-motion": "viewport-cursor-motion",
-        "key-=-release": "viewport-reset",
+        "key-=-press": "viewport-reset",
         "scroll-up": "viewport-scale-up",
         "scroll-down": "viewport-scale-down",
-        "key-x-release": "viewport-swap-x",
-        "key-y-release": "viewport-swap-y",
-        "key-backspace-release": "viewport-erase-layer",
+        "key-x-press": "viewport-swap-x",
+        "key-y-press": "viewport-swap-y",
+        "key-right-press": "viewport-rotate-right",
+        "key-left-press": "viewport-rotate-left",
+        "key-backspace-press": "viewport-erase-layer",
         }
 
     @command("viewport-show-cursor")
@@ -118,6 +123,14 @@ class ViewportCtx(DocWindowCtx):
     def vp_swap_y(ctx):
         pos = ctx.viewport.cursor_position
         ctx.viewport.swap_y(pos[1])
+
+    @command("viewport-rotate-right")
+    def vp_rotate_right(ctx):
+        ctx.viewport.rotate(ANGLE)
+
+    @command("viewport-rotate-left")
+    def vp_rotate_left(ctx):
+        ctx.viewport.rotate(-ANGLE)
 
     @command("viewport-erase-layer")
     def vp_erase_layer(ctx):

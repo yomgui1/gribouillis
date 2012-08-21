@@ -195,13 +195,8 @@ static float fixed_sin[CS_TABLE_SIZE];
 #ifdef STAT_TIMING
 
 /* Code from Python sources (ceval.c) */
-#if defined(__PPC__) /* <- Don't know if this is the correct symbol; this
-                           section should work for GCC on any PowerPC
-                           platform, irrespective of OS.
-                           POWER?  Who knows :-) */
-
+#if defined(__PPC__)
 #define READ_TIMESTAMP(var) ppc_getcounter(&var)
-
 static void
 ppc_getcounter(uint64_t *v)
 {
@@ -239,10 +234,22 @@ ppc_getcounter(uint64_t *v)
 
 
 #else
-
 #error "Don't know how to implement timestamp counter for this architecture"
-
 #endif
+
+#define START_TIMER(b, i) ({ READ_TIMESTAMP(b->b_Times[i]); })
+#define STOP_TIMER(b, i) ({						\
+	  uint64_t t;								\
+	  READ_TIMESTAMP(t);						\
+	  b->b_Times[i] = t - b->b_Times[i];		\
+	  b->b_TimesCount[i]++;						\
+	})
+
+#else
+
+#define START_TIMER(b, i)
+#define STOP_TIMER(b, i)
+
 #endif /* STAT_TIMING */
 
 static PyPixbuf *
@@ -367,7 +374,8 @@ obtain_pixbuffer(PyBrush *self, PyObject *surface, int x, int y)
 
     return (void *)o;
 }
-/* Solid spherical filling engine */
+
+/* Solid elliptical filling engine */
 static int
 drawdab_solid(PyBrush *self,        /* In: brush object */
               MyRec *area,          /* In/Out: dirty area */
@@ -386,9 +394,6 @@ drawdab_solid(PyBrush *self,        /* In: brush object */
     int minx, miny, maxx, maxy, x, y, need_color=TRUE;
     float grain;
     uint16_t native_color[MAX_CHANNELS];
-#ifdef STAT_TIMING
-    uint64_t t1, t2;
-#endif
 
     DPRINT("BDraw: pos=(%f, %f), radius=%f\n", sx, sy, radius);
 
@@ -436,21 +441,13 @@ drawdab_solid(PyBrush *self,        /* In: brush object */
             unsigned int bx, by; /* x, y in buffer space */
             int bpp;
 
-            /* Try to obtain the surface pixels buffer for the point (x, y).
-            ** Search in internal cache for it, then ask directly to the surface object.
-            **/
+            START_TIMER(self, 2);
 
-#ifdef STAT_TIMING
-            READ_TIMESTAMP(t1);
-#endif
-
+			/* Try to obtain the surface pixels buffer containing point (x, y) */
             pb = obtain_pixbuffer(self, surface, x, y);
 
-#ifdef STAT_TIMING
-            READ_TIMESTAMP(t2);
-            self->b_Times[2] += t2 - t1;
-            self->b_TimesCount[2]++;
-#endif
+            STOP_TIMER(self, 2);
+
             if (NULL == pb)
                 return -1;
                 
@@ -499,10 +496,7 @@ drawdab_solid(PyBrush *self,        /* In: brush object */
                    bx_left, by_top, bx_right, by_bottom,
                    bx_right-bx_left, by_bottom-by_top);
 
-            /* Filling one pixel buffer (inner loop) */
-#ifdef STAT_TIMING
-            READ_TIMESTAMP(t1);
-#endif
+            START_TIMER(self, 1);
 
             /* linear coef. to compute pixels distance from center
              * using a scanline processing.
@@ -518,6 +512,8 @@ drawdab_solid(PyBrush *self,        /* In: brush object */
             float rxy = xx0*rxdx + yy0*rxdy;
             float ryy = xx0*rydx + yy0*rydy;
 
+			/* Filling one pixel buffer (inner loop) */
+			int damaged = 0;
             for (by=by_top; by <= by_bottom; by++, rxy += rxdy, ryy += rydy, buf += pb->bpr)
             {                
                 uint8_t *pixel = buf + bx_left*bpp; /* X-axis offset */
@@ -535,30 +531,31 @@ drawdab_solid(PyBrush *self,        /* In: brush object */
                      *
                      * Note: one major problem of this method occures when the radius is large,
                      * as the wasted surface of pixels (pixels where the following condition is false)
-                     * has a quadratic grow (Sw(r) = Cst * r^2).
+                     * has a quadratic grow (Sw(r) = (4-pi) * r^2).
                      */
 
                     float rr = rx*rx + ry*ry;
 
                     if (rr <= 1.0)
                     {
-                        /* opacity = opacity_base * f(r), where:
-                         *   - f is a fall-off function
-                         *   - r the radius (we using the square radius (rr) in fact)
-                         *
-                         * hardness is the first zero of f (f(hardness)=0.0).
-                         * hardness can't be zero (or density = -infinity, clamped to zero)
-                         */
                         float opa = opacity;
 
+						/* Computing inner opacity using hardness value
+						 * as split point between two linear interpolations:
+						 * - zz <= hardness: between opacity and opacity * hardness
+						 * - zz >= hardness: between opacity * hardness and zero
+						 *
+						 * This gives a simple falloff function for zz in [0, 1]
+						 */
                         if (hardness < 1.0)
                         {
                             if (rr < hardness)
-                                opa *= rr + 1.0-(rr/hardness);
+								opa *= rr + 1.0-(rr/hardness);
                             else
-                                opa *= hardness/(1.0-hardness)*(1.0-rr);
+								opa *= hardness/(1.0-hardness)*(1.0-rr);
                         }
                         
+						/* add a grain factor to opacity */
                         if (grain > 0)
                         {
                             float noise = (noise_2d(sx + rx*grain, sy + ry*grain)+1.)*.5;
@@ -567,16 +564,13 @@ drawdab_solid(PyBrush *self,        /* In: brush object */
                         }
 
                         writepixel(pixel, opa, alpha, native_color);
-                        pb->damaged = TRUE;
+						damaged = 1;
                     }
                 }
             }
+			pb->damaged = damaged;
 
-#ifdef STAT_TIMING
-            READ_TIMESTAMP(t2);
-            self->b_Times[1] += t2 - t1;
-            self->b_TimesCount[1]++;
-#endif
+			STOP_TIMER(self, 1);
 
             /* Update x */
             x += bx_right - bx_left + 1;
@@ -591,6 +585,7 @@ next_pixel:
     DPRINT("BDraw: done\n");
     return 0;
 }
+
 /* Get the average color under a dabs */
 static int
 get_dab_color(PyBrush *self,       /* In: */
@@ -746,6 +741,7 @@ next_pixel:
 
     return 0;
 }
+
 static float
 decay(float t, float tau)
 {
@@ -757,6 +753,7 @@ decay(float t, float tau)
     else
         return 0.0;
 }
+
 static int
 process_smudge(PyBrush *self,
                float x, float y,
@@ -809,6 +806,7 @@ process_smudge(PyBrush *self,
 
     return 0;
 }
+
 static float
 get_radius_from_pressure(PyBrush *self, float pressure)
 {
@@ -817,6 +815,7 @@ get_radius_from_pressure(PyBrush *self, float pressure)
     float radius = min + (max-min)*pressure;
     return CLAMP(radius, 0.5, 200.0);
 }
+
 static float
 get_opacity_from_pressure(PyBrush *self, float pressure)
 {
@@ -825,10 +824,28 @@ get_opacity_from_pressure(PyBrush *self, float pressure)
     float opa = min + (max-min)*pressure;
     return CLAMP(opa, 0.0, 1.0);
 }
+
+/* _draw_stroke:
+ * Low level drawing routine that compute dab positions to draw
+ * between two points.
+ * The algorythm is first based on a constant number of points (dab density)
+ * to produce, then from that we modulate this density depending on values
+ * of extra brush parameters.
+ *
+ * As this routine handles curve smoothing drawing the drawing path
+ * is interpolated using not 2 points but 4:
+ * pt[1], pt[2] give current segment to draw.
+ * pt[0], pt[1] give previous drawed segment.
+ * pt[2], pt[3] give next segment to draw.
+ *
+ * We can see that this method need to buffer enough points
+ * before drawing anything (4 points).
+ */
+
 static void
 _draw_stroke(PyBrush *self, Point *pt[4], MyRec *area)
 {
-    float dist, dx, dy, hardness, spacing, yratio;
+    float hardness, spacing, yratio;
     float color[MAX_CHANNELS];
 
     yratio = self->b_BasicValues[BV_YRATIO];
@@ -840,22 +857,17 @@ _draw_stroke(PyBrush *self, Point *pt[4], MyRec *area)
     color[1] = self->b_Color[1];
     color[2] = self->b_Color[2];
     color[3] = 1.0;
-        
-    dx = pt[2]->p_SX - pt[1]->p_SX;
-    dy = pt[2]->p_SY - pt[1]->p_SY;
-    dist = hypotf(dx, dy);
-    
-    float dabs_frac, dabs_todo;
 
-    /* Number of dabs to draw.
-     * d is the euclidian distance between 2 events.
-     * Note: this distance is inaccurate when dabs positions
-     * are interpolated on a curved path.
-     *
-     * But I don't care! :-p
-     */
-         
-    float radius=pt[2]->p_Radius;
+	/* Euclidian length of drawn segment.
+	 * This is used to compute number of dab's to drawn in respect of density.
+	 * It's not accurate as dab's will not follow a straight line due to
+	 * smoothing curve compensation. But it's near enough and keep code fast.
+	 */
+    float dx = pt[2]->p_SX - pt[1]->p_SX;
+    float dy = pt[2]->p_SY - pt[1]->p_SY;
+    float dist = hypotf(dx, dy);
+    
+    float radius = pt[2]->p_Radius;
     float rad_per_sp = radius * spacing;
 
     //printf("start: p=%g, r=%g\n", p, r);
@@ -890,8 +902,8 @@ _draw_stroke(PyBrush *self, Point *pt[4], MyRec *area)
     //printf("m0: (%g, %g)\n", m0x, m0y);
     //printf("m1: (%g, %g)\n", m1x, m1y);
 
-    dabs_frac = self->b_RemainSteps;
-    dabs_todo  = dist / rad_per_sp;
+    float dabs_frac = self->b_RemainSteps;
+    float dabs_todo  = dist / rad_per_sp;
     //dabs_todo += dist / (radius * spacing);
     
 	float t=0;
@@ -1034,6 +1046,7 @@ _draw_stroke(PyBrush *self, Point *pt[4], MyRec *area)
 /*******************************************************************************************
 ** PyBrush_Type
 */
+
 
 static PyObject *
 brush_new(PyTypeObject *type, PyObject *args)
@@ -1416,6 +1429,7 @@ brush_get_pixel(PyBrush *self, PyObject *args)
             
     return Py_BuildValue("fff", color[0], color[1], color[2]);
 }
+
 static PyObject *
 brush_get_states(PyBrush *self)
 {
@@ -1666,7 +1680,6 @@ brush_set_rgb(PyBrush *self, PyObject *value, void *closure)
     return 0;
 }
 
-
 static PyGetSetDef brush_getsetters[] = {
     {"surface",         (getter)brush_get_surface, (setter)brush_set_surface,          "Surface to use", NULL},
 
@@ -1740,7 +1753,6 @@ static PyTypeObject PyBrush_Type = {
     tp_getset       : brush_getsetters,
 };
 
-
 /*******************************************************************************************
 ** Module
 */
@@ -1748,7 +1760,6 @@ static PyTypeObject PyBrush_Type = {
 static PyMethodDef _BrushMethods[] = {
     {NULL}
 };
-
 
 static int add_constants(PyObject *m)
 {

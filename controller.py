@@ -42,7 +42,7 @@ from puremvc.patterns.command import SimpleCommand, MacroCommand
 from puremvc.interfaces import ICommand
 
 from utils import _T, UndoableCommand
-from view.contexts import LastColorModal
+
 
 class StartupCmd(MacroCommand, ICommand):
     """First command executed when application is created.

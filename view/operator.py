@@ -23,46 +23,46 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-"""This module implement a class to uniquely represent
-a GTK event (keys, mouse motion, ...).
-This object is used jointly with view.Context as mapping keys.
-"""
+import utils
 
-from gtk import gdk
+__all__ = ["Operator", "eventoperator", "execoperator"]
 
-class GdkEventParser:
-    __bad_devices = []
-    
-    @staticmethod
-    def get_time(evt):
-        # GDK timestamp in milliseconds
-        return evt.time * 1e-3
 
-    @staticmethod
-    def get_cursor_position(evt):
-        return int(evt.x), int(evt.y)
+class Operator:
+    __exec_op = {}
+    __event_op = {}
 
-    @staticmethod
-    def get_cursor_xtilt(evt):
-        return evt.get_axis(gdk.AXIS_XTILT) or 0.
-
-    @staticmethod
-    def get_cursor_ytilt(evt):
-        return evt.get_axis(gdk.AXIS_YTILT) or 0.
+    get_exec_op = __exec_op.get
+    get_event_op = __event_op.get
 
     @classmethod
-    def get_pressure(cls, evt):
-        # Is pressure value not in supposed range?
-        p = evt.get_axis(gdk.AXIS_PRESSURE)
-        if p is not None:
-            if p < 0. or p > 1.:
-                if evt.device.name not in cls.__bad_devices:
-                    print 'WARNING: device "%s" is reporting bad pressure %+f' % (evt.device.name, p)
-                    cls.__bad_devices.append(evt.device.name)
-                    # Over limits?
-                if p < -10000. or p > 10000.:
-                    p = .5
-        else:
-            p = .5
-        
-        return p
+    def execoperator(cls, name):
+        """operator(name): add a new exec operator.
+    
+        Add decorated func to the global list of exec operators.
+        Funciotn arguments are optional and purpose dependent.
+        """
+
+        def decorator(func):
+            cls.__exec_op[name] = func
+            return func
+
+        return decorator
+
+    @classmethod
+    def eventoperator(cls, name):
+        """eventoperator(name): add a new event operator.
+    
+        Add decorated func to the global list of event operators.
+        Decorated function must accept an event objet as first argument.
+        Others arguments are optional and purpose dependent.
+        """
+
+        def decorator(func):
+            cls.__event_op[name] = func
+            return func
+
+        return decorator
+
+execoperator = Operator.execoperator
+eventoperator = Operator.eventoperator

@@ -29,7 +29,6 @@ import gobject
 from view.context2 import Context
 from .viewport import DocViewport
 from .contexts import DocWindowCtx
-from .eventparser import EventParser
 from .app import Application
 
 from utils import _T
@@ -244,8 +243,8 @@ class DocWindow(gtk.Window):
         vp = DocViewport(self, docproxy, self._ctx)
         self._add_vp(vp)
 
-        #vp = DocViewport(self, docproxy, self._ctx)
-        #self._add_vp(vp)
+        vp = DocViewport(self, docproxy, self._ctx)
+        self._add_vp(vp)
 
         #self.set_can_focus(True)
         self.move(0, 0)

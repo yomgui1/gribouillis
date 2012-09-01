@@ -33,37 +33,23 @@ class EventParserI:
     When the event is consummed, the application deletes the object.
     """
 
-    # Protected variables used for caching
-
-    _evt = None
-    _fullname = None
-    _time = None
-    _mods = None
-    _key = None
-    _cur_pos = None
-    _cur_xtilt = None
-    _cur_ytilt = None
-    _pressure = None
-
-    def __init__(self, event, name):
+    def init(self, event, classname):
+        self._evt = None
+        self._time = None
+        self._mods = None
+        self._key = None
+        self._cur_pos = None
+        self._cur_xtilt = None
+        self._cur_ytilt = None
+        self._pressure = None
         self._evt = event
-        self.name = name
+        self.classname = classname
 
     def __hash__(self):
-        return self.fullname
+        return self.classname
 
     def __str__(self):
-        self.fullname
-
-    def get_fullname(self):
-        if self._fullname is None:
-            # event fullname
-            mods = self.mods
-            if mods:
-                self.fullname = '%s %s' % (mods, self.name)
-            else:
-                self.fullname = self.name
-        return self._fullname
+        return self.classname
 
     def get_time(self):
         pass

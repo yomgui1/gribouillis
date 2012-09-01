@@ -28,67 +28,28 @@ import gobject
 import cairo
 
 from random import random
-from math import ceil
+from math import ceil, radians
 
 import view
 import main
+import model
 import utils
 
 from model.devices import *
 from model.profile import Transform
 from view import cairo_tools as tools
 from view import viewport
+from view.keymap import KeymapManager
+from view.operator import eventoperator
 from utils import delayedmethod, _T
 
-#from .app import Application
-#from .cms import *
-from .eventparser import EventParser
-from .contexts import ViewportCtx
+from .eventparser import GdkEventParser
 
 gdk = gtk.gdk
+NORMAL_DIST = 16
+ANGLE = radians(22.5)
+del radians
 
-_KEYVALS = { 0x0020: 'space',
-             0xfe03: 'ralt',
-             0xff08: 'backspace',
-             0xff09: 'tab',
-             0xff0d: 'enter',
-             0xff13: 'pause',
-             0xff14: 'scrolllock',
-             0xff1b: 'esc',
-             0xff50: 'home',
-             0xff51: 'left',
-             0xff52: 'up',
-             0xff53: 'right',
-             0xff54: 'down',
-             0xff55: 'page_up',
-             0xff56: 'page_down',
-             0xff57: 'end',
-             0xff63: 'insert',
-             0xff67: 'menu',
-             0xff7f: 'numlock',
-             0xff8d: 'return',
-             0xffbe: 'f1',
-             0xffbf: 'f2',
-             0xffc0: 'f3',
-             0xffc1: 'f4',
-             0xffc2: 'f5',
-             0xffc3: 'f6',
-             0xffc4: 'f7',
-             0xffc5: 'f8',
-             0xffc6: 'f9',
-             0xffc7: 'f10',
-             0xffc8: 'f11',
-             0xffc9: 'f12',
-             0xffe1: 'lshift',
-             0xffe2: 'rshift',
-             0xffe3: 'lcontrol',
-             0xffe4: 'rcontrol',
-             0xffe5: 'capslock',
-             0xffe9: 'lalt',
-             0xffeb: 'lcommand',
-             0xffec: 'rcommand',
-             0xffff: 'delete',
-             }
 
 def _check_key(key, evt):
     if not key:
@@ -115,18 +76,20 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
     _cur_area = None
     _cur_pos = (0, 0)
     _cur_on = False
-    _ctx = None
     _swap_x = _swap_y = None
     _debug = 0
+    storage = {}
     selpath = None
 
     def __init__(self, win, docproxy, ctx):
         super(DocViewport, self).__init__()
         
         self._win = win
-        self._ctx = ctx
         self.docproxy = docproxy
         self.device = InputDevice()
+
+        self._km = KeymapManager()
+        self._km.use_map("Viewport")
 
         # Viewport's
         self._docvp = view.DocumentViewPort(docproxy)
@@ -165,7 +128,10 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
         fn = utils.resolve_path(main.Gribouillis.TRANSPARENT_BACKGROUND)
         self.set_background(fn)
 
+    
     # Paint function
+    
+    
     def _on_expose(self, widget, evt):
         "Partial or full viewport repaint"
 
@@ -243,47 +209,56 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
             cr.paint()
             
         return True
-
+    
+    
     # Events dispatchers
-    def _on_button_press(self, widget, evt):
-        # ignore double-click events
-        if evt.type == gdk.BUTTON_PRESS:
-            name = 'mouse-bt-%u-press' % evt.button
-            return self._ctx.on_event(EventParser(evt, name))
-
-    def _on_button_release(self, widget, evt):
-        # ignore double-click events
-        if evt.type == gdk.BUTTON_RELEASE:
-            name = 'mouse-bt-%u-release' % evt.button
-            return self._ctx.on_event(EventParser(evt, name))
-        
+    
+    
     def _on_motion_notify(self, widget, evt):
-        return self._ctx.on_event(EventParser(evt, 'cursor-motion'))
+        mods = evt.state.value_nicks
+        return self._km.process(evt, 'cursor-motion', mods, viewport=self)
 
     def _on_enter(self, widget, evt):
         self.grab_focus()
-        self._ctx.switch(ViewportCtx, viewport=self)
-        return self._ctx.on_event(EventParser(evt, 'cursor-enter'))
+        return self._km.process(evt, 'cursor-enter', viewport=self)
 
     def _on_leave(self, widget, evt):
-        return self._ctx.on_event(EventParser(evt, 'cursor-leave'))
+        return self._km.process(evt, 'cursor-leave', viewport=self)
 
+    def _on_button_press(self, widget, evt):
+        if evt.type == gdk.BUTTON_PRESS:
+            mods = evt.state.value_nicks
+            return self._km.process(evt, 'button-press-%u' % evt.button,
+                                    mods, viewport=self)
+
+    def _on_button_release(self, widget, evt):
+        if evt.type == gdk.BUTTON_RELEASE:
+            mods = evt.state.value_nicks
+            return self._km.process(evt, 'button-release-%u' % evt.button,
+                                    mods, viewport=self)
+    
     def _on_scroll(self, widget, evt):
-        name = 'scroll-%s' % evt.direction.value_nick
-        return self._ctx.on_event(EventParser(evt, name))
+        mods = evt.state.value_nicks
+        return self._km.process(evt, 'scroll-%s' % evt.direction.value_nick,
+                                mods, viewport=self)
 
     def _on_key_press(self, widget, evt):
-        name = 'key-%s-press' % _check_key(_KEYVALS.get(evt.keyval), evt)
-        return self._ctx.on_event(EventParser(evt, name))
+        mods = evt.state.value_nicks
+        return self._km.process(evt, 'key-press-%s' % gdk.keyval_name(evt.keyval),
+                                mods, viewport=self)
 
     def _on_key_release(self, widget, evt):
+        mods = evt.state.value_nicks
         if evt.type == gdk.SCROLL:
-            name = 'scroll-%s-release' % evt.direction.value_nick
+            name = 'scroll-release-%s' % evt.direction.value_nick,
         else:
-            name = 'key-%s-release' % _check_key(_KEYVALS.get(evt.keyval), evt)
-        return self._ctx.on_event(EventParser(evt, name))
-        
+            name = 'key-release-%s' % gdk.keyval_name(evt.keyval)
+        return self._km.process(evt, name, mods, viewport=self)
+
+    
     # Public API
+    
+    
     def get_model_distance(self, *a):
         return self._docvp.get_model_distance(*a)
 
@@ -297,7 +272,9 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
     def cursor_position(self):
         return self._cur_pos
 
+    
     # Rendering
+    
     def redraw(self, clip=None):
         if clip:
             clip = tuple(clip)
@@ -330,7 +307,9 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
         self._cur_pos = pos
         self.redraw(self._get_cursor_clip(*pos))
     
+    
     # Cursor related
+    
     def _get_cursor_clip(self, dx, dy):
         w = self._curvp.width
         h = self._curvp.height
@@ -353,11 +332,17 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
                 self.redraw(self._cur_area)
         return self._cur_pos
     
+    
     # View transformations
+    
     def reset(self):
         self._swap_x = self._swap_y = None
         self._docvp.reset_view()
         self._curvp.set_scale(self._docvp.scale)
+        self.repaint()
+
+    def reset_rotation(self):
+        self._docvp.reset_rotation()
         self.repaint()
         
     def scale_up(self, cx=.0, cy=.0):
@@ -450,20 +435,22 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
         self._docvp.update_matrix()
         self.repaint()
 
+    
     # Device state handling
+    
     def update_dev_state(self, evt):
         state = DeviceState()
 
         # Get raw device position and pressure
-        state.cpos = evt.get_cursor_position()
-        state.pressure = evt.get_pressure()
+        state.cpos = GdkEventParser.get_cursor_position(evt)
+        state.pressure = GdkEventParser.get_pressure(evt)
 
         # Get device tilt
-        state.xtilt = evt.get_cursor_xtilt()
-        state.ytilt = evt.get_cursor_ytilt()
+        state.xtilt = GdkEventParser.get_cursor_xtilt(evt)
+        state.ytilt = GdkEventParser.get_cursor_ytilt(evt)
 
         # timestamp
-        state.time = evt.get_time()
+        state.time = GdkEventParser.get_time(evt)
 
         # vpos = cpos + tools filters
         state.vpos = state.cpos  # TODO
@@ -475,7 +462,9 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
         self.device.add_state(state) # for recording
         return state
 
+    
     # Tools
+    
     def add_tool(self, tool):
         self._toolsvp.add_tool(tool)
         self.redraw(tool.area)
@@ -501,3 +490,162 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
         self._docvp.update_matrix()
 
     offset = property(get_offset, set_offset)
+
+
+@eventoperator("vp-enter")
+def vp_enter(event, viewport):
+    KeymapManager.use_map("Viewport")
+    viewport.show_brush_cursor(True)
+
+@eventoperator("vp-leave")
+def vp_leave(event, viewport):
+    viewport.show_brush_cursor(False)
+
+@eventoperator("vp-move-cursor")
+def vp_move_cursor(event, viewport):
+    viewport.repaint_cursor(*GdkEventParser.get_cursor_position(event))
+
+@eventoperator("vp-stroke-start")
+def vp_stroke_start(event, viewport):
+    viewport.update_dev_state(event)
+    viewport.show_brush_cursor(False)
+    viewport.docproxy.draw_start(viewport.device)
+    KeymapManager.save_map()
+    KeymapManager.use_map("Stroke")
+
+@eventoperator("vp-stroke-confirm")
+def vp_stroke_confirm(event, viewport):
+    state = viewport.update_dev_state(event)
+    viewport.docproxy.draw_end()
+    viewport.repaint_cursor(*state.cpos)
+    viewport.show_brush_cursor(True)
+    KeymapManager.restore_map()
+
+@eventoperator("vp-stroke-append")
+def vp_stroke_append(event, viewport):
+    viewport.update_dev_state(event)
+    viewport.docproxy.record()
+
+@eventoperator("vp-scroll-start")
+def vp_scroll_start(event, viewport):
+    state = viewport.update_dev_state(event)
+    viewport.show_brush_cursor(False)
+    x, y = state.cpos
+    viewport.storage['x0'] = x
+    viewport.storage['y0'] = y
+    viewport.storage['x'] = x
+    viewport.storage['y'] = y
+    viewport.storage['offset'] = viewport.offset
+    KeymapManager.save_map()
+    KeymapManager.use_map("Scroll")
+
+@eventoperator("vp-scroll-confirm")
+def vp_scroll_confirm(event, viewport):
+    state = viewport.update_dev_state(event)
+    viewport.show_brush_cursor(True)
+    viewport.storage.clear()
+    KeymapManager.restore_map()
+
+@eventoperator("vp-scroll-delta")
+def vp_scroll_delta(event, viewport):
+    state = viewport.update_dev_state(event)
+    x, y = state.cpos
+    st = viewport.storage
+    viewport.scroll(x - st['x'], y - st['y'])
+    st['x'] = x
+    st['y'] = y
+
+@eventoperator("vp-scroll-left")
+def vp_scroll_left(event, viewport):
+    viewport.scroll(-NORMAL_DIST, 0)
+
+@eventoperator("vp-scroll-right")
+def vp_scroll_right(event, viewport):
+    viewport.scroll(NORMAL_DIST, 0)
+
+@eventoperator("vp-scroll-up")
+def vp_scroll_up(event, viewport):
+    viewport.scroll(0, -NORMAL_DIST)
+
+@eventoperator("vp-scroll-down")
+def vp_scroll_down(event, viewport):
+    viewport.scroll(0, NORMAL_DIST)
+
+@eventoperator("vp-scale-up")
+def vp_scale_up(event, viewport):
+    viewport.scale_up(*GdkEventParser.get_cursor_position(event))
+
+@eventoperator("vp-scale-down")
+def vp_scale_down(event, viewport):
+    viewport.scale_down(*GdkEventParser.get_cursor_position(event))
+
+@eventoperator("vp-rotate-right")
+def vp_rotate_right(event, viewport):
+    viewport.rotate(ANGLE)
+
+@eventoperator("vp-rotate-left")
+def vp_rotate_left(event, viewport):
+    viewport.rotate(-ANGLE)
+
+@eventoperator("vp-swap-x")
+def vp_swap_x(event, viewport):
+    pos = viewport._cur_pos
+    viewport.swap_x(pos[0])
+
+@eventoperator("vp-swap-y")
+def vp_swap_y(event, viewport):
+    pos = viewport._cur_pos
+    viewport.swap_y(pos[1])
+
+@eventoperator("vp-reset-all")
+def vp_reset_all(event, viewport):
+    viewport.reset()
+
+@eventoperator("vp-reset-rotation")
+def vp_reset_rotation(event, viewport):
+    viewport.reset_rotation()
+
+@eventoperator("vp-clear-layer")
+def vp_clear_layer(event, viewport):
+    viewport.docproxy.clear_layer()
+
+
+RALT_MASK = 'mod5-mask'
+LALT_MASK = 'mod1-mask'
+
+
+KeymapManager.register_keymap("Viewport", {
+        # Brush related
+        "cursor-enter": "vp-enter",
+        "cursor-leave": "vp-leave",
+        "cursor-motion": "vp-move-cursor",
+
+        # Drawing
+        "button-press-1": "vp-stroke-start",
+        "key-press-BackSpace": "vp-clear-layer",
+
+        # View motions
+        "button-press-2": "vp-scroll-start",
+        "scroll-down": "vp-scale-down",
+        "scroll-up": "vp-scale-up",
+        "key-press-bracketright": ("vp-rotate-right", None),
+        "key-press-bracketleft": ("vp-rotate-left", None),
+        "key-press-x": "vp-swap-x",
+        "key-press-y": "vp-swap-y",
+        "key-press-equal": "vp-reset-all",
+        "key-press-plus": ("vp-reset-rotation", None),
+        "key-press-Left": "vp-scroll-left",
+        "key-press-Right": "vp-scroll-right",
+        "key-press-Up": "vp-scroll-up",
+        "key-press-Down": "vp-scroll-down",
+        })
+
+KeymapManager.register_keymap("Stroke", {
+        "cursor-motion": ("vp-stroke-append", ['button1-mask']),
+        "button-release-1": ("vp-stroke-confirm", None),
+        })
+
+KeymapManager.register_keymap("Scroll", {
+        "cursor-motion": ("vp-scroll-delta", ['button2-mask']),
+        "button-release-2": ("vp-scroll-confirm", None),
+        })

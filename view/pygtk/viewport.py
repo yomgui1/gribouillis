@@ -31,14 +31,15 @@ from random import random
 from math import ceil, radians
 
 import view
+import view.viewport
 import main
 import model
 import utils
 
+
 from model.devices import *
 from model.profile import Transform
 from view import cairo_tools as tools
-from view import viewport
 from view.keymap import KeymapManager
 from view.operator import eventoperator
 from utils import delayedmethod, _T

@@ -84,10 +84,10 @@ class Preferences(dict):
                     try:
                         handler.parse(self, element)
                     except:
-                        faulty_elmt.append(element)
+                        pass # faulty_elmt.append(str(element))
         
         if faulty_elmt:
-            raise KeyError(_T("Following elements causes errors:\n%s)") % '\n'.join(faulty_element))
+            raise KeyError(_T("Following elements causes errors:%s)") % '\n'.join(faulty_elmt))
     
     def save_preferences(self, filename):
         with open(filename, 'w') as fd:

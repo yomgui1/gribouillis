@@ -28,9 +28,7 @@ import time
 
 from utils import _T
 
-from view.interfaces import EventParserI
-from view.contexts import EventBase
-from const import *
+from .const import *
 
 _KEYVALS = {0x40: 'space',
             0x41: 'backspace',
@@ -60,9 +58,9 @@ _KEYVALS = {0x40: 'space',
             0x5f: 'help',
             0x60: 'lshift',
             0x61: 'rshift',
-            0x68: 'mouse_leftpress',
-            0x69: 'mouse_rightpress',
-            0x6a: 'mouse_middlepress',
+            0x68: 'mouse-left',
+            0x69: 'mouse-right',
+            0x6a: 'mouse-middle',
             0x6f: 'f12',
             0x70: 'home',
             0x71: 'end',
@@ -80,7 +78,7 @@ _DEFAULT_PRESSURE = 0.5
 _PRESSURE_MAX     = 0x7ffff800
 _ANGLE_MAX        = 128.0
 
-class EventParser(EventBase, EventParserI):    
+class MUIEventParser:
     __t0 = int(time.time()) - 252460800.
     
     def __init__(self, event, src):
@@ -97,23 +95,12 @@ class EventParser(EventBase, EventParserI):
         self._hash = ((q & ALL_QUALIFIERS) << 8) + v
         self.repeat = q & IEQUALIFIER_REPEAT
 
-    def __str__(self):
-        return ' '.join([self.NAME, self.get_modificators(), str(self.get_key())]).strip()
-       
-    @property
-    def fullkey(self):
-        return self.__class__.TAG + self._hash
-        
-    @property
-    def key(self):
-        return self.__class__.TAG + self.__key
-
     @classmethod
     def encode(cl, key):
-        return cl.TAG + cl._convert_keyadj_string(key)
+        return cl._convert_keyadj_string(key)
         
     @staticmethod
-    def _convert_keyadj_string(key):
+    def convert_key(key):
         qual = 0
         for word in key.split():
             if word == 'capslock': qual += IEQUALIFIER_CAPSLOCK
@@ -129,98 +116,60 @@ class EventParser(EventBase, EventParserI):
             else:
                 return (qual << 8) + ord(word[0]) + 0x10000
         return (qual << 8) + 0x7f
-        
-    def get_time(self):
-        if self._time is None:
-            ## Removing 252460800 is the trick to synchronize the reference time used by time.time()
-            ## and the time returned by system events.
-            self._time = self._event.Seconds - self.__t0 + self._event.Micros*1e-6
-        return self._time
     
-    def get_modificators(self):
-        if self._mods is None:
-            mods = []
-            qual = self._event.Qualifier 
-            if qual & IEQUALIFIER_CAPSLOCK and self._event.Up:
-                mods.append('capslock')
-            if qual & IEQUALIFIER_LALT:
-                mods.append('lalt')
-            if qual & IEQUALIFIER_RALT:
-                mods.append('ralt')
-            if qual & IEQUALIFIER_CONTROL:
-                mods.append('control')
-            if qual & IEQUALIFIER_LSHIFT:
-                mods.append('lshift')
-            if qual & IEQUALIFIER_RSHIFT:
-                mods.append('rshift')
-            if qual & IEQUALIFIER_LCOMMAND:
-                mods.append('lcommand')
-            if qual & IEQUALIFIER_RCOMMAND:
-                mods.append('rcommand')
-            self._mods = ' '.join(mods)
-        return self._mods
+    @staticmethod
+    def get_modificators(event):
+        mods = []
+        qual = event.Qualifier 
+        if qual & IEQUALIFIER_CAPSLOCK and event.Up:
+            mods.append('capslock')
+        if qual & IEQUALIFIER_LALT:
+            mods.append('lalt')
+        if qual & IEQUALIFIER_RALT:
+            mods.append('ralt')
+        if qual & IEQUALIFIER_CONTROL:
+            mods.append('control')
+        if qual & IEQUALIFIER_LSHIFT:
+            mods.append('lshift')
+        if qual & IEQUALIFIER_RSHIFT:
+            mods.append('rshift')
+        if qual & IEQUALIFIER_LCOMMAND:
+            mods.append('lcommand')
+        if qual & IEQUALIFIER_RCOMMAND:
+            mods.append('rcommand')
+        return ' '.join(mods)
     
-    def get_key(self):
-        if self._key is None:
-            self._key = _KEYVALS.get(self._event.RawKey)
-            if self._key is None:
-                self._key = (self._event.SimpleKey or chr(self._event.RawKey)).lower()
-        return self._key
+    @staticmethod
+    def get_key(event):
+        key = _KEYVALS.get(event.RawKey)
+        if key is None:
+            return (self._event.SimpleKey or chr(self._event.RawKey)).lower()
+        return key
 
-    def get_screen_position(self):
-        if self._scr_pos is None:
-            self._scr_pos = self._event.MouseX, self._event.MouseY
-        return self._scr_pos
+    @staticmethod
+    def get_time(event):
+        ## Removing 252460800 is the trick to synchronize the reference time used by time.time()
+        ## and the time returned by system events.
+        return event.Seconds - MUIEventParser.__t0 + event.Micros*1e-6
 
-    def get_cursor_position(self):
-        if self._cur_pos is None:
-            self._cur_pos = self._event.MouseX - self._left, self._event.MouseY - self._top
-        return self._cur_pos
+    @staticmethod
+    def get_screen_position(event):
+        return event.MouseX, event.MouseY
 
-    def get_cursor_xtilt(self):
-        if self._cur_xtilt is None:
-            if self._event.td_Tags:
-                self._cur_xtilt = 2.0 * float(self._event.td_Tags.get(pymui.TABLETA_AngleX, 0)) / _ANGLE_MAX - 1.0
-            else:
-                self._cur_xtilt = 1.0
-        return self._cur_xtilt
+    @staticmethod
+    def get_cursor_xtilt(event):
+        if event.td_Tags:
+            return 2.0 * float(event.td_Tags.get(pymui.TABLETA_AngleX, 0)) / _ANGLE_MAX - 1.0
+        return 1.0
 
-    def get_cursor_ytilt(self):
-        if self._cur_ytilt is None:
-            if self._event.td_Tags:
-                self._cur_ytilt = 1.0 - 2.0 * float(self._event.td_Tags.get(pymui.TABLETA_AngleY, 0)) / _ANGLE_MAX
-            else:
-                self._cur_ytilt = 0.0
-        return self._cur_ytilt
+    @staticmethod
+    def get_cursor_ytilt(event):
+        if event.td_Tags:
+            return 1.0 - 2.0 * float(event.td_Tags.get(pymui.TABLETA_AngleY, 0)) / _ANGLE_MAX
+        return 0.0
 
-    def get_pressure(self):
-        if self._pressure is None:
-            if self._event.td_Tags:
-                p = float(self._event.td_Tags.get(pymui.TABLETA_Pressure, _PRESSURE_MAX/2)) / _PRESSURE_MAX
-            else:
-                p = _DEFAULT_PRESSURE
-            self._pressure = p
-        return self._pressure
-
-class CursorMoveEvent(EventParser):
-    NAME = _T('cursor_move')
-    TAG = 0x01000000
-
-class GetFocusEvent(EventParser):
-    NAME = _T('get_focus')
-    TAG = 0x02000000
-
-class LooseFocusEvent(EventParser):
-    NAME = _T('loose_focus')
-    TAG = 0x03000000
-
-class KeyReleasedEvent(EventParser):
-    NAME = _T('key_released')
-    TAG = 0x04000000
-
-class KeyPressedEvent(EventParser):
-    NAME = _T('key_pressed')
-    TAG = 0x05000000
-        
-
-__all__ = ['CursorMoveEvent', 'GetFocusEvent', 'LooseFocusEvent', 'KeyReleasedEvent', 'KeyPressedEvent']
+    @staticmethod
+    def get_pressure(event):
+        if event.td_Tags:
+            return float(event.td_Tags.get(pymui.TABLETA_Pressure, _PRESSURE_MAX/2)) / _PRESSURE_MAX
+        return _DEFAULT_PRESSURE

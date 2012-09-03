@@ -26,7 +26,6 @@
 import gtk
 import gobject
 
-from view.context2 import Context
 from .viewport import DocViewport
 from .contexts import DocWindowCtx
 from .app import Application
@@ -104,10 +103,6 @@ class DocWindow(gtk.Window):
 
         self.viewports = []
         self.docproxy = docproxy
-        self._ctx = Context(DocWindowCtx,
-                            app=Application(),
-                            window=self,
-                            docproxy=docproxy)
 
         # UI
         uimanager = gtk.UIManager()
@@ -116,7 +111,7 @@ class DocWindow(gtk.Window):
 
         uimanager.add_ui_from_string(DocWindow.ui) ## UI description
 
-        self._topbox = topbox = gtk.VBox(False, 1)
+        topbox = gtk.VBox(False, 1)
         topbox.set_border_width(1)
         self.add(topbox)
 
@@ -239,11 +234,15 @@ class DocWindow(gtk.Window):
         menubar = uimanager.get_widget('/MenuBar')
         topbox.pack_start(menubar, False)
 
+        # Top drawing box
+        self._drbox = drbox = gtk.HBox(False, 1)
+        topbox.pack_start(drbox, True)
+
         # Default viewport
-        vp = DocViewport(self, docproxy, self._ctx)
+        vp = DocViewport(self, docproxy)
         self._add_vp(vp)
 
-        vp = DocViewport(self, docproxy, self._ctx)
+        vp = DocViewport(self, docproxy)
         self._add_vp(vp)
 
         #self.set_can_focus(True)
@@ -256,7 +255,7 @@ class DocWindow(gtk.Window):
 
     def _add_vp(self, vp):
         self.viewports.append(vp)
-        self._topbox.pack_start(vp, True, True, 0)
+        self._drbox.pack_start(vp, True, True, 0)
         self.vp = vp
 
     #### Public API ####

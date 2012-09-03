@@ -81,7 +81,7 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
     storage = {}
     selpath = None
 
-    def __init__(self, win, docproxy, ctx):
+    def __init__(self, win, docproxy):
         super(DocViewport, self).__init__()
         
         self._win = win

@@ -31,7 +31,7 @@ from operator import Operator
 class KeymapManager():
     __metaclass__ = utils.MetaSingleton
     __maps = {}
-    __map = None
+    __map = {}
     __saved = None
     
     dump_key = 0

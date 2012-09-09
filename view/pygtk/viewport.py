@@ -36,7 +36,6 @@ import main
 import model
 import utils
 
-
 from model.devices import *
 from model.profile import Transform
 from view import cairo_tools as tools
@@ -62,7 +61,7 @@ def _check_key(key, evt):
     return key
 
 
-class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
+class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
     """DocDisplayArea class.
 
     This class is responsible to display a given document.
@@ -493,20 +492,20 @@ class DocViewport(gtk.DrawingArea, viewport.BackgroundMixin):
     offset = property(get_offset, set_offset)
 
 
-@eventoperator("vp-enter")
+@eventoperator(_T("vp-enter"))
 def vp_enter(event, viewport):
     KeymapManager.use_map("Viewport")
     viewport.show_brush_cursor(True)
 
-@eventoperator("vp-leave")
+@eventoperator(_T("vp-leave"))
 def vp_leave(event, viewport):
     viewport.show_brush_cursor(False)
 
-@eventoperator("vp-move-cursor")
+@eventoperator(_T("vp-move-cursor"))
 def vp_move_cursor(event, viewport):
     viewport.repaint_cursor(*GdkEventParser.get_cursor_position(event))
 
-@eventoperator("vp-stroke-start")
+@eventoperator(_T("vp-stroke-start"))
 def vp_stroke_start(event, viewport):
     viewport.update_dev_state(event)
     viewport.show_brush_cursor(False)
@@ -514,7 +513,7 @@ def vp_stroke_start(event, viewport):
     KeymapManager.save_map()
     KeymapManager.use_map("Stroke")
 
-@eventoperator("vp-stroke-confirm")
+@eventoperator(_T("vp-stroke-confirm"))
 def vp_stroke_confirm(event, viewport):
     state = viewport.update_dev_state(event)
     viewport.docproxy.draw_end()
@@ -522,12 +521,12 @@ def vp_stroke_confirm(event, viewport):
     viewport.show_brush_cursor(True)
     KeymapManager.restore_map()
 
-@eventoperator("vp-stroke-append")
+@eventoperator(_T("vp-stroke-append"))
 def vp_stroke_append(event, viewport):
     viewport.update_dev_state(event)
     viewport.docproxy.record()
 
-@eventoperator("vp-scroll-start")
+@eventoperator(_T("vp-scroll-start"))
 def vp_scroll_start(event, viewport):
     state = viewport.update_dev_state(event)
     viewport.show_brush_cursor(False)
@@ -540,14 +539,14 @@ def vp_scroll_start(event, viewport):
     KeymapManager.save_map()
     KeymapManager.use_map("Scroll")
 
-@eventoperator("vp-scroll-confirm")
+@eventoperator(_T("vp-scroll-confirm"))
 def vp_scroll_confirm(event, viewport):
     state = viewport.update_dev_state(event)
     viewport.show_brush_cursor(True)
     viewport.storage.clear()
     KeymapManager.restore_map()
 
-@eventoperator("vp-scroll-delta")
+@eventoperator(_T("vp-scroll-delta"))
 def vp_scroll_delta(event, viewport):
     state = viewport.update_dev_state(event)
     x, y = state.cpos
@@ -556,57 +555,57 @@ def vp_scroll_delta(event, viewport):
     st['x'] = x
     st['y'] = y
 
-@eventoperator("vp-scroll-left")
+@eventoperator(_T("vp-scroll-left"))
 def vp_scroll_left(event, viewport):
     viewport.scroll(-NORMAL_DIST, 0)
 
-@eventoperator("vp-scroll-right")
+@eventoperator(_T("vp-scroll-right"))
 def vp_scroll_right(event, viewport):
     viewport.scroll(NORMAL_DIST, 0)
 
-@eventoperator("vp-scroll-up")
+@eventoperator(_T("vp-scroll-up"))
 def vp_scroll_up(event, viewport):
     viewport.scroll(0, -NORMAL_DIST)
 
-@eventoperator("vp-scroll-down")
+@eventoperator(_T("vp-scroll-down"))
 def vp_scroll_down(event, viewport):
     viewport.scroll(0, NORMAL_DIST)
 
-@eventoperator("vp-scale-up")
+@eventoperator(_T("vp-scale-up"))
 def vp_scale_up(event, viewport):
     viewport.scale_up(*GdkEventParser.get_cursor_position(event))
 
-@eventoperator("vp-scale-down")
+@eventoperator(_T("vp-scale-down"))
 def vp_scale_down(event, viewport):
     viewport.scale_down(*GdkEventParser.get_cursor_position(event))
 
-@eventoperator("vp-rotate-right")
+@eventoperator(_T("vp-rotate-right"))
 def vp_rotate_right(event, viewport):
     viewport.rotate(ANGLE)
 
-@eventoperator("vp-rotate-left")
+@eventoperator(_T("vp-rotate-left"))
 def vp_rotate_left(event, viewport):
     viewport.rotate(-ANGLE)
 
-@eventoperator("vp-swap-x")
+@eventoperator(_T("vp-swap-x"))
 def vp_swap_x(event, viewport):
     pos = viewport._cur_pos
     viewport.swap_x(pos[0])
 
-@eventoperator("vp-swap-y")
+@eventoperator(_T("vp-swap-y"))
 def vp_swap_y(event, viewport):
     pos = viewport._cur_pos
     viewport.swap_y(pos[1])
 
-@eventoperator("vp-reset-all")
+@eventoperator(_T("vp-reset-all"))
 def vp_reset_all(event, viewport):
     viewport.reset()
 
-@eventoperator("vp-reset-rotation")
+@eventoperator(_T("vp-reset-rotation"))
 def vp_reset_rotation(event, viewport):
     viewport.reset_rotation()
 
-@eventoperator("vp-clear-layer")
+@eventoperator(_T("vp-clear-layer"))
 def vp_clear_layer(event, viewport):
     viewport.docproxy.clear_layer()
 
@@ -617,36 +616,36 @@ LALT_MASK = 'mod1-mask'
 
 KeymapManager.register_keymap("Viewport", {
         # Brush related
-        "cursor-enter": "vp-enter",
-        "cursor-leave": "vp-leave",
-        "cursor-motion": "vp-move-cursor",
+        "cursor-enter": "vp_enter",
+        "cursor-leave": "vp_leave",
+        "cursor-motion": "vp_move_cursor",
 
         # Drawing
-        "button-press-1": "vp-stroke-start",
-        "key-press-BackSpace": "vp-clear-layer",
+        "button-press-1": "vp_stroke_start",
+        "key-press-BackSpace": "vp_clear_layer",
 
         # View motions
-        "button-press-2": "vp-scroll-start",
-        "scroll-down": "vp-scale-down",
-        "scroll-up": "vp-scale-up",
-        "key-press-bracketright": ("vp-rotate-right", None),
-        "key-press-bracketleft": ("vp-rotate-left", None),
-        "key-press-x": "vp-swap-x",
-        "key-press-y": "vp-swap-y",
-        "key-press-equal": "vp-reset-all",
-        "key-press-plus": ("vp-reset-rotation", None),
-        "key-press-Left": "vp-scroll-left",
-        "key-press-Right": "vp-scroll-right",
-        "key-press-Up": "vp-scroll-up",
-        "key-press-Down": "vp-scroll-down",
+        "button-press-2": "vp_scroll_start",
+        "scroll-down": "vp_scale_down",
+        "scroll-up": "vp_scale_up",
+        "key-press-bracketright": ("vp_rotate_right", None),
+        "key-press-bracketleft": ("vp_rotate_left", None),
+        "key-press-x": "vp_swap_x",
+        "key-press-y": "vp_swap_y",
+        "key-press-equal": "vp_reset_all",
+        "key-press-plus": ("vp_reset_rotation", None),
+        "key-press-Left": "vp_scroll_left",
+        "key-press-Right": "vp_scroll_right",
+        "key-press-Up": "vp_scroll_up",
+        "key-press-Down": "vp_scroll_down",
         })
 
 KeymapManager.register_keymap("Stroke", {
-        "cursor-motion": ("vp-stroke-append", ['button1-mask']),
-        "button-release-1": ("vp-stroke-confirm", None),
+        "cursor-motion": ("vp_stroke_append", ['button1-mask']),
+        "button-release-1": ("vp_stroke_confirm", None),
         })
 
 KeymapManager.register_keymap("Scroll", {
-        "cursor-motion": ("vp-scroll-delta", ['button2-mask']),
-        "button-release-2": ("vp-scroll-confirm", None),
+        "cursor-motion": ("vp_scroll_delta", ['button2-mask']),
+        "button-release-2": ("vp_scroll_confirm", None),
         })

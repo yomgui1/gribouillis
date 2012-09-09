@@ -25,7 +25,8 @@
 
 import utils
 
-__all__ = ["Operator", "eventoperator", "execoperator"]
+__all__ = ["Operator", "eventoperator",
+           "execoperator", "get_translation"]
 
 
 class Operator:
@@ -44,7 +45,9 @@ class Operator:
         """
 
         def decorator(func):
-            cls.__exec_op[name] = func
+            assert func.__name__ not in cls.__exec_op
+            cls.__exec_op[func.__name__] = func
+            func.__trans = name
             return func
 
         return decorator
@@ -59,10 +62,18 @@ class Operator:
         """
 
         def decorator(func):
-            cls.__event_op[name] = func
+            assert func.__name__ not in cls.__event_op
+            cls.__event_op[func.__name__] = func
+            func.__trans = name
             return func
 
         return decorator
 
+    @staticmethod
+    def get_translation(func):
+        return func.__trans
+
+
 execoperator = Operator.execoperator
 eventoperator = Operator.eventoperator
+get_translation = Operator.get_translation

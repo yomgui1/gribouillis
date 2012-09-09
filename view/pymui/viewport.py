@@ -736,31 +736,31 @@ def vp_stroke_append(event, viewport):
 
 KeymapManager.register_keymap("Viewport", {
         # Brush related
-        "cursor-enter": "vp-enter",
-        "cursor-leave": "vp-leave",
-        "cursor-motion": "vp-move-cursor",
+        "cursor-enter": "vp_enter",
+        "cursor-leave": "vp_leave",
+        "cursor-motion": "vp_move_cursor",
 
         # Drawing
-        "mouse-left-press": "vp-stroke-start",
-        "backspace-press": "vp-clear-layer",
+        "mouse-left-press": "vp_stroke_start",
+        "backspace-press": "vp_clear_layer",
 
         # View motions
-        "mous-right-press": "vp-scroll-start",
-        "scroll-down": "vp-scale-down",
-        "scroll-up": "vp-scale-up",
-        "key-press-bracketright": ("vp-rotate-right", None),
-        "key-press-bracketleft": ("vp-rotate-left", None),
-        "key-press-x": "vp-swap-x",
-        "key-press-y": "vp-swap-y",
-        "key-press-equal": "vp-reset-all",
-        "key-press-plus": ("vp-reset-rotation", None),
-        "key-press-Left": "vp-scroll-left",
-        "key-press-Right": "vp-scroll-right",
-        "key-press-Up": "vp-scroll-up",
-        "key-press-Down": "vp-scroll-down",
+        "mous-right-press": "vp_scroll_start",
+        "scroll-down": "vp_scale_down",
+        "scroll-up": "vp_scale_up",
+        "key-press-bracketright": ("vp_rotate_right", None),
+        "key-press-bracketleft": ("vp_rotate_left", None),
+        "key-press-x": "vp_swap_x",
+        "key-press-y": "vp_swap_y",
+        "key-press-equal": "vp_reset_all",
+        "key-press-plus": ("vp_reset_rotation", None),
+        "key-press-Left": "vp_scroll_left",
+        "key-press-Right": "vp_scroll_right",
+        "key-press-Up": "vp_scroll_up",
+        "key-press-Down": "vp_scroll_down",
         })
 
 KeymapManager.register_keymap("Stroke", {
-        "cursor-motion": "vp-stroke-append",
-        "mouse-left-release": "vp-stroke-confirm",
+        "cursor-motion": "vp_stroke_append",
+        "mouse-left-release": "vp_stroke_confirm",
         })

@@ -34,7 +34,7 @@ class KeymapManager():
     __map = {}
     __saved = None
     
-    dump_key = 0
+    dump_key = 1
 
     @staticmethod
     def _parse_map(kmap):

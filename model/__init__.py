@@ -451,16 +451,16 @@ class DocumentProxy(Proxy):
 
     def new_layer(self, vo):
         layer = self.data.new_layer(**vo)
-        self.sendNotification(main.DOC_LAYER_ADDED,
+        self.sendNotification(DocumentProxy.DOC_LAYER_ADDED,
                               (self, layer,
-                               self.data.get_layer_index(layer)))
-        return lp
+                               self.data.index(layer)))
+        return layer
 
     def insert_layer(self, layer, pos=None, **k):
         self.data.insert_layer(layer, pos, **k)
-        self.sendNotification(main.DOC_LAYER_ADDED,
+        self.sendNotification(DocumentProxy.DOC_LAYER_ADDED,
                               (self, layer,
-                               self.data.get_layer_index(layer)))
+                               self.data.index(layer)))
 
     def remove_layer(self, layer):
         self.data.remove_layer(layer)

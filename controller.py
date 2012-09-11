@@ -136,8 +136,7 @@ class ActivateDocumentCmd(SimpleCommand, ICommand):
         # activate the commands history proxy of the document
         hp = self.facade.retrieveProxy('HP_' + docproxy.getProxyName())
         hp.activate()
-
-        self.sendNotification(main.DOC_ACTIVATED, docproxy)
+        docproxy.activate()
 
 
 class RenameLayerCmd(UndoableCommand):

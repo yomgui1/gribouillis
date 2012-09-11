@@ -136,6 +136,7 @@ class DocumentProxy(Proxy):
     profile = None    # Color profile
     docname_num_match = re.compile('(.* #)([0-9]+)').match
     layerproxy = None
+    active = None
 
     def __init__(self, doc):
         assert isinstance(doc, Document)
@@ -181,6 +182,10 @@ class DocumentProxy(Proxy):
     ####
     #### Public API ####
 
+    def activate(self):
+        DocumentProxy.active = self
+        self.sendNotification(main.DOC_ACTIVATED, self)
+    
     @classmethod
     def get_unique_name(cls, basename=None):
         """Return a unique document name.
@@ -556,3 +561,4 @@ class DocumentProxy(Proxy):
     brush = property(fget=lambda self: self.data.brush, fset=set_brush)
     drawbrush = property(fget=lambda self: self.data.brush)
     active_layer = property(fget=lambda self: self.data.active)
+    

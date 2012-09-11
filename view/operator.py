@@ -24,9 +24,11 @@
 ###############################################################################
 
 import utils
+import context
 
 __all__ = ["Operator", "eventoperator",
-           "execoperator", "get_translation"]
+           "execoperator", "get_translation",
+           "execute"]
 
 
 class Operator:
@@ -73,7 +75,12 @@ class Operator:
     def get_translation(func):
         return func.__trans
 
+    @classmethod
+    def execute(cls, name, *args, **kwds):
+        cls.get_exec_op(name)(context, *args, **kwds)
+
 
 execoperator = Operator.execoperator
 eventoperator = Operator.eventoperator
 get_translation = Operator.get_translation
+execute = Operator.execute

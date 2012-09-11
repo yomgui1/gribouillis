@@ -24,6 +24,7 @@
 ###############################################################################
 
 import utils
+import context
 
 from operator import Operator
 
@@ -47,14 +48,14 @@ class KeymapManager():
         return dct
 
 
-    def _process(self, action, evt, mods, kwds):
+    def _process(self, action, evt, mods, kwds, ctx=context):
         if isinstance(action, tuple):
             action, m = action
             if m is not None and m != mods:
                 return
         elif mods:
             return
-        return action(evt, **kwds)
+        return action(ctx, evt, **kwds)
 
     def process(self, evt, key, mods=[], **kwds):
         actions = self.__map.get(key)

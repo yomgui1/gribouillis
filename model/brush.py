@@ -44,7 +44,7 @@ __all__ = ['Brush', 'DrawableBrush']
 class Brush(object):
     """Brush base class"""
 
-    __version__ = 2.6
+    __version__ = 2.7
     ALLBRUSHES = "brushes.data"
     PROPERTIES = 'radius_min radius_max yratio angle spacing opacity_min opacity_max opa_comp hardness erase grain'.split()
     PROPERTIES += 'motion_track hi_speed_track smudge smudge_var direction_jitter dab_pos_jitter dab_radius_jitter'.split()
@@ -78,7 +78,7 @@ class Brush(object):
     direction_jitter = 0.0
     alpha_lock = 0.0
     icon = None
-    page = None
+    group = None
     icon_preview = None  # runtime usage only, not saved
 
     def __init__(self, name='brush', icon=None, **kwds):
@@ -95,12 +95,12 @@ class Brush(object):
                 file.write("%s\n" % Brush.__version__)
                 for brush in brushes:
                     file.write("[brush]\n")
-                    for prop in Brush.PROPERTIES + ['name', 'page']:
+                    for prop in Brush.PROPERTIES + ['name', 'group']:
                         if prop == 'icon' and not brush.icon:
                             continue
-                        if prop == 'page' and not brush.page:
+                        if prop == 'group' and not brush.group:
                             continue
-                        file.write("%s = %s\n" % (prop, getattr(brush, prop)))
+                        file.write("%s=%s\n" % (prop, getattr(brush, prop)))
                     file.write("\n")
         except Exception, e:
             print "[DBG] error during brushes saving:", e
@@ -147,7 +147,9 @@ class Brush(object):
                                 if ver <= 2.4:
                                     if attr.startswith('smudge_add_'):
                                         continue
-
+                                if ver <= 2.6:
+                                    if attr == 'page':
+                                        attr = 'group'
                             setattr(brush, attr, value)
             except Exception, e:
                 print "[DBG] error during brushes loading:", e
@@ -156,8 +158,9 @@ class Brush(object):
         if not l:
             b = Brush('pen')
             l.append(b)
-            b = Brush('chalk', radius_min=7.0, radius_max=7.0, opacity_min=.8, opacity_max=.8, hardness=0.3,
-                      opa_comp=1.8, spacing=.5, grain=.8)
+            b = Brush('chalk', radius_min=7.0, radius_max=7.0, opacity_min=.8,
+                      opacity_max=.8, hardness=0.3, opa_comp=1.8, spacing=.5,
+                      grain=.8)
             l.append(b)
 
         return l

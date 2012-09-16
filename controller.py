@@ -56,6 +56,7 @@ class StartupCmd(MacroCommand, ICommand):
 class InitModelCmd(SimpleCommand, ICommand):
     def execute(self, note):
         self.facade.registerProxy(model.PrefsProxy())
+        self.facade.registerProxy(model.BrushProxy())
 
 
 class InitViewCmd(SimpleCommand, ICommand):
@@ -318,7 +319,7 @@ class ClearLayerCmd(UndoableCommand):
 
     def executeCommand(self):
         vo = self.getNote().getBody()
-        vo.docproxy.layerproxy.clear(vo.layer)
+        vo.snapshot = vo.docproxy.layerproxy.clear(vo.layer)
 
     def getCommandName(self):
         return self.__name
@@ -415,6 +416,14 @@ class SetLayerMatrixCmd(UndoableCommand):
 
     def getCommandName(self):
         return self.__name
+
+
+class UseBrushCmd(SimpleCommand, ICommand):
+    def execute(self, note):
+        docproxy = model.DocumentProxy.active
+        if docproxy:
+            docproxy.brush = note.getBody()
+
 
 ### Hidden commands, only used in this module
 

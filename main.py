@@ -61,11 +61,6 @@ DOC_RECORD_STROKE = 'doc-record-stroke'               # undoable command
 DOC_LOAD_IMAGE_AS_LAYER = 'doc-load-image-as-layer'   # undoable command
 DOC_LAYER_MATRIX = 'doc-layer-matrix'                 # undoable command
 
-DOC_BRUSH_UPDATED = 'doc-brush-updated'
-
-# Brush notifications
-BRUSH_PROP_CHANGED = 'brush-prop-changed'
-
 # refactored ok
 STARTUP = 'startup'
 QUIT = 'quit'  # user want to quit the application
@@ -76,6 +71,9 @@ SHOW_INFO_DIALOG = 'show-info-dlg'
 
 NEW_DOCUMENT = 'new-doc'  # user want to create a new document
 LAYER_CLEAR = 'layer-clear' # clear layer contents (undoable, data: LayerCmdVO)
+
+USE_BRUSH = 'use-brush'
+
 
 class Gribouillis(puremvc.patterns.facade.Facade):
     __instance = None
@@ -134,3 +132,4 @@ class Gribouillis(puremvc.patterns.facade.Facade):
         super_.registerCommand(DOC_LOAD_IMAGE_AS_LAYER, controller.LoadImageAsLayerCmd)
         super_.registerCommand(DOC_LAYER_SET_OPACITY, controller.SetLayerOpacityCmd)
         super_.registerCommand(DOC_LAYER_MERGE_DOWN, controller.MergeDownLayerCmd)
+        super_.registerCommand(USE_BRUSH, controller.UseBrushCmd)

@@ -38,8 +38,6 @@ from .layer import Layer
 from .palette import Palette
 from ._prefs import prefs, IPrefHandler
 
-__all__ = ['DocumentProxy']
-
 
 class PrefsProxy(Proxy):
     NAME = "Preferences"
@@ -120,18 +118,14 @@ class DocumentProxy(Proxy):
       - check documents unicity over names.
     """
 
-    ###
     ### Notifications
-
-    # document related
     DOC_ADDED = 'doc-added'
     DOC_UPDATED = 'doc-updated'  # one or more document properties has been modified
     DOC_LAYER_ADDED = 'doc-layer-added'
     DOC_DIRTY = 'doc-dirty'
+    DOC_BRUSH_UPDATED = 'doc-brush-updated'
 
-    ####
     #### Private API ####
-
     __instances = {}  # All registered DocumentProxy instances
     profile = None    # Color profile
     docname_num_match = re.compile('(.* #)([0-9]+)').match
@@ -162,9 +156,7 @@ class DocumentProxy(Proxy):
 
         raise TypeError("Bad vo argument type %s" % type(vo))
 
-    ####
     #### MVC API ####
-
     def onRegister(self):
         self._check_name(self.data.name)
         self._attach_cmd_hist()
@@ -179,9 +171,7 @@ class DocumentProxy(Proxy):
         self.facade.removeProxy(self.getProxyName())
         self.facade.removeProxy(self.layerproxy)
 
-    ####
     #### Public API ####
-
     def activate(self):
         DocumentProxy.active = self
         self.sendNotification(main.DOC_ACTIVATED, self)
@@ -263,9 +253,7 @@ class DocumentProxy(Proxy):
     def flush(self):
         self.facade.retrieveProxy('HP_' + self.getProxyName()).flush()
 
-    ####
     #### Document access API ####
-
     def get_name(self):
         return self.data.name
 
@@ -285,7 +273,7 @@ class DocumentProxy(Proxy):
 
     def set_background(self, value):
         self.data.fill = value
-        self.sendNotification(main.DOC_DIRTY, self)
+        self.sendNotification(self.DOC_DIRTY, self)
 
     def set_metadata(self, **kwds):
         change = False
@@ -295,109 +283,14 @@ class DocumentProxy(Proxy):
                 change = True
                 
         if change:
-            self.sendNotification(main.DOC_UPDATED, self)
+            self.sendNotification(self.DOC_UPDATED, self)
 
-    ####
     #### Brush handling ####
-
     def set_brush(self, brush):
         self.document.brush.set_from_brush(brush)
-        self.sendNotification(main.DOC_BRUSH_UPDATED, self)
+        self.sendNotification(self.DOC_BRUSH_UPDATED, self)
 
-    def set_brush_name(self, name):
-        brush = self.data.brush
-        brush.name = name
-        self.sendNotification(main.BRUSH_PROP_CHANGED,
-                              (brush, 'name', self))
-
-    def get_brush_color_rgb(self):
-        return self.data.brush.rgb
-
-    def get_brush_color_hsv(self):
-        return self.data.brush.hsv
-
-    def set_brush_color_hsv(self, *hsv):
-        brush = self.data.brush
-        if brush.hsv != hsv:
-            brush.hsv = hsv
-            self.sendNotification(main.BRUSH_PROP_CHANGED,
-                                  (brush, 'color', self))
-
-    def set_brush_color_rgb(self, *rgb):
-        brush = self.data.brush
-        if brush.rgb != rgb:
-            brush.rgb = rgb
-            self.sendNotification(main.BRUSH_PROP_CHANGED,
-                                  (brush, 'color', self))
-
-    def set_brush_radius(self, r):
-        brush = self.data.brush
-        r = brush.bound_radius(r)
-        r = min(max(r, brush.RADIUS_MIN), brush.RADIUS_MAX)
-        if brush.radius_max != r:
-            brush.radius_max = r
-            self.sendNotification(main.BRUSH_PROP_CHANGED,
-                                  (brush, 'radius_max', self))
-        if brush.radius_min != r:
-            brush.radius_min = r
-            self.sendNotification(main.BRUSH_PROP_CHANGED,
-                                  (brush, 'radius_min', self))
-
-    def add_brush_radius(self, dr):
-        brush = self.data.brush
-        r = min(max(0.5, dr + max(brush.radius_min, brush.radius_max)), brush.RADIUS_MAX)
-        if brush.radius_max != r:
-            brush.radius_max = r
-            self.sendNotification(main.BRUSH_PROP_CHANGED,
-                                  (brush, 'radius_max', self))
-        if brush.radius_min != r:
-            brush.radius_min = r
-            self.sendNotification(main.BRUSH_PROP_CHANGED,
-                                  (brush, 'radius_min', self))
-
-    def set_brush_radius_max(self, r):
-        brush = self.data.brush
-        r = min(max(r, 0.5), brush.RADIUS_MAX)
-        if brush.radius_max != r:
-            brush.radius_max = r
-            self.sendNotification(main.BRUSH_PROP_CHANGED,
-                                  (brush, 'radius_max', self))
-
-    def add_brush_radius_max(self, dr):
-        brush = self.data.brush
-        r = min(max(0.5, brush.radius_max + dr), brush.RADIUS_MAX)
-        if brush.radius_max != r:
-            brush.radius_max = r
-            self.sendNotification(main.BRUSH_PROP_CHANGED,
-                                  (brush, 'radius_max', self))
-
-    def set_brush_radius_min(self, r):
-        brush = self.data.brush
-        r = min(max(r, 0.5), brush.RADIUS_MAX)
-        if brush.radius_min != r:
-            brush.radius_min = r
-            self.sendNotification(main.BRUSH_PROP_CHANGED,
-                                  (brush, 'radius_min', self))
-
-    def add_brush_radius_min(self, dr):
-        brush = self.data.brush
-        r = min(max(0.5, brush.radius_min + dr), brush.RADIUS_MAX)
-        if brush.radius_min != r:
-            brush.radius_min = r
-            self.sendNotification(main.BRUSH_PROP_CHANGED,
-                                  (brush, 'radius_min', self))
-
-    def add_color(self, *factors):
-        hsv = [c + f for c, f in zip(self.get_brush_color_hsv(), factors)]
-        self.set_brush_color_hsv(*hsv)
-
-    def multiply_color(self, *factors):
-        hsv = [c * f for c, f in zip(self.get_brush_color_hsv(), factors)]
-        self.set_brush_color_hsv(*hsv)
-
-    ####
     #### Painting ####
-
     def draw_start(self, device):
         doc = self.data
         layer = doc.active
@@ -451,14 +344,14 @@ class DocumentProxy(Proxy):
 
     def new_layer(self, vo):
         layer = self.data.new_layer(**vo)
-        self.sendNotification(DocumentProxy.DOC_LAYER_ADDED,
+        self.sendNotification(self.DOC_LAYER_ADDED,
                               (self, layer,
                                self.data.index(layer)))
         return layer
 
     def insert_layer(self, layer, pos=None, **k):
         self.data.insert_layer(layer, pos, **k)
-        self.sendNotification(DocumentProxy.DOC_LAYER_ADDED,
+        self.sendNotification(self.DOC_LAYER_ADDED,
                               (self, layer,
                                self.data.index(layer)))
 
@@ -520,7 +413,7 @@ class DocumentProxy(Proxy):
 
         # Refresh the old area + the new layer area
         area = utils.join_area(area, layer.area)
-        self.sendNotification(main.DOC_DIRTY, (self, area))
+        self.sendNotification(self.DOC_DIRTY, (self, area))
 
     def layer_rotate(self, angle, ox=0, oy=0):
         layer = self.data.active
@@ -539,7 +432,7 @@ class DocumentProxy(Proxy):
 
         # Refresh the old area + the new layer area
         area = utils.join_area(area, layer.area)
-        self.sendNotification(main.DOC_DIRTY, (self, area))
+        self.sendNotification(self.DOC_DIRTY, (self, area))
 
     def get_layer_pos(self, *pos):
         layer = self.data.active
@@ -559,6 +452,113 @@ class DocumentProxy(Proxy):
     document = property(fget=lambda self: self.data)
     docname = property(fget=lambda self: self.data.name, fset=set_name)
     brush = property(fget=lambda self: self.data.brush, fset=set_brush)
-    drawbrush = property(fget=lambda self: self.data.brush)
     active_layer = property(fget=lambda self: self.data.active)
     
+
+class BrushProxy(Proxy):
+    NAME = "BrushProxy"
+
+    BRUSH_PROP_CHANGED = "brush-prop-changed"
+
+    __instances = set()
+
+    def __init__(self):
+        super(BrushProxy, self).__init__(data=brush)
+        self.facade.registerProxy(self)
+
+    @staticmethod
+    def add_brush(brush):
+        BrushProxy.__instances.add(brush)
+
+    @staticmethod
+    def remove_brush(brush):
+        BrushProxy.__instances.remove(brush)
+
+    @staticmethod
+    def has_brush(name):
+        return any(lambda b: b.name == name, BrushProxy.__instances)
+
+    @staticmethod
+    def get_brush(name, group=None):
+        if group is None:
+            brush_ok = lambda b: b.name == name
+        else:
+            brush_ok = lambda b: b.group == group and b.name == name
+
+        for brush in self.__instances:
+            if brush_ok(brush):
+                return brush
+
+    def set_name(self, brush, name):
+        brush.name = name
+        self.sendNotification(self.BRUSH_PROP_CHANGED, (brush, 'name'))
+
+    def set_color_hsv(self, brush, *hsv):
+        if brush.hsv != hsv:
+            brush.hsv = hsv
+            self.sendNotification(self.BRUSH_PROP_CHANGED, (brush, 'color'))
+
+    def set_color_rgb(self, brush, *rgb):
+        if brush.rgb != rgb:
+            brush.rgb = rgb
+            self.sendNotification(self.BRUSH_PROP_CHANGED, (brush, 'color'))
+
+    def set_radius(self, brush, r):
+        r = brush.bound_radius(r)
+        r = min(max(r, brush.RADIUS_MIN), brush.RADIUS_MAX)
+        if brush.radius_max != r:
+            brush.radius_max = r
+            self.sendNotification(self.BRUSH_PROP_CHANGED,
+                                  (brush, 'radius_max'))
+        if brush.radius_min != r:
+            brush.radius_min = r
+            self.sendNotification(self.BRUSH_PROP_CHANGED,
+                                  (brush, 'radius_min'))
+
+    def add_to_radius(self, brush, dr):
+        r = min(max(0.5, dr + max(brush.radius_min, brush.radius_max)),
+                brush.RADIUS_MAX)
+        if brush.radius_max != r:
+            brush.radius_max = r
+            self.sendNotification(self.BRUSH_PROP_CHANGED,
+                                  (brush, 'radius_max'))
+        if brush.radius_min != r:
+            brush.radius_min = r
+            self.sendNotification(self.BRUSH_PROP_CHANGED,
+                                  (brush, 'radius_min'))
+
+    def set_max_radius(self, brush, r):
+        r = min(max(r, 0.5), brush.RADIUS_MAX)
+        if brush.radius_max != r:
+            brush.radius_max = r
+            self.sendNotification(self.BRUSH_PROP_CHANGED,
+                                  (brush, 'radius_max'))
+
+    def add_to_max_radius(self, brush, dr):
+        r = min(max(0.5, brush.radius_max + dr), brush.RADIUS_MAX)
+        if brush.radius_max != r:
+            brush.radius_max = r
+            self.sendNotification(brush.BRUSH_PROP_CHANGED,
+                                  (brush, 'radius_max'))
+
+    def set_min_radius(self, brush, r):
+        r = min(max(r, 0.5), brush.RADIUS_MAX)
+        if brush.radius_min != r:
+            brush.radius_min = r
+            self.sendNotification(self.BRUSH_PROP_CHANGED,
+                                  (brush, 'radius_min'))
+
+    def add_to_radius_min(self, brush, dr):
+        r = min(max(0.5, brush.radius_min + dr), brush.RADIUS_MAX)
+        if brush.radius_min != r:
+            brush.radius_min = r
+            self.sendNotification(self.BRUSH_PROP_CHANGED,
+                                  (brush, 'radius_min'))
+
+    def add_to_color(self, brush, *factors):
+        hsv = [c + f for c, f in zip(self.get_brush_color_hsv(brush), factors)]
+        self.set_brush_color_hsv(brush, *hsv)
+
+    def multiply_color(self, brush, *factors):
+        hsv = [c * f for c, f in zip(self.get_brush_color_hsv(brush), factors)]
+        self.set_brush_color_hsv(brush, *hsv)

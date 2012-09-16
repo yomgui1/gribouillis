@@ -43,7 +43,7 @@ class Operator:
         """operator(name): add a new exec operator.
     
         Add decorated func to the global list of exec operators.
-        Funciotn arguments are optional and purpose dependent.
+        Function arguments are optional and purpose dependent.
         """
 
         def decorator(func):
@@ -77,7 +77,8 @@ class Operator:
 
     @classmethod
     def execute(cls, name, *args, **kwds):
-        cls.get_exec_op(name)(context, *args, **kwds)
+        assert name in cls.__exec_op, NameError("unknown operator: %s" % name)
+        cls.__exec_op[name](context, *args, **kwds)
 
 
 execoperator = Operator.execoperator

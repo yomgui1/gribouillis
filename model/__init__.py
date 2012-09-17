@@ -489,9 +489,9 @@ class BrushProxy(Proxy):
             if brush_ok(brush):
                 return brush
 
-    def set_name(self, brush, name):
-        brush.name = name
-        self.sendNotification(self.BRUSH_PROP_CHANGED, (brush, 'name'))
+    def set_attr(self, brush, name, v):
+        setattr(brush, name, v)
+        self.sendNotification(self.BRUSH_PROP_CHANGED, (brush, name))
 
     def set_color_hsv(self, brush, *hsv):
         if brush.hsv != hsv:

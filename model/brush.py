@@ -49,7 +49,7 @@ class Brush(object):
     PROPERTIES = 'radius_min radius_max yratio angle spacing opacity_min opacity_max opa_comp hardness erase grain'.split()
     PROPERTIES += 'motion_track hi_speed_track smudge smudge_var direction_jitter dab_pos_jitter dab_radius_jitter'.split()
     PROPERTIES += 'color_shift_h color_shift_v color_shift_s alpha_lock'.split()
-    PROPERTIES += 'icon'.split()
+    PROPERTIES += 'icon eraser'.split()
 
     RADIUS_MIN = 0.5
     RADIUS_MAX = 500.
@@ -80,6 +80,7 @@ class Brush(object):
     icon = None
     group = None
     icon_preview = None  # runtime usage only, not saved
+    eraser = False # 2.7
 
     def __init__(self, name='brush', icon=None, **kwds):
         self.name = name
@@ -129,8 +130,11 @@ class Brush(object):
                             attr, value = line.split('=')
                             attr = attr.strip().lower()
                             value = value.strip()
-                            if attr != 'icon' and attr in Brush.PROPERTIES:
-                                value = float(value)
+                            if attr in Brush.PROPERTIES:
+                                if attr == 'eraser':
+                                    value = value.lower() not in ('0', 'false')
+                                elif attr !=  'icon':
+                                    value = float(value)
                             else:  # compatibility support
                                 if ver <= 1.0:
                                     if attr == 'radius':
@@ -164,12 +168,6 @@ class Brush(object):
             l.append(b)
 
         return l
-
-    def swap_erase(self):
-        self.erase = 1 - self.erase
-
-    def set_erase(self, value=1.0):
-        self.erase = value
 
     def set_from_brush(self, brush):
         self.name = brush.name

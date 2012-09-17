@@ -28,7 +28,11 @@ import pymui
 from pymui.mcc import laygroup
 from pymui.mcc import rawimage
 
-import main, model, utils, view
+import main
+import model
+import utils
+import view
+import view.context as ctx
 
 from utils import _T, resolve_path
 from model.brush import Brush, DrawableBrush
@@ -76,6 +80,7 @@ class BrushHouseWindow(pymui.Window):
         for k, text in [('use-preview-icon', _T('Use preview icon')),
                         ('use-image-icon', _T('Use image icon')),
                         ('change-icon', _T('Change image icon...')),
+                        ('as-eraser', _T('As eraser brush...')),
                         ('dup', _T('Duplicate')),
                         ('delete', _T('Delete'))]:
             o = self._menuitems[k] = pymui.Menuitem(text)
@@ -125,12 +130,6 @@ class BrushHouseWindow(pymui.Window):
         # Add the 'All brushes' page
         self._all = self.add_page(_T('All brushes'), close=False)
 
-        # Load saved brushes
-        l =  Brush.load_brushes()
-        for brush in l:
-            self.add_brush(brush, name=brush.page)
-        self.active_brush = l[0]
-
         self._del_page_bt.Disable = True
         if len(self._brushes) == 1:
             self._menuitems['delete'].Enabled = False
@@ -176,9 +175,9 @@ class BrushHouseWindow(pymui.Window):
         if page != self._all:
             bt.bt2 = self._mkbrushbt(page, brush)
             bt.bt2.allbt = bt
-            brush.page = page.name
+            brush.group = page.name
         else:
-            brush.page = None
+            brush.group = None
             
         if len(self._brushes) == 2:
             self._menuitems['delete'].Enabled = True
@@ -238,6 +237,7 @@ class BrushHouseWindow(pymui.Window):
         bt.Notify('ContextMenuTrigger', self._on_change_icon, when=self._menuitems['change-icon']._object)
         bt.Notify('ContextMenuTrigger', self._on_dup_brush, when=self._menuitems['dup']._object)
         bt.Notify('ContextMenuTrigger', self._on_delete_brush, when=self._menuitems['delete']._object)
+        bt.Notify('ContextMenuTrigger', self._on_as_eraser, when=self._menuitems['as-eraser']._object)
         
         bt.page = page
         bt.brush = brush
@@ -304,7 +304,7 @@ class BrushHouseWindow(pymui.Window):
             self._current_cb(self._current.brush)
         elif self._current is bt.allbt:
             bt.NNSet('Selected', True)
-            pymui.GetApp().open_brush_editor()
+            ctx.app.open_window('BrushEditor')
             
         self._brushnamebt.Contents = bt.brush.name
 
@@ -359,6 +359,11 @@ class BrushHouseWindow(pymui.Window):
                 bt.bt2.Picture = long(bt.ri_data)
         else:
             self._on_change_icon(evt)
+
+    def _on_as_eraser(self, evt):
+        ctx.erase_brush.eraser = False
+        ctx.erase_brush = evt.Source.allbt.brush
+        ctx.erase_brush.eraser = True
 
     def _set_active_brush(self, brush):
         brush.bt.Selected =True

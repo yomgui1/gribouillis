@@ -24,9 +24,14 @@
 ###############################################################################
 
 import pymui
-import model, view, main, utils
 
 from math import log, exp
+
+import model
+import view
+import main
+import utils
+
 from model import _pixbuf
 from model.surface import BoundedPlainSurface
 from model.colorspace import ColorSpaceRGB
@@ -140,7 +145,7 @@ class FloatValue(pymui.Group):
         
         reset.Notify('Pressed', lambda *a: self.SetDefault())
         
-        self.value = default
+        del self.value
 
     def _as_float(self, value):
         return value*self._range + self._min
@@ -164,13 +169,16 @@ class FloatValue(pymui.Group):
     def OnStringValue(self, evt):
         self.value = float(evt.value.contents or (exp(self._min) if self.islog else self._min))
 
-    def SetValue(self, value):
+    def SetValue(self, value, notify=True):
         if self.islog:
             value = max(exp(self._min), min(value, exp(self._max)))
             value = log(value)
         else:
             value = max(self._min, min(value, self._max))
-        self._slider.Value = min(1000, max(0, int((value-self._min)/self._range)))
+        if notify:
+            self._slider.Value = min(1000, max(0, int((value-self._min)/self._range)))
+        else:
+            self._slider.NNSet('Value', min(1000, max(0, int((value-self._min)/self._range))))
 
     def SetDefault(self):
         self.value = self._default
@@ -179,7 +187,6 @@ class FloatValue(pymui.Group):
 
 class BrushEditorWindow(pymui.Window):
     _brush = None
-    _lock = False # block prop change loop at MUI change
 
     def __init__(self, name):
         super(BrushEditorWindow, self).__init__(name, ID='BEW', Width=320, Height=100, CloseOnReq=True)
@@ -227,6 +234,9 @@ class BrushEditorWindow(pymui.Window):
         self.prop['alpha_lock']        = self._add_slider(table, 'alpha_lock', 0.0, 1.0, 0.0, 1.0, 1.0)
 
         self.Title = 'Brush Editor'
+        
+        # overwritten by mediator
+        self.on_value_changed_cb = utils.idle_cb
 
     def _add_slider(self, table, label, vmin, vmax, vdef, step, page_step, islog=False):
         lb = pymui.Label(label+':')
@@ -246,19 +256,14 @@ class BrushEditorWindow(pymui.Window):
     def _on_value_changed(self, widget, name):
         if self._brush:
             v = widget.value
-            setattr(self._brush, name, v)
             self.bprev.set_attr(name, v)
-
-            # FIXME: this call should be in a mediator or proxy, not in the component itself!
-            self._lock = True
-            self.mediator.sendNotification(main.BRUSH_PROP_CHANGED, (self._brush, name))
-            self._lock = False
+            self.on_value_changed_cb(self._brush, name, v)
 
     def brush_changed_prop(self, name, value):
-        if self._lock or name == 'color': return
+        if name == 'color': return
         if name in self.prop:
             hs = self.prop[name]
-            hs.value = value
+            hs.SetValue(value, False) # NNset() used
 
     def _set_brush(self, brush):
         self._brush = None # forbid brush prop changed events, so a endless loop

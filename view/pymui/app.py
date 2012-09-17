@@ -36,14 +36,14 @@ from utils import _T
 from model.document import LASTS_FILENAME
 from model import prefs
 
-from layermgr import *
-from cmdhistoric import *
-from colorharmonies import *
-from brushhouse import *
-from brusheditor import *
-from cms import *
-from prefwin import *
-from docinfo import *
+from .layermgr import LayerMgr
+from .cmdhistoric import *
+from .colorharmonies import *
+from .brushhouse import *
+from .brusheditor import *
+from .cms import *
+from .prefwin import *
+from .docinfo import *
 
 __all__ = [ 'Application' ]
 
@@ -108,45 +108,30 @@ class Application(pymui.Application, view.mixin.ApplicationMixin):
                                      NoMenus=True, DragBar=False,
                                      Position=('moused', 'moused'),
                                      RootObject=pymui.Text(_T("Saving...")))
+        self.AddChild(self._busywin)
+ 
+        self.windows = dwin = {}
 
-        self.layermgr = LayerMgr(_T("Layer Manager"))
-        self.cmdhist = CommandsHistoryList(_T("Commands History"))
-        self.colorhrm = ColorHarmoniesWindow(_T("Color Manager"))
-        self.brusheditor = BrushEditorWindow(_T("Brush Editor"))
-        self.brushhouse = BrushHouseWindow(_T("Brush House"))
+        dwin['LayerMgr'] = LayerMgr(_T("Layer Manager"))
+        dwin['CmdHist'] = CommandsHistoryList(_T("Commands History"))
+        dwin['ColorMgr'] = ColorHarmoniesWindow(_T("Color Manager"))
+        dwin['BrushEditor'] = BrushEditorWindow(_T("Brush Editor"))
+        dwin['BrushHouse'] = BrushHouseWindow(_T("Brush House"))
         #self.cms_assign_win = AssignICCWindow()
         #self.cms_conv_win = ConvertICCWindow()
         
-        self.splash = Splash(_T("Splash"))
-        self.about = AboutWindow()
-        self.docinfo = DocInfoWindow(_T("Document Information"))
+        dwin['Splash'] = Splash(_T("Splash"))
+        dwin['About'] = AboutWindow()
+        dwin['DocInfo'] = DocInfoWindow(_T("Document Information"))
         
         # List of window that can be automatically open at startup
-        self.startup_windows = {
-            'layermgr': self.layermgr,
-            'cmdhist': self.cmdhist,
-            'colormgr': self.colorhrm,
-            'brushhouse': self.brushhouse,
-            'brusheditor': self.brusheditor,
-            'splash': self.splash,
-            'docinfo': self.docinfo,
-            }
+        self.startup_windows = ['LayerMgr', 'CmdHist', 'ColorMgr', 'BrushEditor', 'BrushHouse', 'Splash']
         
         # Should be created after startup-open-window list
-        self.appprefwin = AppPrefWindow()
+        #self.appprefwin = AppPrefWindow()
 
-        self.AddChild(self._busywin)
-        self.AddChild(self.layermgr)
-        self.AddChild(self.cmdhist)
-        self.AddChild(self.colorhrm)
-        self.AddChild(self.brusheditor)
-        self.AddChild(self.brushhouse)
-        #self.AddChild(self.cms_assign_win)
-        #self.AddChild(self.cms_conv_win)
-        self.AddChild(self.appprefwin)
-        self.AddChild(self.splash)
-        self.AddChild(self.about)
-        self.AddChild(self.docinfo)
+        for win in dwin.itervalues():
+            self.AddChild(win)
 
     def _create_menustrip(self):
         menu_def = { _T('Application'):     ((_T('New document'),  'N', 'new-doc'),
@@ -166,8 +151,8 @@ class Application(pymui.Application, view.mixin.ApplicationMixin):
                      _T('View'):            ((_T('Reset'),  '=', 'reset-view'),
                                              (_T('Load background...'), None, 'load-background'),
                                              (_T('Toggle rulers'), 'R', 'toggle-rulers'),
-                                             (_T('Rotate 90° clockwise'), None, 'rotate-90-clockwise'),
-                                             (_T('Rotate 90° anti-clockwise'), None, 'rotate-90-anticlockwise'),
+                                             (_T('Rotate clockwise'), None, 'rotate-clockwise'),
+                                             (_T('Rotate anti-clockwise'), None, 'rotate-anticlockwise'),
                                              (_T('Mirror X axis'), 'X', 'mirror-x'),
                                              (_T('Mirror Y axis'), 'Y', 'mirror-y'),
                                              #(_T('Split horizontally'), None, 'split-viewport-horiz'),
@@ -186,14 +171,14 @@ class Application(pymui.Application, view.mixin.ApplicationMixin):
                      _T('Tools'):           ((_T('Toggle line guide'), '1', 'toggle-line-guide'),
                                              (_T('Toggle ellipse guide'), '2', 'toggle-ellipse-guide'),
                                              ),
-                     _T('Windows'):         ((_T('Document Information'), None, self.open_docinfo),
-                                             (_T('Layers'), 'L', self.open_layer_mgr),
-                                             (_T('Color Harmonies'), 'C', self.open_color_mgr),
-                                             (_T('Commands historic'), 'H', self.open_cmdhistoric),
-                                             (_T('Brush Editor'), 'B', self.open_brush_editor),
-                                             (_T('Brush House'), None, self.open_brush_house),
-                                             (_T('Application Preferences'), 'P', self.open_preferences),
-                                             (_T('Splash'), None, self.open_splash),
+                     _T('Windows'):         ((_T('Document Information'), None, lambda evt: self.open_window('DocInfo')),
+                                             (_T('Layers'), 'L', lambda evt: self.open_window('LayerMgr')),
+                                             (_T('Color Harmonies'), 'C', lambda evt: self.open_window('ColorMgr')),
+                                             (_T('Commands historic'), 'H', lambda evt: self.open_window('CmdHist')),
+                                             (_T('Brush Editor'), 'B', lambda evt: self.open_window('BrushEditor')),
+                                             (_T('Brush House'), None, lambda evt: self.open_window('BrushHouse')),
+                                             (_T('Application Preferences'), 'P', lambda evt: self.open_window('Prefs')),
+                                             (_T('Splash'), None, lambda evt: self.open_window('Splash')),
                                              ),
                      _T('Debug'):           ((_T('GC Collect'), None, lambda *a: self._do_gc_collect()),
                                              ),
@@ -242,19 +227,16 @@ class Application(pymui.Application, view.mixin.ApplicationMixin):
     #
     
     def run(self):
-        self.appprefwin.init_from_prefs()
-        self.appprefwin.apply_config()
+        #self.appprefwin.init_from_prefs()
+        #self.appprefwin.apply_config()
         
         # Auto-open, usefull only if MUI remembers window position
-        open_splash = False
-        for name in prefs['pymui-window-open-at-startup']:
+        wins_to_open = prefs['pymui-window-open-at-startup']
+        for name in wins_to_open:
             if name != 'splash':
-                self.startup_windows[name].Open = True
-            else:
-                # Splash window should be open after all others to be the front window
-                open_splash = True
+                self.open_window(name)
 
-        self.splash.Open = open_splash
+        self.windows['Splash'].Open = 'splash' in wins_to_open
         self.Run()
 
     def quit(self):
@@ -279,71 +261,14 @@ class Application(pymui.Application, view.mixin.ApplicationMixin):
     def get_new_document_type(self, alltypes, parent=None):
         return 'RGB'
 
-    def open_cmdhistoric(self, *a):
-        self.cmdhist.Open = True
-        
-    def open_brush_editor(self, *a):
-        self.brusheditor.Open = True
-        
-    def open_brush_house(self, *a):
-        self.brushhouse.Open = True
-        
-    def open_color_mgr(self, *a):
-        self.colorhrm.Open = True
-        
-    def open_layer_mgr(self, *a):
-        self.layermgr.Open = True
-        
-    def open_preferences(self, *a):
-        self.appprefwin.Open = True
-        
-    def open_docinfo(self, *a):
-        self.docinfo.Open = True
-        
-    def open_about(self, *a):
-        self.about.Open = True
-        
-    def open_splash(self, *a):
-        self.splash.Open = True
-        
-    def open_assign_icc_win(self):
-        self.cms_assign_win.Open = True
-        
-    def open_convert_icc_win(self):
-        self.cms_conv_win.Open = True
-
-    def open_assign_icc_win(self):
-        self.cms_assign_win.Open = True
-        
-    def open_convert_icc_win(self):
-        self.cms_conv_win.Open = True
-        
-    def toggle_cmdhistoric(self):
-        self.cmdhist.Open = not self.cmdhist.Open.value
-        
-    def toggle_brush_editor(self):
-        self.brusheditor.Open = not self.brusheditor.Open.value
-        
-    def toggle_brush_house(self):
-        self.brushhouse.Open = not self.brushhouse.Open.value
-        
-    def toggle_color_mgr(self):
-        self.colorhrm.Open = not self.colorhrm.Open.value
-        
-    def toggle_layer_mgr(self):
-        self.layermgr.Open = not self.layermgr.Open.value
-
+    def open_window(self, name):
+        self.windows[name].Open = True
+    
+    def toggle_window(self, name):
+        self.windows[name].Open = not self.windows[name].Open.value
+    
     def close_all_non_drawing_windows(self):
-        for win in (self.layermgr,
-                    self.cmdhist,
-                    self.colorhrm,
-                    self.brusheditor,
-                    self.brushhouse,
-                    #self.cms_assign_win,
-                    #self.cms_conv_win,
-                    self.docinfo,
-                    self.splash,
-                    self.appprefwin):
+        for win in self.windows.itervalues():
             win.Open = False
             
     def new_save_status_window(self):
@@ -447,7 +372,7 @@ class Splash(pymui.Window):
         bt.Notify('Pressed', lambda *a: pymui.GetApp().about.OpenWindow(), when=False)
         bottom_bar.AddChild(pymui.HGroup(Child=(pymui.HSpace(0), bt)))
         
-        all_logos = glob.glob('PROGDIR:data/internal/app_intro*.png')
+        all_logos = glob.glob('data/internal/app_intro*.png')
         logo = pymui.Dtpic(random.choice(all_logos), Frame="Group")
         
         root.AddChild(top_bar)

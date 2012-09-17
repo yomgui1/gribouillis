@@ -30,45 +30,65 @@ from utils import _T
 
 from .const import *
 
-_KEYVALS = {0x40: 'space',
-            0x41: 'backspace',
-            0x42: 'tab',
-            0x43: 'enter',
-            0x44: 'return',
-            0x45: 'esc',
-            0x46: 'delete',
-            0x47: 'insert',
-            0x48: 'page_up',
-            0x49: 'page_down',
-            0x4b: 'f11',
-            0x4c: 'up',
-            0x4d: 'down',
-            0x4e: 'right',
-            0x4f: 'left',
-            0x50: 'f1',
-            0x51: 'f2',
-            0x52: 'f3',
-            0x53: 'f4',
-            0x54: 'f5',
-            0x55: 'f6',
-            0x56: 'f7',
-            0x57: 'f8',
-            0x58: 'f9',
-            0x59: 'f10',
-            0x5f: 'help',
-            0x60: 'lshift',
-            0x61: 'rshift',
-            0x68: 'mouse-left',
-            0x69: 'mouse-right',
-            0x6a: 'mouse-middle',
-            0x6f: 'f12',
-            0x70: 'home',
-            0x71: 'end',
-            0x7a: 'wheel_up',
-            0x7b: 'wheel_down',
-            0x7e: 'mouse_fourth',
-            0x7f: '',
-            }
+_KEYVALS = {
+    0x40: 'space',
+    0x41: 'backspace',
+    0x42: 'tab',
+    0x43: 'enter',
+    0x44: 'return',
+    0x45: 'esc',
+    0x46: 'delete',
+    0x47: 'insert',
+    0x48: 'page_up',
+    0x49: 'page_down',
+    0x4b: 'f11',
+    0x4c: 'up',
+    0x4d: 'down',
+    0x4e: 'right',
+    0x4f: 'left',
+    0x50: 'f1',
+    0x51: 'f2',
+    0x52: 'f3',
+    0x53: 'f4',
+    0x54: 'f5',
+    0x55: 'f6',
+    0x56: 'f7',
+    0x57: 'f8',
+    0x58: 'f9',
+    0x59: 'f10',
+    0x5f: 'help',
+    0x60: 'lshift',
+    0x61: 'rshift',
+    0x68: 'mouse_left',
+    0x69: 'mouse_right',
+    0x6a: 'mouse_middle',
+    0x6f: 'f12',
+    0x70: 'home',
+    0x71: 'end',
+    0x7a: 'wheel_up',
+    0x7b: 'wheel_down',
+    0x7e: 'mouse_fourth',
+    0x7f: '',
+    }
+
+_PAD_BT = {
+    0x0001: 'pad_bt0',
+    0x0002: 'pad_bt1',
+    0x0004: 'pad_bt2',
+    0x0008: 'pad_bt3',
+    0x0010: 'pad_bt4',
+    0x0020: 'pad_bt5',
+    0x0040: 'pad_bt6',
+    0x0080: 'pad_bt7',
+    0x0100: 'pad_bt8',
+    0x0200: 'pad_bt9',
+    0x0400: 'pad_bt10',
+    0x0800: 'pad_bt11',
+    0x1000: 'pad_bt12',
+    0x2000: 'pad_bt13',
+    0x4000: 'pad_bt14',
+    0x8000: 'pad_bt15',
+    }
 
 _KEYVALS_INV = {}
 for k, v in _KEYVALS.iteritems():
@@ -141,9 +161,10 @@ class MUIEventParser:
     
     @staticmethod
     def get_key(event):
+        tool = MUIEventParser.get_tooltype(event)
         key = _KEYVALS.get(event.RawKey)
         if key is None:
-            return (self._event.SimpleKey or chr(self._event.RawKey)).lower()
+            return (event.SimpleKey or chr(event.RawKey)).lower()
         return key
 
     @staticmethod
@@ -173,3 +194,27 @@ class MUIEventParser:
         if event.td_Tags:
             return float(event.td_Tags.get(pymui.TABLETA_Pressure, _PRESSURE_MAX/2)) / _PRESSURE_MAX
         return _DEFAULT_PRESSURE
+
+    @staticmethod
+    def get_tooltype(event):
+        if event.td_Tags:
+            return event.td_Tags.get(TABLETA_ToolType, 0)
+        return 0
+        
+    @staticmethod
+    def get_pad_stripx(event):
+        if event.td_Tags:
+            return event.td_Tags.get(TABLETA_StripX, 0)
+        return 0
+
+    @staticmethod
+    def get_pad_stripy(event):
+        if event.td_Tags:
+            return event.td_Tags.get(TABLETA_StripY, 0)
+        return 0
+        
+    @staticmethod
+    def get_pad_buttons(event):
+        if event.td_Tags:
+            return event.td_Tags.get(pymui.TABLETA_ButtonBits, 0)
+        return 0

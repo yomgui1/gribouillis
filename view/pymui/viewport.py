@@ -1,7 +1,7 @@
 # -*- coding: latin-1 -*-
 
 ###############################################################################
-# Copyright (c) 2009-2011 Guillaume Roguez
+# Copyright (c) 2009-2012 Guillaume Roguez
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
@@ -25,7 +25,11 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import pymui, time, math, cairo, sys
+import pymui
+import time
+import math
+import cairo
+import sys
 import traceback as tb
 
 from pymui.mcc.betterbalance import BetterBalance
@@ -41,7 +45,6 @@ import view.viewport
 import view.cairo_tools as tools
 
 from view.keymap import KeymapManager
-from view.operator import eventoperator
 from model.devices import *
 
 from .eventparser import MUIEventParser
@@ -162,12 +165,12 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
                     name = "%s-press"
                 else:
                     return
+                    
                 name = name % MUIEventParser.get_key(ev)
                 
             else:
                 return
 
-            #print name
             mods = MUIEventParser.get_modificators(ev)
             eat = self._km.process(ev, name, mods, viewport=self)
             return eat and pymui.MUI_EventHandlerRC_Eat
@@ -316,9 +319,17 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
     @property
     def scale(self):
         return self._docvp.scale
-        
+
+    def get_offset(self):
+        return self._docvp.offset
+
+    def set_offset(self, offset):
+        self._docvp.offset = offset
+        self._docvp.update_matrix()
+
+    offset = property(get_offset, set_offset)
     focus = property(fget=lambda self: self._focus, fset=set_focus)
-            
+
     #### Rendering ####
 
     def _check_clip(self, x, y, w, h):
@@ -695,72 +706,3 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
     def tools(self):
         return self._toolsvp.tools
 
-
-@eventoperator("vp-enter")
-def vp_enter(event, viewport):
-    KeymapManager.use_map("Viewport")
-    viewport.enable_motion_events(True)
-    viewport.show_brush_cursor(True)
-
-@eventoperator("vp-leave")
-def vp_leave(event, viewport):
-    viewport.enable_motion_events(False)
-    viewport.show_brush_cursor(False)
-
-@eventoperator("vp-move-cursor")
-def vp_move_cursor(event, viewport):
-    pos = viewport.get_view_pos(*MUIEventParser.get_screen_position(event))
-    viewport.repaint_cursor(*pos)
-
-@eventoperator("vp-stroke-start")
-def vp_stroke_start(event, viewport):
-    viewport.get_device_state(event)
-    viewport.show_brush_cursor(False)
-    viewport.docproxy.draw_start(viewport.device)
-    KeymapManager.save_map()
-    KeymapManager.use_map("Stroke")
-
-@eventoperator("vp-stroke-confirm")
-def vp_stroke_confirm(event, viewport):
-    state = viewport.get_device_state(event)
-    viewport.docproxy.draw_end()
-    viewport.repaint_cursor(*state.cpos)
-    viewport.show_brush_cursor(True)
-    KeymapManager.restore_map()
-
-@eventoperator("vp-stroke-append")
-def vp_stroke_append(event, viewport):
-    viewport.get_device_state(event)
-    viewport.docproxy.record()
-
-
-KeymapManager.register_keymap("Viewport", {
-        # Brush related
-        "cursor-enter": "vp_enter",
-        "cursor-leave": "vp_leave",
-        "cursor-motion": "vp_move_cursor",
-
-        # Drawing
-        "mouse-left-press": "vp_stroke_start",
-        "backspace-press": "vp_clear_layer",
-
-        # View motions
-        "mous-right-press": "vp_scroll_start",
-        "scroll-down": "vp_scale_down",
-        "scroll-up": "vp_scale_up",
-        "key-press-bracketright": ("vp_rotate_right", None),
-        "key-press-bracketleft": ("vp_rotate_left", None),
-        "key-press-x": "vp_swap_x",
-        "key-press-y": "vp_swap_y",
-        "key-press-equal": "vp_reset_all",
-        "key-press-plus": ("vp_reset_rotation", None),
-        "key-press-Left": "vp_scroll_left",
-        "key-press-Right": "vp_scroll_right",
-        "key-press-Up": "vp_scroll_up",
-        "key-press-Down": "vp_scroll_down",
-        })
-
-KeymapManager.register_keymap("Stroke", {
-        "cursor-motion": "vp_stroke_append",
-        "mouse-left-release": "vp_stroke_confirm",
-        })

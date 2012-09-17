@@ -29,28 +29,23 @@ import os
 
 import main
 import model
+import model.brush
 import utils
-
-import app
-import docviewer
-from .viewport import DocViewport
-#import brusheditor
-#import layermgr
-#import cmdhistoric
-#import colorharmonies
-#import brushhouse
-#import docinfo
+import view.context as ctx
+import view.operator as operator
 
 from utils import _T, mvcHandler
 
-IECODE_LBUTTON = 0x68
+from .app import Application
+from .docviewer import DocWindow
+from .viewport import DocViewport
 
-import commands
-del commands
+import operators
+import keymaps
 
-# Needed by view module
-Application = app.Application
+del keymaps, operators
 
+ctx.tool = None
 
 class GenericMediator(utils.Mediator):
     def show_dialog(self, title, msg):
@@ -64,6 +59,9 @@ class GenericMediator(utils.Mediator):
 
     def show_info_dialog(self, msg):
         self.show_dialog(_T('Info'), msg)
+        
+    def evt2op(self, evt, name, *args):
+        operator.execute(name, *args)
 
 
 class ApplicationMediator(GenericMediator):
@@ -87,11 +85,13 @@ class ApplicationMediator(GenericMediator):
         assert isinstance(component, app.Application)
         super(ApplicationMediator, self).__init__(ApplicationMediator.NAME, component)
 
+        ctx.app = component
+
         component.mediator = self
 
-        component.menu_items['undo'].Bind(self._menu_undo)
-        component.menu_items['redo'].Bind(self._menu_redo)
-        component.menu_items['flush'].Bind(self._menu_flush)
+        component.menu_items['undo'].Bind(self.evt2op, "hist_undo")
+        component.menu_items['redo'].Bind(self.evt2op, "hist_redo")
+        component.menu_items['flush'].Bind(self.evt2op, "hist_flush")
         component.menu_items['new-doc'].Bind(self.new_document)
         component.menu_items['load-doc'].Bind(self.request_document)
         component.menu_items['save-doc'].Bind(self._menu_save_document)
@@ -108,15 +108,15 @@ class ApplicationMediator(GenericMediator):
         component.menu_items['color-darken'].Bind(self._menu_color_darken)
         component.menu_items['color-saturate'].Bind(self._menu_color_saturate)
         component.menu_items['color-desaturate'].Bind(self._menu_color_desaturate)
-        component.menu_items['toggle-rulers'].Bind(self._menu_toggle_rulers)
-        component.menu_items['rotate-90-clockwise'].Bind(self._menu_rotate_90_clockwise)
-        component.menu_items['rotate-90-anticlockwise'].Bind(self._menu_rotate_90_anticlockwise)
-        component.menu_items['mirror-x'].Bind(self._menu_mirror_x)
-        component.menu_items['mirror-y'].Bind(self._menu_mirror_y)
+        component.menu_items['toggle-rulers'].Bind(self.evt2op, "actdoc_toggle_rulers")
+        component.menu_items['rotate-clockwise'].Bind(self.evt2op, "actvp_rotate", math.radians(20))
+        component.menu_items['rotate-anticlockwise'].Bind(self.evt2op, "actvp_rotate", -math.radians(20))
+        component.menu_items['mirror-x'].Bind(self.evt2op, "actvp_swap_x")
+        component.menu_items['mirror-y'].Bind(self.evt2op, "actvp_swap_y")
 
         component.menu_items['quit'].Bind(self.quit)
 
-        for item in component.splash.lasts_bt:
+        for item in component.windows['Splash'].lasts_bt:
             item.Notify('Pressed', self._on_last_sel, when=False, filename=item.path)
 
     def onRegister(self):
@@ -126,13 +126,13 @@ class ApplicationMediator(GenericMediator):
         self.document_mediator = DocumentMediator(self.viewComponent)
         self.facade.registerMediator(self.document_mediator)
 
-        #self.layermgr_mediator = LayerMgrMediator(self.viewComponent.layermgr)
-        #self.facade.registerMediator(self.layermgr_mediator)
+        self.layermgr_mediator = LayerMgrMediator(self.viewComponent.windows['LayerMgr'])
+        self.facade.registerMediator(self.layermgr_mediator)
 
-        #self.facade.registerMediator(CommandsHistoryListMediator(self.viewComponent.cmdhist))
-        #self.facade.registerMediator(ColorHarmoniesWindowMediator(self.viewComponent.colorhrm))
-        #self.facade.registerMediator(BrushEditorWindowMediator(self.viewComponent.brusheditor))
-        #self.facade.registerMediator(BrushHouseWindowMediator(self.viewComponent.brushhouse))
+        self.facade.registerMediator(CommandsHistoryListMediator(self.viewComponent.windows['CmdHist']))
+        #self.facade.registerMediator(ColorHarmoniesWindowMediator(self.viewComponent.windows['ColorMgr']))
+        self.facade.registerMediator(BrushEditorWindowMediator(self.viewComponent.windows['BrushEditor']))
+        self.facade.registerMediator(BrushHouseWindowMediator(self.viewComponent.windows['BrushHouse']))
         #self.facade.registerMediator(DocInfoMediator(self.viewComponent.docinfo))
         
         # Add a default empty document
@@ -153,15 +153,6 @@ class ApplicationMediator(GenericMediator):
 
     def _menu_save_as_document(self, evt):
         self.document_mediator.save_as_document()
-
-    def _menu_undo(self, evt):
-        self.sendNotification(main.UNDO)
-
-    def _menu_redo(self, evt):
-        self.sendNotification(main.REDO)
-
-    def _menu_flush(self, evt):
-        self.sendNotification(main.FLUSH)
 
     def _menu_clear_active_layer(self, evt):
         self.document_mediator.clear_active_layer()
@@ -202,17 +193,6 @@ class ApplicationMediator(GenericMediator):
     def _menu_toggle_rulers(self, evt):
         self.document_mediator.toggle_rulers()
 
-    def _menu_rotate_90_clockwise(self, evt):
-        self.viewport_mediator.rotate(self.viewport_mediator.active, math.radians(90))
-
-    def _menu_rotate_90_anticlockwise(self, evt):
-        self.viewport_mediator.rotate(self.viewport_mediator.active, math.radians(-90))
-
-    def _menu_mirror_x(self, evt):
-        self.viewport_mediator.view_swap_x(self.viewport_mediator.active)
-
-    def _menu_mirror_y(self, evt):
-        self.viewport_mediator.view_swap_y(self.viewport_mediator.active)
 
     ### notification handlers ###
 
@@ -234,7 +214,7 @@ class ApplicationMediator(GenericMediator):
 
     def add_docproxy(self, docproxy):
         # Create and attach a window to view/edit the document
-        component = docviewer.DocWindow(docproxy)
+        component = DocWindow(docproxy)
         self.viewComponent.AddChild(component)
 
         # Register it to document mediator
@@ -283,8 +263,7 @@ class ApplicationMediator(GenericMediator):
             self.show_error_dialog(_T("Can't open file:\n%s" % filename))
 
     def request_document(self, *a):
-        win = self.document_mediator.active_win
-        filename = self.viewComponent.get_document_filename(parent=win, read=False)
+        filename = self.viewComponent.get_document_filename(read=False)
         if filename:
             self.open_document(filename)
 
@@ -293,7 +272,6 @@ class DocumentMediator(GenericMediator):
     NAME = "DocumentMediator"
 
     viewport_mediator = None
-    active_win = None
 
     #### Private API ####
 
@@ -328,27 +306,26 @@ class DocumentMediator(GenericMediator):
 
     @mvcHandler(main.DOC_ACTIVATED)
     def _on_activate_document(self, docproxy):
+        ctx.active_docproxy = docproxy
         win = self.get_win(docproxy)
         if not win.Activate:
             win.NNSet('Activate', True)
-        self.active_win = win
         win.set_doc_name(docproxy.docname)
         win.set_cursor_radius(docproxy.document.brush.radius_max)
 
-    @mvcHandler(main.BRUSH_PROP_CHANGED)
+    @mvcHandler(model.BrushProxy.BRUSH_PROP_CHANGED)
     def _on_doc_brush_prop_changed(self, brush, name):
-        if name == 'color':
+        if brush != ctx.brush or name == 'color':
             return
 
-        # synchronize storage brushes with drawing brushes.
+        # synchronize all document's drawing brushes
         v = getattr(brush, name)
         for docproxy in self.__docmap.iterkeys():
-            if docproxy.brush is brush:
-                setattr(docproxy.document.brush, name, v)
+            setattr(docproxy.document.brush, name, v)
 
-            # For the cursor
-            if name == 'radius_max':
-                self.get_win(docproxy).set_cursor_radius(v)
+        # cursor display
+        if name == 'radius_max':
+            self.get_win(docproxy).set_cursor_radius(v)
 
     @mvcHandler(main.DOC_LAYER_ACTIVATED)
     @mvcHandler(main.DOC_LAYER_RENAMED)
@@ -410,6 +387,8 @@ class DocumentMediator(GenericMediator):
 
         component.Notify('CloseRequest', self._on_win_close_req, when=True)
         component.Notify('Activate', self._on_win_activated, when=True)
+        
+        docproxy.brush = ctx.brush
 
     def del_doc(self, docproxy):
         component = self.__docmap.pop(docproxy)
@@ -656,7 +635,7 @@ class LayerMgrMediator(GenericMediator):
 class BrushEditorWindowMediator(GenericMediator):
     NAME = "BrushEditorWindowMediator"
 
-    docproxy = None
+    brushproxy = None
 
     #### Private API ####
 
@@ -664,32 +643,24 @@ class BrushEditorWindowMediator(GenericMediator):
         assert isinstance(component, brusheditor.BrushEditorWindow)
         super(BrushEditorWindowMediator, self).__init__(viewComponent=component)
 
-        component.mediator = self
-        component.namebt.Notify('Contents', self._on_brush_name_changed)
+        self.brushproxy = self.facade.retrieveProxy(model.BrushProxy.NAME)
 
-    def _set_docproxy(self, docproxy):
-        self.docproxy = docproxy
-        self.viewComponent.brush = docproxy.brush
+        component.namebt.Notify('Contents', self._on_brush_name_changed)
+        component.on_value_changed_cb = self.brushproxy.set_attr
 
     def _on_brush_name_changed(self, evt):
-        self.docproxy.set_brush_name(evt.value.contents)
+        self.brushproxy.set_attr(ctx.brush, 'name', evt.value.contents)
 
     ### notification handlers ###
 
-    @mvcHandler(main.DOC_ACTIVATED)
-    def _on_activate_document(self, docproxy):
-        if docproxy.brush:
-            self._set_docproxy(docproxy)
+    @mvcHandler(main.USE_BRUSH)
+    def _on_activate_document(self, brush):
+        self.viewComponent.brush = brush
 
-    @mvcHandler(main.DOC_BRUSH_UPDATED)
-    def _on_activate_document(self, docproxy):
-        self._set_docproxy(docproxy)
-
-    @mvcHandler(main.BRUSH_PROP_CHANGED)
+    @mvcHandler(model.BrushProxy.BRUSH_PROP_CHANGED)
     def _on_doc_brush_prop_changed(self, brush, name):
-        if self.viewComponent.brush is not brush:
-            return
-        self.viewComponent.brush_changed_prop(name, getattr(brush, name))
+        if self.viewComponent.brush is brush:
+            self.viewComponent.brush_changed_prop(name, getattr(brush, name))
 
 
 class CommandsHistoryListMediator(GenericMediator):
@@ -703,20 +674,9 @@ class CommandsHistoryListMediator(GenericMediator):
 
         self.__cur_hp = None
 
-        component.btn_undo.Notify('Pressed', self._on_undo, when=False)
-        component.btn_redo.Notify('Pressed', self._on_redo, when=False)
-        component.btn_flush.Notify('Pressed', self._on_flush, when=False)
-
-    #### Protected API ####
-
-    def _on_undo(self, *a):
-        self.sendNotification(main.UNDO)
-
-    def _on_redo(self, *a):
-        self.sendNotification(main.REDO)
-
-    def _on_flush(self, *a):
-        self.sendNotification(main.FLUSH)
+        component.btn_undo.Notify('Pressed', self.evt2op, "hist_undo", when=False)
+        component.btn_redo.Notify('Pressed', self.evt2op, "hist_redo", when=False)
+        component.btn_flush.Notify('Pressed', self.evt2op, "hist_flush", when=False)
 
     ### notification handlers ###
 
@@ -822,7 +782,7 @@ class ColorHarmoniesWindowMediator(GenericMediator):
         self.__brush = docproxy.document.brush
         self.viewComponent.hsv = self.__brush.hsv
 
-    @mvcHandler(main.BRUSH_PROP_CHANGED)
+    @mvcHandler(model.BrushProxy.BRUSH_PROP_CHANGED)
     def _on_brush_prop_changed(self, brush, name):
         if self.__brush is brush and name == 'color':
             self.viewComponent.hsv = brush.hsv
@@ -837,41 +797,44 @@ class BrushHouseWindowMediator(GenericMediator):
         assert isinstance(component, brushhouse.BrushHouseWindow)
         super(BrushHouseWindowMediator, self).__init__(viewComponent=component)
 
-        self._docproxy = None  # active document
+        eraser = None
+        ctx.erase_brush = None
+        
         component.set_current_cb(self._on_brush_selected)
+        
+        # Load saved brushes
+        l =  model.brush.Brush.load_brushes()
+        assert l, RuntimeError("no brushes!")
+        for brush in l:
+            component.add_brush(brush, name=brush.group)
+            if brush.eraser:
+                eraser = brush
+            if not eraser:
+                if brush.erase == 0:
+                    eraser = brush
+        component.active_brush = l[0]
+        
+        # No eraser brush set?
+        # use last brush found with erase = 0
+        # else use last brush
+        if ctx.erase_brush is None:
+            ctx.erase_brush = eraser or l[-1]
+        ctx.erase_brush.eraser = True
 
     def _on_brush_selected(self, brush):
-        #print "[BH] active brush:", brush
-        self._docproxy.brush = brush  # this cause docproxy to copy brush data to the document drawable brush
+        ctx.brush = brush
+        self.sendNotification(main.USE_BRUSH, brush)
 
     ### notification handlers ###
 
-    @mvcHandler(main.DOC_ACTIVATED)
-    def _on_activate_document(self, docproxy):
-        # keep silent if no change
-        if docproxy is self._docproxy:
-            return
-        self._docproxy = docproxy
+    @mvcHandler(main.USE_BRUSH)
+    def _on_use_brush(self, brush):
+        if ctx.brush is not brush:
+            self.viewComponent.active_brush = brush
 
-        # Check if the document has a default brush, assign current default one if not
-        if not docproxy.brush:
-            #print "[BH] new doc, default brush is %s" % self.viewComponent.active_brush
-            docproxy.brush = self.viewComponent.active_brush
-        else:
-            # change current active brush by the docproxy one
-            self.viewComponent.active_brush = docproxy.brush
-
-    @mvcHandler(main.DOC_DELETE)
-    def _on_delete_document(self, docproxy):
-        if docproxy is self._docproxy:
-            self._docproxy = None
-
-    @mvcHandler(main.BRUSH_PROP_CHANGED)
+    @mvcHandler(model.BrushProxy.BRUSH_PROP_CHANGED)
     def _on_brush_prop_changed(self, brush, name):
-        if name == 'color':
-            return
-        setattr(self._docproxy.brush, name, getattr(brush, name))
-        if name == 'name':
+        if name == 'name' and brush is self.viewComponent.active_brush:
             self.viewComponent.refresh_active()
 
 

@@ -28,7 +28,6 @@ import gtk.gdk as gdk
 
 from .common import SubWindow
 
-__all__ = ['ColorWindow']
 
 class ColorWindow(SubWindow):
     def __init__(self):

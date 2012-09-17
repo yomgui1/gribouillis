@@ -27,19 +27,30 @@ import pygtk
 pygtk.require('2.0')
 
 import gtk
+import gtk.gdk as gdk
 
 import main
-import model
 import utils
 
+import model
+import model.brush
+
+import view.context as ctx
+import view.operator as operator
+
 import app
+import operators
+import keymaps
 
 from utils import _T, mvcHandler
 
 from .docviewer import DocWindow
 from .viewport import DocViewport
-
-gdk = gtk.gdk
+from .colorwindow import ColorWindow
+from .layermgr import LayerManager
+from .cmdhistoric import CommandsHistoryList
+from .brushhouse import BrushHouseWindow
+from .brusheditor import BrushEditorWindow
 
 # Needed by view module
 Application = app.Application
@@ -67,6 +78,9 @@ class GenericMediator(utils.Mediator):
     def show_info_dialog(self, msg, **k):
         self.show_dialog(gtk.MESSAGE_INFO, msg, **k)
 
+    def exec_op(self, obj, name):
+        operator.execute(name)
+
 
 class ApplicationMediator(GenericMediator):
     NAME = "ApplicationMediator"
@@ -77,19 +91,24 @@ class ApplicationMediator(GenericMediator):
 
     def __init__(self, component):
         assert isinstance(component, Application)
-        super(ApplicationMediator, self).__init__(ApplicationMediator.NAME, component)
+        super(ApplicationMediator, self).__init__(ApplicationMediator.NAME,
+                                                  component)
+        ctx.application = component
 
     def onRegister(self):
-        #self.facade.registerMediator(LayerManagerMediator(self.viewComponent.layermgr))
-        #self.facade.registerMediator(CommandsHistoryListMediator(self.viewComponent.cmdhist))
-        #self.facade.registerMediator(BrushHouseWindowMediator(self.viewComponent.brushhouse))
-        #self.facade.registerMediator(BrushEditorWindowMediator(self.viewComponent.brusheditor))
-        #self.facade.registerMediator(ColorWindowMediator(self.viewComponent.colorwin))
-
         self.facade.registerMediator(DocViewportMediator(self.viewComponent))
-
         self.document_mediator = DocumentMediator(self.viewComponent)
         self.facade.registerMediator(self.document_mediator)
+        m = ColorWindowMediator(ctx.windows['ColorManager'])
+        self.facade.registerMediator(m)
+        m = LayerManagerMediator(ctx.windows['LayerManager'])
+        self.facade.registerMediator(m)
+        m = CommandsHistoryListMediator(ctx.windows['CmdHist'])
+        self.facade.registerMediator(m)
+        m = BrushHouseWindowMediator(ctx.windows['BrushHouse'])
+        self.facade.registerMediator(m)
+        m = BrushEditorWindowMediator(ctx.windows['BrushEditor'])
+        self.facade.registerMediator(m)
 
         # Add a default empty document
         vo = model.vo.EmptyDocumentConfigVO()
@@ -130,31 +149,30 @@ class ApplicationMediator(GenericMediator):
 
 class DocumentMediator(GenericMediator):
     """DocumentMeditor()
-    
+
     Handles document windows.
     """
 
     NAME = "DocumentMediator"
 
-    __focused = None
+    focused = None
     viewport_mediator = None
-    
-    #### Private API ####
 
+    # private API
     def __init__(self, component):
         assert isinstance(component, Application)
         super(DocumentMediator, self).__init__(viewComponent=component)
 
         self.__docmap = {}
-        self.viewport_mediator = self.facade.retrieveMediator(DocViewportMediator.NAME)
+        name = DocViewportMediator.NAME
+        self.viewport_mediator = self.facade.retrieveMediator(name)
 
     def __len__(self):
         return len(self.__docmap)
 
-    ### UI events handlers ###
-
+    # UI events handlers
     def _on_focus_in_event(self, win, evt):
-        self.__focused = win
+        self.focused = win
         self.sendNotification(main.DOC_ACTIVATE, win.docproxy)
 
     def _on_delete_event(self, win, evt=None):
@@ -173,37 +191,29 @@ class DocumentMediator(GenericMediator):
         self.load_new_doc(win)
 
     def _on_menu_save_doc(self, win):
-        filename = self.viewComponent.get_document_filename(parent=win, read=False)
+        filename = self.viewComponent.get_document_filename(parent=win,
+                                                            read=False)
         if filename:
             self.sendNotification(main.DOC_SAVE, (win.docproxy, filename))
 
     def _on_menu_clear_layer(self, win):
-        self.sendNotification(main.DOC_LAYER_CLEAR,
-                              model.vo.LayerCommandVO(win.docproxy, win.docproxy.active_layer))
-
-    def _on_menu_undo(self, win):
-        self.sendNotification(main.UNDO)
-
-    def _on_menu_redo(self, win):
-        self.sendNotification(main.REDO)
-
-    def _on_menu_flush(self, win):
-        self.sendNotification(main.FLUSH)
+        operator.execute('clear_active_layer')
 
     def _on_menu_load_image_as_layer(self, win):
         self.load_image_as_layer()
 
-    ### notification handlers ###
+    def _on_menu_open_window(self, win, name):
+        self.viewComponent.open_window(name)
 
+    # notification handlers
     @mvcHandler(main.DOC_SAVE_RESULT)
     def _on_doc_save_result(self, docproxy, result, err=None):
         win = self.get_win(docproxy)
-        print win
         if not result:
-            self.show_error_dialog("%s:\n'%s'\n\n%s:\n\n%s" % (_T("Failed to save document"),
-                                                         docproxy.docname,
-                                                         _T("Reason"), err),
-                                   parent=win)
+            msg = "%s:\n'%s'\n\n%s:\n\n%s" % (_T("Failed to save document"),
+                                              docproxy.docname,
+                                              _T("Reason"), err)
+            self.show_error_dialog(msg, parent=win)
         else:
             self.show_info_dialog(_T("Document saved"), parent=win)
 
@@ -219,26 +229,15 @@ class DocumentMediator(GenericMediator):
 
     @mvcHandler(main.DOC_ACTIVATED)
     def _on_activate_document(self, docproxy):
+        ctx.active_docproxy = docproxy
         win = self.get_win(docproxy)
         # present() causes a focus-in GTK event
         # and focus-in event trigs DOC_ACTIVATE.
-        # So __focused is checked to break the loop
-        if win and win is not self.__focused:
+        # So `focused` is checked to break the loop
+        if win and win is not self.focused:
             win.present()
 
-    @mvcHandler(main.BRUSH_PROP_CHANGED)
-    def _on_brush_prop_changed(self, brush, name, docproxy=None):
-        if name is 'color':
-            return
-
-        # synchronize storage brushes with drawing brushes.
-        v = getattr(brush, name)
-        for docproxy in self.__docmap.iterkeys():
-            if docproxy.brush is brush:
-                setattr(docproxy.document.brush, name, v)
-
-    #### Public API ####
-
+    # public API
     def has_doc(self, docproxy):
         return docproxy in self.__docmap
 
@@ -260,10 +259,15 @@ class DocumentMediator(GenericMediator):
         win.connect("menu_close_doc", self._on_delete_event)
         win.connect("menu_save_doc", self._on_menu_save_doc)
         win.connect("menu_clear_layer", self._on_menu_clear_layer)
-        win.connect("menu_load_image_as_layer", self._on_menu_load_image_as_layer)
+        win.connect("menu_open_window", self._on_menu_open_window)
+        win.connect("menu_load_image_as_layer",
+                    self._on_menu_load_image_as_layer)
 
         # Attach viewports to mediators
-        map(self.viewport_mediator.add_viewport, win.viewports)
+        map(self.viewport_mediator.add_viewport, ctx.viewports)
+
+        if ctx.brush:
+            docproxy.brush = ctx.brush
 
     def del_doc(self, docproxy):
         win = self.__docmap.pop(docproxy)
@@ -279,15 +283,13 @@ class DocumentMediator(GenericMediator):
 class DocViewportMediator(GenericMediator):
     NAME = "DocViewportMediator"
 
-    #### Private API ####
-
+    # private API
     def __init__(self, component):
         assert isinstance(component, Application)
         super(DocViewportMediator, self).__init__(viewComponent=component)
         self.__vpmap = {}
 
-    ### public API ####
-
+    # public API
     def add_viewport(self, viewport):
         dp = viewport.docproxy
         vpl = self.__vpmap.get(dp)
@@ -296,8 +298,7 @@ class DocViewportMediator(GenericMediator):
         else:
             self.__vpmap[dp] = [viewport]
 
-    ### notification handlers ###
-
+    # notification handlers
     @mvcHandler(model.DocumentProxy.DOC_UPDATED)
     def _on_doc_updated(self, docproxy, area=None):
         """Called when specific document area need to be rasterized.
@@ -335,84 +336,56 @@ class DocViewportMediator(GenericMediator):
             for vp in self.__vpmap[docproxy]:
                 vp.repaint(vp.get_view_area(*area))
 
-    @mvcHandler(main.BRUSH_PROP_CHANGED)
-    def _on_brush_prop_changed(self, brush, name, docproxy=None):
-        if name is 'radius_max' and docproxy:
+    @mvcHandler(model.BrushProxy.BRUSH_PROP_CHANGED)
+    def _on_brush_prop_changed(self, brush, name):
+        "Update viewport brush rendering"
+
+        if name is 'radius_max':
             r = getattr(brush, name)
-            for vp in self.__vpmap[docproxy]:
+            for vp in ctx.viewports:
                 vp.set_cursor_radius(r)
 
 
 class BrushEditorWindowMediator(GenericMediator):
     NAME = "BrushEditorWindowMediator"
 
-    #### Private API ####
-
+    # private API
     def __init__(self, component):
         assert isinstance(component, BrushEditorWindow)
         super(BrushEditorWindowMediator, self).__init__(viewComponent=component)
-
         component.mediator = self
 
-    def _set_docproxy(self, docproxy):
-        #print "[BE] using brush BH=%s" % docproxy.brush
+    # notification handlers
+    @mvcHandler(model.DocumentProxy.DOC_BRUSH_UPDATED)
+    def _on_use_brush(self, docproxy):
         self.viewComponent.brush = docproxy.brush
-
-    ### notification handlers ###
-
-    @mvcHandler(main.DOC_ACTIVATED)
-    def _on_activate_document(self, docproxy):
-        if docproxy.brush:
-            self._set_docproxy(docproxy)
-
-    @mvcHandler(main.DOC_BRUSH_UPDATED)
-    def _on_activate_document(self, docproxy):
-        self._set_docproxy(docproxy)
 
 
 class BrushHouseWindowMediator(GenericMediator):
     NAME = "BrushHouseWindowMediator"
 
-    #### Private API ####
-
+    # private API
     def __init__(self, component):
         assert isinstance(component, BrushHouseWindow)
         super(BrushHouseWindowMediator, self).__init__(viewComponent=component)
-
-        self._docproxy = None  # active document
         component.set_current_cb(self._on_brush_selected)
 
+        # Add brushes
+        l = model.brush.Brush.load_brushes()
+        for brush in l:
+            component.add_brush(brush, brush.group)
+        component.active_brush = l[0]
+
+    # UI events handlers
     def _on_brush_selected(self, brush):
-        #print "[BH] active brush:", brush
-        self._docproxy.brush = brush  # this cause docproxy to copy brush data to the document drawable brush
+        ctx.brush = brush
+        self.sendNotification(main.USE_BRUSH, brush)
 
-    ### notification handlers ###
-
-    @mvcHandler(main.DOC_ACTIVATED)
-    def _on_activate_document(self, docproxy):
-        # keep silent if no change
-        if docproxy is self._docproxy:
-            return
-        self._docproxy = docproxy
-
-        # Check if the document has a default brush, assign current default one if not
-        if not docproxy.brush:
-            #print "[BH] new doc, default brush is %s" % self.viewComponent.active_brush
-            docproxy.brush = self.viewComponent.active_brush
-        else:
-            # change current active brush by the docproxy one
-            self.viewComponent.active_brush = docproxy.brush
-
-    @mvcHandler(main.DOC_DELETE)
-    def _on_delete_document(self, docproxy):
-        if docproxy is self._docproxy:
-            self._docproxy = None
-
-    @mvcHandler(main.BRUSH_PROP_CHANGED)
-    def _on_brush_prop_changed(self, brush, name, *a):
-        if name is 'color':
-            return
-        setattr(self._docproxy.brush, name, getattr(brush, name))
+    # notification handlers
+    @mvcHandler(main.USE_BRUSH)
+    def _on_use_brush(self, brush):
+        if ctx.brush != brush:
+            self.viewComponent.brush = brush
 
 
 class CommandsHistoryListMediator(GenericMediator):
@@ -420,36 +393,25 @@ class CommandsHistoryListMediator(GenericMediator):
 
     cmdhistproxy = None
 
-    #### Private API ####
-
+    # private API
     def __init__(self, component):
         assert isinstance(component, CommandsHistoryList)
-        super(CommandsHistoryListMediator, self).__init__(CommandsHistoryListMediator.NAME, component)
+        name = CommandsHistoryListMediator.NAME
+        super(CommandsHistoryListMediator, self).__init__(name, component)
 
         self.__cur_hp = None
 
-        component.btn_undo.connect('clicked', self._on_undo)
-        component.btn_redo.connect('clicked', self._on_redo)
-        component.btn_flush.connect('clicked', self._on_flush)
+        component.btn_undo.connect('clicked', self.exec_op, 'hist_undo')
+        component.btn_redo.connect('clicked', self.exec_op, 'hist_redo')
+        component.btn_flush.connect('clicked', self.exec_op, 'hist_flush')
 
-    #### Protected API ####
-
-    def _on_undo(self, *a):
-        self.sendNotification(main.UNDO)
-
-    def _on_redo(self, *a):
-        self.sendNotification(main.REDO)
-
-    def _on_flush(self, *a):
-        self.sendNotification(main.FLUSH)
-
-    ### notification handlers ###
-
+    # notification handlers
     @mvcHandler(main.DOC_ACTIVATED)
     def _on_doc_activated(self, docproxy):
         self.viewComponent.set_doc_name(docproxy.docname)
         self.__cur_hp = utils.CommandsHistoryProxy.get_active()
-        self.viewComponent.from_stacks(self.__cur_hp.undo_stack, self.__cur_hp.redo_stack)
+        self.viewComponent.from_stacks(self.__cur_hp.undo_stack,
+                                       self.__cur_hp.redo_stack)
 
     @mvcHandler(utils.CommandsHistoryProxy.CMD_HIST_ADD)
     def _on_cmd_add(self, hp, cmd):
@@ -475,22 +437,26 @@ class CommandsHistoryListMediator(GenericMediator):
 class ColorWindowMediator(GenericMediator):
     NAME = "ColorWindowMediator"
 
-    #### Private API ####
+    brushproxy = None
 
+    # private API
     def __init__(self, component):
         assert isinstance(component, ColorWindow)
-        super(ColorWindowMediator, self).__init__(ColorWindowMediator.NAME, component)
-
+        super(ColorWindowMediator, self).__init__(ColorWindowMediator.NAME,
+                                                  component)
+        self.brushproxy = self.facade.retrieveProxy(model.BrushProxy.NAME)
         component.colorsel.connect('color-changed', self._on_color_changed)
 
     def _on_color_changed(self, widget):
         color = widget.get_current_color()
-        model.DocumentProxy.get_active().set_brush_color_rgb(color.red_float, color.green_float, color.blue_float)
+        self.brushproxy.set_color_rgb(ctx.active_docproxy.brush,
+                                      color.red_float,
+                                      color.green_float,
+                                      color.blue_float)
 
-    ### notification handlers ###
-
+    # notification handlers
     @mvcHandler(main.DOC_ACTIVATED)
-    def _on_activate_document(self, docproxy):
+    def _on_doc_activated(self, docproxy):
         brush = docproxy.document.brush
         self.viewComponent.set_color_rgb(brush.rgb)
 
@@ -498,6 +464,7 @@ class ColorWindowMediator(GenericMediator):
 class LayerManagerMediator(GenericMediator):
     NAME = "LayerManagerMediator"
 
+    # private API
     def __init__(self, component):
         assert isinstance(component, LayerManager)
         super(LayerManagerMediator, self).__init__(viewComponent=component)
@@ -515,19 +482,22 @@ class LayerManagerMediator(GenericMediator):
 
         component.connect('layer-active-event', self._on_layer_active_event)
         component.connect('layer-name-changed', self._on_layer_name_changed)
-        component.connect('layer-visibility-event', self._on_layer_visibility_event)
-        component.connect('layer-operator-event', self._on_layer_operator_event)
+        component.connect('layer-operator-event',
+                          self._on_layer_operator_event)
+        component.connect('layer-visibility-event',
+                          self._on_layer_visibility_event)
 
-    #### UI event handlers ####
-
+    # UI event handlers
     def _on_layer_active_event(self, w, layer):
         self.__docproxy.document.active = layer
-        self.sendNotification(main.DOC_LAYER_ACTIVATE, (self.__docproxy, layer))
+        self.sendNotification(main.DOC_LAYER_ACTIVATE,
+                              (self.__docproxy, layer))
 
     def _on_layer_name_changed(self, w, data):
         layer, name = data
         if layer.name != name:
-            vo = model.vo.LayerCommandVO(docproxy=self.__docproxy, layer=layer, name=name)
+            vo = model.vo.LayerCmdVO(layer=layer, docproxy=self.__docproxy,
+                                     name=name)
             self.sendNotification(main.DOC_LAYER_RENAME, vo)
 
     def _on_layer_visibility_event(self, w, data):
@@ -541,25 +511,31 @@ class LayerManagerMediator(GenericMediator):
 
     def _on_add_layer(self, *a):
         pos = self.viewComponent.get_active_position() + 1
-        vo = model.vo.LayerConfigVO(docproxy=self.__docproxy, pos=pos)
+        vo = model.vo.GenericVO(docproxy=self.__docproxy, pos=pos)
         self.sendNotification(main.DOC_LAYER_ADD, vo)
 
     def _on_delete_layer(self, *a):
         layer = self.viewComponent.active
-        vo = model.vo.LayerCommandVO(docproxy=self.__docproxy, layer=layer)
+        vo = model.vo.LayerCmdVO(layer=layer, docproxy=self.__docproxy)
         self.sendNotification(main.DOC_LAYER_DEL, vo)
 
     def _on_up_layer(self, *a):
         self.sendNotification(main.DOC_LAYER_STACK_CHANGE,
-                              (self.__docproxy, self.viewComponent.active, self.viewComponent.get_active_position() + 1))
+                              (self.__docproxy,
+                               self.viewComponent.active,
+                               self.viewComponent.get_active_position() + 1))
 
     def _on_down_layer(self, *a):
         self.sendNotification(main.DOC_LAYER_STACK_CHANGE,
-                              (self.__docproxy, self.viewComponent.active, self.viewComponent.get_active_position() - 1))
+                              (self.__docproxy,
+                               self.viewComponent.active,
+                               self.viewComponent.get_active_position() - 1))
 
     def _on_top_layer(self, *a):
         self.sendNotification(main.DOC_LAYER_STACK_CHANGE,
-                              (self.__docproxy, self.viewComponent.active, len(self.viewComponent) - 1))
+                              (self.__docproxy,
+                               self.viewComponent.active,
+                               len(self.viewComponent) - 1))
 
     def _on_bottom_layer(self, *a):
         self.sendNotification(main.DOC_LAYER_STACK_CHANGE,
@@ -567,15 +543,15 @@ class LayerManagerMediator(GenericMediator):
 
     def _on_duplicate_layer(self, *a):
         layer = self.viewComponent.active
-        vo = model.vo.LayerCommandVO(docproxy=self.__docproxy, layer=layer)
+        vo = model.vo.LayerCmdVO(layer, docproxy=self.__docproxy)
         self.sendNotification(main.DOC_LAYER_DUP, vo)
 
     def _on_merge_layer(self, *a):
         self.sendNotification(main.DOC_LAYER_MERGE_DOWN,
-                              (self.__docproxy, self.viewComponent.get_active_position()))
+                              (self.__docproxy,
+                               self.viewComponent.get_active_position()))
 
-    #### notification handlers ####
-
+    # notification handlers
     @mvcHandler(main.DOC_DELETE)
     def _on_doc_delete(self, docproxy):
         if docproxy is self.__docproxy:
@@ -587,13 +563,15 @@ class LayerManagerMediator(GenericMediator):
     @mvcHandler(model.DocumentProxy.DOC_UPDATED)
     def _on_new_doc_result(self, docproxy):
         if self.__docproxy is docproxy:
-            self.viewComponent.set_layers(docproxy.layers, docproxy.document.active)
+            doc = docproxy.document
+            self.viewComponent.set_layers(doc.layers, doc.active)
 
     @mvcHandler(main.DOC_ACTIVATED)
     def _on_doc_activated(self, docproxy):
         if self.__docproxy is not docproxy:
             self.__docproxy = docproxy
-            self.viewComponent.set_layers(docproxy.layers, docproxy.document.active)
+            doc = docproxy.document
+            self.viewComponent.set_layers(doc.layers, doc.active)
 
     @mvcHandler(model.DocumentProxy.DOC_LAYER_ADDED)
     def _on_doc_layer_added(self, docproxy, layer, pos):
@@ -612,6 +590,6 @@ class LayerManagerMediator(GenericMediator):
 
     @mvcHandler(main.DOC_LAYER_ACTIVATED)
     def _on_doc_layer_activated(self, docproxy, layer):
-        if self.__docproxy is docproxy and layer is not self.viewComponent.active:
+        if self.__docproxy is docproxy and \
+                layer is not self.viewComponent.active:
             self.viewComponent.active = layer
-

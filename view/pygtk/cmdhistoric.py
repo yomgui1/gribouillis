@@ -25,9 +25,9 @@
 
 import gtk
 
+from utils import _T
 from .common import SubWindow
 
-__all__ = [ 'CommandsHistoryList' ]
 
 class CommandsHistoryList(SubWindow):
     def __init__(self):
@@ -49,9 +49,9 @@ class CommandsHistoryList(SubWindow):
         # Undo/Redo buttons
         btnbox = gtk.HButtonBox()
 
-        self.btn_undo = gtk.Button('Undo')
-        self.btn_redo = gtk.Button('Redo')
-        self.btn_flush = gtk.Button('Flush')
+        self.btn_undo = gtk.Button(_T('Undo'))
+        self.btn_redo = gtk.Button(_T('Redo'))
+        self.btn_flush = gtk.Button(_T('Flush'))
 
         # Packing
         topbox.pack_start(self.scrolledwin, True)
@@ -71,7 +71,7 @@ class CommandsHistoryList(SubWindow):
         self.__last_added = None
 
     def set_doc_name(self, name):
-        self.tvcolumn.set_title('Document: '+name)
+        self.tvcolumn.set_title(_T('Document: %s') % name)
 
     def enable_undo(self, v=True):
         self.btn_undo.set_sensitive(v)

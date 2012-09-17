@@ -24,21 +24,20 @@
 ###############################################################################
 
 import gtk
+import gtk.gdk as gdk
 import gobject
 
-from .viewport import DocViewport
-from .contexts import DocWindowCtx
-from .app import Application
+import view.context as ctx
+import view.operator as operator
 
 from utils import _T
+from .viewport import DocViewport
 
-gdk = gtk.gdk
 
-
-def _menu_signal(name):
+def _menu_signal(name, opts=()):
     return gobject.signal_new(name, gtk.Window,
                               gobject.SIGNAL_ACTION,
-                              gobject.TYPE_BOOLEAN, ())
+                              gobject.TYPE_BOOLEAN, opts)
 
 # signal used to communicate between viewer's menu and document mediator
 sig_menu_quit                = _menu_signal('menu_quit')
@@ -49,7 +48,18 @@ sig_menu_close_doc           = _menu_signal('menu_close_doc')
 sig_menu_clear_layer         = _menu_signal('menu_clear_layer')
 sig_menu_load_background     = _menu_signal('menu_load_background')
 sig_menu_load_image_as_layer = _menu_signal('menu_load_image_as_layer')
+sig_menu_open_window         = _menu_signal('menu_open_window', (gobject.TYPE_STRING, ))
 
+class HViewportSplit(gtk.HBox):
+    def __init__(self, parent, left, right):
+        super(HViewportSplit, self).__init__()
+        parent.add(self)
+        self.pack_start(left)
+        self.pack_start(right)
+        self.show_all()
+
+    def remove_left(self):
+        self.parent.replace_child(self, self.right)
 
 class DocWindow(gtk.Window):
     #### Private API ####
@@ -73,6 +83,7 @@ class DocWindow(gtk.Window):
             </menu>
             <menu action='View'>
                 <menuitem action="view-load-background"/>
+                <menuitem action="fullscreen"/>
             </menu>
             <menu action='Layers'>
                 <menuitem action="layers-win"/>
@@ -101,8 +112,11 @@ class DocWindow(gtk.Window):
     def __init__(self, docproxy):
         super(DocWindow, self).__init__()
 
-        self.viewports = []
+        ctx.viewports = set()
         self.docproxy = docproxy
+        self.__fullscreen = False
+
+        self.connect("window-state-event", self._on_window_state)
 
         # UI
         uimanager = gtk.UIManager()
@@ -152,19 +166,19 @@ class DocWindow(gtk.Window):
 
                 ('cmd-undo', gtk.STOCK_UNDO, _T('Undo last command'),
                  '<Control>z', None,
-                 lambda *a: self._ctx.execute("doc-hist-undo")),
+                 lambda *a: operator.execute("doc_hist_undo")),
 
                 ('cmd-redo', gtk.STOCK_REDO, _T('Redo last command'),
                  '<Control><Shift>z', None,
-                 lambda *a: self._ctx.execute("doc-hist-redo")),
+                 lambda *a: operator.execute("doc_hist_redo")),
 
                 ('cmd-flush', gtk.STOCK_APPLY, _T('Flush commands historic'),
                  '<Control><Alt>z', None,
-                 lambda *a: self._ctx.execute("doc-hist-flush")),
+                 lambda *a: operator.execute("doc_hist_flush")),
 
                 ('cmd-win', gtk.STOCK_PROPERTIES, _T('Open commands historic'),
                  '<Alt>h', None,
-                 None),
+                 operator.execute('open_CmdHist')),
 
                 ('layers-load-image', gtk.STOCK_ADD, _T('Load image as new layer...'),
                  '<Control><Alt>z', None,
@@ -172,7 +186,7 @@ class DocWindow(gtk.Window):
 
                 ('layers-win', gtk.STOCK_PROPERTIES, _T('Open layers list window'),
                  '<Control>l', None,
-                 None),
+                 lambda *a: operator.execute('open_LayerManager')),
 
                 ('layers-clear-active', gtk.STOCK_CLEAR, _T('Clear active layer'),
                  '<Control>k', None,
@@ -184,23 +198,23 @@ class DocWindow(gtk.Window):
 
                 ('color-win', gtk.STOCK_PROPERTIES, _T('Open color editor'),
                  '<Control>c', None,
-                 None),
+                 lambda *a: operator.execute('open_ColorManager')),
 
                 ('brush-house-win', None, _T('Open brush house window'),
                  None, None,
-                 None),
+                 lambda *a: operator.execute('open_BrushHouse')),
 
                 ('brush-win', gtk.STOCK_PROPERTIES, _T('Edit brush properties'),
                  '<Control>b', None,
-                 None),
+                 lambda *a: operator.execute('open_BrushEditor')),
                 
                 ('brush-radius-inc', gtk.STOCK_ADD, _T('Increase brush size'),
                  'plus', None,
-                 lambda *a: self._ctx.execute("increase-brush-radius")),
+                 lambda *a: operator.execute('increase_brush_radius')),
 
                 ('brush-radius-dec', gtk.STOCK_REMOVE, _T('Decrease brush size'),
                  'minus', None,
-                 lambda *a: self._ctx.execute("decrease-brush-radius")),
+                 lambda *a: operator.execute('decrease_brush_radius')),
 
                 ('line-ruler-toggle', None, _T('Toggle line ruler'),
                  None, None,
@@ -225,8 +239,11 @@ class DocWindow(gtk.Window):
             #('', None, '', None, None, callable),
             ])
 
-        #actiongroup.add_toggle_actions([
-        #    ])
+        actiongroup.add_toggle_actions([
+                ('fullscreen', None, _T('FullScreen'),
+                 None, None,
+                 lambda *a: self.toggle_fullscreen()),
+            ])
 
         uimanager.insert_action_group(actiongroup, 0)
 
@@ -253,12 +270,23 @@ class DocWindow(gtk.Window):
         # UI is ready to show doc properties
         self.proxy_updated()
 
+    def _on_window_state(self, widget, event):
+        if not event.changed_mask & gdk.WINDOW_STATE_FULLSCREEN:
+            return
+
+        self.__fullscreen = event.new_window_state & gdk.WINDOW_STATE_FULLSCREEN
+
     def _add_vp(self, vp):
-        self.viewports.append(vp)
+        ctx.viewports.add(vp)
         self._drbox.pack_start(vp, True, True, 0)
-        self.vp = vp
 
     #### Public API ####
+
+    def toggle_fullscreen(self):
+        if self.__fullscreen:
+            self.unfullscreen()
+        else:
+            self.fullscreen()
 
     def proxy_updated(self):
         "Update window properties build on doc proxy ones"
@@ -278,9 +306,9 @@ class DocWindow(gtk.Window):
         return response == gtk.RESPONSE_OK
 
     def load_background(self, evt=None):
-        filename = Application().get_image_filename(parent=self)
+        filename = ctx.application.get_image_filename(parent=self)
         if filename:
-            self.vp.set_background(filename)
+            ctx.active_viewport.set_background(filename)
 
     def assign_icc(self):
         dlg = AssignCMSDialog(self.docproxy, self)
@@ -296,6 +324,7 @@ class DocWindow(gtk.Window):
             dst_profile = dlg.get_destination()
             src_profile = self.docproxy.profile
             ope = Transform(src_profile, dst_profile)
-            self.vp.apply_ope(ope)
-            self.vp.redraw()
+            ctx.active_viewport.apply_ope(ope)
+            ctx.active_viewport.redraw()
         dlg.destroy()
+

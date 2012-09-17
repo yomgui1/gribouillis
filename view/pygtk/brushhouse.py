@@ -113,12 +113,6 @@ class BrushHouseWindow(SubWindow):
         # Add the 'All brushes' page
         self._all = self.add_page('All brushes')
 
-        # Add brushes
-        l = Brush.load_brushes()
-        for brush in l:
-            self.add_brush(brush, brush.page)
-        self.active_brush = l[0]
-
         self._del_page_bt.set_sensitive(False)
         self.set_default_size(300, 200)
 

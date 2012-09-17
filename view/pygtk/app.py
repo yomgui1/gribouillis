@@ -29,14 +29,16 @@ import view
 import utils
 import main
 
-from utils import _T
-from view.contexts import action
+import view.context as ctx
 
-#from layermgr import *
-#from cmdhistoric import *
-#from brusheditor import *
-#from brushhouse import *
-#from colorwindow import *
+from view.operator import execoperator
+from utils import _T
+
+from .layermgr import LayerManager
+from .colorwindow import ColorWindow
+from .brusheditor import BrushEditorWindow
+from .cmdhistoric import CommandsHistoryList
+from .brushhouse import BrushHouseWindow
 
 __all__ = ['Application']
 
@@ -51,58 +53,28 @@ class Application(view.mixin.ApplicationMixin):
         self.create_ui()
 
     def create_ui(self):
-        self.windows = {}
-
+        d = ctx.windows = {}
+        d['ColorManager'] = ColorWindow()
+        d['BrushEditor'] = BrushEditorWindow()
+        d['LayerManager'] = LayerManager()
+        d['CmdHist'] = CommandsHistoryList()
+        d['BrushHouse'] = BrushHouseWindow()
+        
     def run(self):
         gtk.main()
 
     def quit(self):
         gtk.main_quit()
 
-    def open_brush_editor(self):
-        self.brusheditor.present()
+    def open_window(self, name):
+        ctx.windows[name].present()
 
-    def open_brush_house(self):
-        self.brushhouse.present()
-
-    def open_layer_mgr(self):
-        self.layermgr.present()
-
-    def open_cmdhistoric(self):
-        self.cmdhist.present()
-
-    def open_colorwin(self):
-        self.colorwin.present()
-
-    def toggle_cmdhistoric(self):
-        if self.cmdhist.get_visible():
-            self.cmdhist.hide()
+    def toggle_window(self, name):
+        win = ctx.windows[name]
+        if win.get_visible():
+            win.hide()
         else:
-            self.cmdhist.present()
-
-    def toggle_brush_editor(self):
-        if self.brusheditor.get_visible():
-            self.brusheditor.hide()
-        else:
-            self.brusheditor.present()
-
-    def toggle_brush_house(self):
-        if self.brushhouse.get_visible():
-            self.brushhouse.hide()
-        else:
-            self.brushhouse.present()
-
-    def toggle_color_mgr(self):
-        if self.colorwin.get_visible():
-            self.colorwin.hide()
-        else:
-            self.colorwin.present()
-
-    def toggle_layer_mgr(self):
-        if self.layermgr.get_visible():
-            self.layermgr.hide()
-        else:
-            self.layermgr.present()
+            win.present()
 
     def select_filename(self, title, parent=None, read=True):
         if read:
@@ -172,59 +144,6 @@ class Application(view.mixin.ApplicationMixin):
         return vo
 
     def close_all_non_drawing_windows(self):
-        self.layermgr.hide()
-        self.cmdhist.hide()
-        self.brusheditor.hide()
-        self.brushhouse.hide()
-        self.colorwin.hide()
+        for win in ctx.windows.itervalues:
+            win.hide()
 
-# Actions
-#
-
-@action(_T('open color manager window'))
-def action_open_colorwin(context, evt):
-    context.app.open_colorwin()
-
-@action(_T('open brush house window'))
-def action_open_brush_house(context, evt):
-    context.app.open_brush_house()
-
-@action(_T('open brush editor window'))
-def action_open_brush_editor(context, evt):
-    context.app.open_brush_editor()
-
-@action(_T('open commands historic window'))
-def action_open_cmdhist(context, evt):
-    context.app.open_cmdhistoric()
-
-@action(_T('open layer manager window'))
-def action_open_layer_mgr(context, evt):
-    context.app.open_layer_mgr()
-
-@action(_T('open preferences window'))
-def action_open_preferences(context, evt):
-    context.app.open_preferences()
-
-@action(_T('toggle color manager window'))
-def action_toggle_colorwin(context, evt):
-    context.app.toggle_color_mgr()
-
-@action(_T('toggle brush house window'))
-def action_toggle_brush_house(context, evt):
-    context.app.toggle_brush_house()
-
-@action(_T('toggle brush editor window'))
-def action_toggle_brush_editor(context, evt):
-    context.app.toggle_brush_editor()
-
-@action(_T('toggle commands historic window'))
-def action_toggle_cmdhist(context, evt):
-    context.app.toggle_cmdhistoric()
-
-@action(_T('toggle layer manager window'))
-def action_toggle_layer_mgr(context, evt):
-    context.app.toggle_layer_mgr()
-
-@action(_T('cleanup workspace'))
-def cleanup_workspace(context, evt):
-    context.app.close_all_non_drawing_windows()

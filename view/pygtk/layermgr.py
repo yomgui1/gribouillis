@@ -76,8 +76,8 @@ class EyeArea(gtk.DrawingArea):
         super(EyeArea, self).__init__()
 
         self._active = 0
-        self.eye_img = [ gdk.pixbuf_new_from_file('eye_closed.png'),
-                         gdk.pixbuf_new_from_file('eye.png') ]
+        self.eye_img = [ gdk.pixbuf_new_from_file('data/icons/edit.png'),
+                         gdk.pixbuf_new_from_file('data/icons/edit.png') ]
 
         self.set_size_request(self.eye_img[0].get_width(), self.eye_img[0].get_height())
 
@@ -301,3 +301,5 @@ class LayerManager(SubWindow):
                 return
 
     active = property(fget=get_active, fset=set_active)
+
+

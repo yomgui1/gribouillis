@@ -23,33 +23,30 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import gtk, cairo
-from gtk import gdk
+import gtk
+import gtk.gdk as gdk
+import cairo
+
 from math import log, exp
 
 import main
 
-from view.backend_cairo import SimpleViewPort
+from model import _pixbuf, BrushProxy
 from model.surface import BoundedPlainSurface
-from model.layer import Layer
 from model.colorspace import ColorSpaceRGB
-from model import _pixbuf
 from model.brush import DrawableBrush
+from utils import _T
 
 from .common import SubWindow
 
 
-__all__ = [ 'BrushEditorWindow' ]
-
-
-class BrushPreview(gtk.DrawingArea, SimpleViewPort):
+class BrushPreview(gtk.DrawingArea):
     WIDTH = 300
     HEIGHT = 64
     _cur_pos = None
         
     def on_expose(self, widget, evt):
         cr = widget.window.cairo_create()
-        self.repaint(cr, self._layers, evt.area, self.allocation.width, self.allocation.height)
         return True
 
     def __init__(self, dv=None):
@@ -58,11 +55,9 @@ class BrushPreview(gtk.DrawingArea, SimpleViewPort):
         self._brush.rgb = (0,0,0)
         self._states = list(self._brush.gen_preview_states(BrushPreview.WIDTH,
                                                            BrushPreview.HEIGHT))
-        self._surface = BoundedPlainSurface(_pixbuf.FLAG_RGB | _pixbuf.FLAG_15X | _pixbuf.FLAG_ALPHA_FIRST,
-                                            BrushPreview.WIDTH, BrushPreview.HEIGHT)
-        layer = Layer(self._surface, "BrushPreviewLayer")
-        self._layers = ( layer, )
-        self.set_background(main.Gribouillis.TRANSPARENT_BACKGROUND)
+        self._surface = BoundedPlainSurface(_pixbuf.FORMAT_ARGB8,
+                                            BrushPreview.WIDTH,
+                                            BrushPreview.HEIGHT)
 
         self.set_size_request(BrushPreview.WIDTH, BrushPreview.HEIGHT)
         self.set_events(gdk.EXPOSURE_MASK)
@@ -70,8 +65,7 @@ class BrushPreview(gtk.DrawingArea, SimpleViewPort):
         
     def stroke(self, v=1.0):
         self._brush.paint_rgb_preview(BrushPreview.WIDTH, BrushPreview.HEIGHT,
-                                     surface=self._surface, states=self._states)
-        self.set_repaint(True)
+                                      surface=self._surface, states=self._states)
         self.queue_draw()
 
     def set_attr(self, name, v):
@@ -177,7 +171,7 @@ class BrushEditorWindow(SubWindow):
             self.bprev.set_attr(name, v)
 
             # FIXME: this call should be in a mediator or proxy, not in the component itself!
-            self.mediator.sendNotification(main.BRUSH_PROP_CHANGED, (self._brush, name))
+            self.mediator.sendNotification(BrushProxy.BRUSH_PROP_CHANGED, (self._brush, name))
 
     def set_property(self, name, value):
         if name in ('color', ): return

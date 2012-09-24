@@ -204,6 +204,10 @@ class DocumentProxy(Proxy):
         return cls.__instances.iterkeys()
 
     @classmethod
+    def proxies(cls):
+        return cls.__instances.itervalues()
+
+    @classmethod
     def new_proxy(cls, vo):
         """
         Helper classmethod to create DocumentProxy with document
@@ -380,9 +384,9 @@ class DocumentProxy(Proxy):
     def set_layer_visibility(self, layer, state):
         state = bool(state)
         if layer.visible != state:
-            vo = model.vo.LayerCommandVO(docproxy=self,
-                                         layer=layer,
-                                         state=state)
+            vo = model.vo.GenericVO(docproxy=self,
+                                    layer=layer,
+                                    state=state)
             self.sendNotification(main.DOC_LAYER_SET_VISIBLE, vo)
 
     def iter_visible_layers(self):
@@ -390,9 +394,9 @@ class DocumentProxy(Proxy):
 
     def set_layer_opacity(self, layer, value):
         if value != layer.opacity:
-            vo = model.vo.LayerCommandVO(docproxy=self,
-                                         layer=layer,
-                                         state=value)
+            vo = model.vo.GenericVO(docproxy=self,
+                                    layer=layer,
+                                    state=value)
             self.sendNotification(main.DOC_LAYER_SET_OPACITY, vo)
 
     def record_layer_matrix(self, layer, old_mat):

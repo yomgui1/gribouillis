@@ -330,10 +330,10 @@ class DocumentViewPort(ViewPortBase):
     _backsurf = None  # background as pattern
     _filter = None
     passepartout = False
+    docproxy = None # need to be set before repaint() call
 
-    def __init__(self, docproxy):
+    def __init__(self):
         ViewPortBase.__init__(self)
-        self.docproxy = docproxy
 
     def enable_fast_filter(self, state=True):
         self._filter = cairo.FILTER_FAST if state else None

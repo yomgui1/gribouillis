@@ -53,6 +53,7 @@ del surf
 
 class BrushHouseWindow(pymui.Window):
     _current_cb = utils.idle_cb
+    _eraser_set_cb = utils.idle_cb
 
     def __init__(self, name):
         super(BrushHouseWindow, self).__init__(name,
@@ -136,6 +137,9 @@ class BrushHouseWindow(pymui.Window):
 
     def set_current_cb(self, cb):
         self._current_cb = cb
+        
+    def set_eraser_set_cb(self, cb):
+        self._eraser_set_cb = cb
 
     def add_page(self, name, close=True):
         # page name is unique...
@@ -348,7 +352,7 @@ class BrushHouseWindow(pymui.Window):
         bt.Picture = long(bt.ri_data)
         if bt.bt2:
             bt.bt2.Picture = long(bt.ri_data)
-        
+
     def _on_image_icon(self, evt):
         bt = evt.Source.allbt
         if bt.brush.icon:
@@ -361,9 +365,7 @@ class BrushHouseWindow(pymui.Window):
             self._on_change_icon(evt)
 
     def _on_as_eraser(self, evt):
-        ctx.erase_brush.eraser = False
-        ctx.erase_brush = evt.Source.allbt.brush
-        ctx.erase_brush.eraser = True
+        self._eraser_set_cb(evt.Source.allbt.brush)
 
     def _set_active_brush(self, brush):
         brush.bt.Selected =True
@@ -371,9 +373,9 @@ class BrushHouseWindow(pymui.Window):
     def _change_page_name(self, value):
         page, title = self._pages[self._nb.ActivePage.value]
         page.name = title.Contents = value.contents
-        
+
     def refresh_active(self):
         self._brushnamebt.Contents = self.active_brush.name
-        
+
     active_brush = property(fget=lambda self: self._current.brush, fset=_set_active_brush)
 

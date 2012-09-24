@@ -243,11 +243,9 @@ class Application(pymui.Application, view.mixin.ApplicationMixin):
         self.Quit()
 
     def get_filename(self, title, parent=None, read=True, pat='#?', **kwds):
-        filename = pymui.GetFilename(parent,
-                                     title,
+        filename = pymui.GetFilename(parent, title,
                                      kwds.get('drawer', self._open_doc and os.path.dirname(self._open_doc)),
-                                     pat,
-                                     not read)
+                                     pat, not read)
         if filename:
             self._open_doc = filename[0]
             return self._open_doc

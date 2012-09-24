@@ -48,6 +48,9 @@ del keymaps, operators
 ctx.tool = None # operators
 ctx.eraser = None # BrushHouseWindowMediator
 ctx.brush = None # BrushHouseWindowMediator
+ctx.active_docproxy = None
+ctx.active_docwin = None
+
 
 class GenericMediator(utils.Mediator):
     def show_dialog(self, title, msg):
@@ -265,7 +268,7 @@ class ApplicationMediator(GenericMediator):
             self.show_error_dialog(_T("Can't open file:\n%s" % filename))
 
     def request_document(self, *a):
-        filename = self.viewComponent.get_document_filename(read=False)
+        filename = self.viewComponent.get_document_filename(parent=ctx.active_docwin, read=False)
         if filename:
             self.open_document(filename)
 
@@ -297,7 +300,6 @@ class DocumentMediator(GenericMediator):
         self.sendNotification(main.DOC_DELETE, win.docproxy)
 
     def _on_win_activated(self, evt):
-        print "win activate"
         self.sendNotification(main.DOC_ACTIVATE, evt.Source.docproxy)
 
     ### notification handlers ###
@@ -309,10 +311,10 @@ class DocumentMediator(GenericMediator):
     @mvcHandler(main.DOC_ACTIVATED)
     def _on_activate_document(self, docproxy):
         ctx.active_docproxy = docproxy
-        win = self.get_win(docproxy)
+        win = ctx.active_docwin = self.get_win(docproxy)
         if not win.Activate:
             win.NNSet('Activate', True)
-        win.set_doc_name(docproxy.docname)
+        win.on_activate_docproxy(docproxy)
         win.set_cursor_radius(docproxy.document.brush.radius_max)
 
     @mvcHandler(model.BrushProxy.BRUSH_PROP_CHANGED)
@@ -385,7 +387,7 @@ class DocumentMediator(GenericMediator):
         """
 
         self.__docmap[docproxy] = component
-        map(self.viewport_mediator.add_viewport, component.disp_areas)
+        map(self.viewport_mediator.add_viewport, component.viewports)
 
         component.Notify('CloseRequest', self._on_win_close_req, when=True)
         component.Notify('Activate', self._on_win_activated, when=True)
@@ -803,6 +805,7 @@ class BrushHouseWindowMediator(GenericMediator):
         self.brush_proxy = self.facade.retrieveProxy(model.BrushProxy.NAME)
 
         component.set_current_cb(self._on_brush_selected)
+        component.set_eraser_set_cb(self._on_eraser_set)
 
         # Load saved brushes
         l =  model.brush.Brush.load_brushes()
@@ -821,11 +824,16 @@ class BrushHouseWindowMediator(GenericMediator):
         # else use last brush
         if eraser is None:
             eraser = l[-1]
-        self.brush_proxy.set_attr(eraser, 'eraser', True)
+        self._on_eraser_set(eraser)
 
     def _on_brush_selected(self, brush):
         ctx.brush = brush
         self.sendNotification(main.USE_BRUSH, brush)
+
+    def _on_eraser_set(self, brush):
+        if ctx.eraser:
+            self.brush_proxy.set_attr(ctx.eraser, 'eraser', False)
+        self.brush_proxy.set_attr(brush, 'eraser', True)
 
     ### notification handlers ###
 
@@ -939,6 +947,13 @@ class DocViewPortMediator(GenericMediator):
         viewport.enable_passepartout(state)
 
     ### notification handlers ###
+
+    @mvcHandler(model.DocumentProxy.DOC_ADDED)
+    def _on_doc_added(self, docproxy):
+        proxies = list(docproxy.proxies())
+        for vp_list in self.__vpmap.itervalues():
+            for vp in vp_list:
+                vp.set_docs_strip(proxies)
 
     @mvcHandler(model.DocumentProxy.DOC_UPDATED)
     def _on_doc_dirty(self, docproxy, area=None):

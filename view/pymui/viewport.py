@@ -46,6 +46,7 @@ import view.cairo_tools as tools
 
 from view.keymap import KeymapManager
 from model.devices import *
+from utils import resolve_path, _T
 
 from .eventparser import MUIEventParser
 from .app import Application
@@ -66,7 +67,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
     """
     
     _MCC_ = True
-    width = height = 0
+    width = height = None
     _clip = None
     _cur_area = None
     _cur_pos = (0,0)
@@ -74,6 +75,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
     _filter = None
     _swap_x = _swap_y = None
     _focus = False
+    _docs_strip = None
     _debug = 0
     selpath = None
     ctx = None
@@ -85,26 +87,21 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
     # Class only
     __focus_lock = None
 
-    def __init__(self, win, docproxy):
+    def __init__(self, docproxy=None, rulers=None):
         super(DocViewport, self).__init__(InnerSpacing=0, FillArea=False, DoubleBuffer=False)
 
-        fill = docproxy.document.fill or resolve_path(main.Gribouillis.TRANSPARENT_BACKGROUND)
-        self.set_background(fill)
-
-        self._win = win
-        self.docproxy = docproxy
         self.device = InputDevice()
         
         self._km = KeymapManager()
         self._km.use_map("Viewport")
+        self._ev = pymui.EventHandler()
         
-        # Viewport's
-        self._docvp = view.DocumentViewPort(docproxy)
+        # Viewports
+        self._docvp = view.DocumentViewPort()
         self._toolsvp = view.ToolsViewPort()
-
         self._curvp = tools.Cursor()
-        self._curvp.set_radius(docproxy.document.brush.radius_max)
 
+        # Tools
         self.line_guide = tools.LineGuide(300, 200)
         self.ellipse_guide = tools.EllipseGuide(300, 200)
 
@@ -112,16 +109,36 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         self.get_view_area = self._docvp.get_view_area
         self.enable_fast_filter = self._docvp.enable_fast_filter
         self.get_handler_at_pos = self._toolsvp.get_handler_at_pos
+
+        self.set_background(resolve_path(main.Gribouillis.TRANSPARENT_BACKGROUND))
         
-        self._ev = pymui.EventHandler()
+        if rulers:
+            self._hruler, self._vruler = rulers
+        else:
+            self._do_rulers = lambda self: None
+            self._update_rulers = lambda self, ev: None
+        
+        if docproxy is not None:
+            self.set_docproxy(docproxy)
+
+    def set_docproxy(self, docproxy):
+        self.docproxy = docproxy
+        self._docvp.docproxy = docproxy
+        fill = docproxy.document.fill or resolve_path(main.Gribouillis.TRANSPARENT_BACKGROUND)
+        self.set_background(fill)
+        self.width = self.height = None
+    
+    def _update_rulers(self, ev):
+        self._hruler.set_pos(ev.MouseX)
+        self._vruler.set_pos(ev.MouseY)
 
     # MUI interface
     #
     
     @pymui.muimethod(pymui.MUIM_Setup)
     def MCC_Setup(self, msg):
+        self._win = self.WindowObject.object
         self._ev.install(self, pymui.IDCMP_RAWKEY | pymui.IDCMP_MOUSEBUTTONS | pymui.IDCMP_MOUSEOBJECTMUI)
-        self.mediator.active = self
         return msg.DoSuper()
 
     @pymui.muimethod(pymui.MUIM_Cleanup)
@@ -138,8 +155,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
             
             if cl == pymui.IDCMP_MOUSEMOVE:
                 if self.focus:
-                    self._hruler.set_pos(ev.MouseX)
-                    self._vruler.set_pos(ev.MouseY)
+                    self._update_rulers(ev)
                     name = "cursor-motion"
                 else:
                     return
@@ -259,12 +275,6 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
     # Public API
     #
 
-    def split(self, *args):
-        return self._win.add_viewport(self, *args)
-        
-    def remove(self):
-        self._win.rem_viewport(self)
-        
     def get_model_distance(self, *a):
         return self._docvp.get_model_distance(*a)
         
@@ -316,6 +326,20 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         else:
             self._win.pointer = DocWindow.POINTERTYPE_NORMAL
             
+    def set_docs_strip(self, proxies):
+        strip = pymui.Menustrip()
+        menu = pymui.Menu(_T('Documents'))
+        strip.AddTail(menu)
+
+        for p in proxies:
+            item = pymui.Menuitem(p.docname)
+            menu.AddChild(item)
+        
+        self.ContextMenu = strip
+        if self._docs_strip:
+            self._docs_strip.Dispose()
+        self._docs_strip = strip
+    
     @property
     def scale(self):
         return self._docvp.scale
@@ -445,9 +469,6 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         self._curvp.set_scale(self._docvp.scale)
         self.repaint()
         self._do_rulers()
-        
-        # Unlock rulers display
-        self._win.permit_rulers = True
 
     def reset_translation(self):
         dvp = self._docvp
@@ -483,9 +504,6 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
             # Center vp on current cursor position
             x, y = dvp.get_view_point(x, y)
             self.scroll(int(cx-x), int(cy-y))
-            
-        # Unlock rulers display
-        self._win.permit_rulers = True
     
     def scale_up(self, cx=.0, cy=.0):
         x, y = self._docvp.get_model_point(cx, cy)
@@ -567,9 +585,8 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         self._do_rulers()
 
     def rotate(self, angle):
-        self._win.permit_rulers = False
         if self._win.rulers:
-            self._win.toggle_rulers()
+            return
             
         self._docvp.rotate(angle)
         self._docvp.update_matrix()

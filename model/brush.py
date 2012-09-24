@@ -86,7 +86,6 @@ class Brush(object):
         self.name = name
         self.icon = icon
         self.__dict__.update(kwds)
-        self._erase = 0  # temp save of erase
 
     @staticmethod
     def save_brushes(brushes):

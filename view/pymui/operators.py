@@ -166,9 +166,11 @@ def vp_leave(ctx, event, viewport):
     viewport.enable_motion_events(False)
     viewport.show_brush_cursor(False)
 
-@eventoperator("vp-move-cursor")
+@eventoperator(_T("Update viewport cursor position"))
 def vp_move_cursor(ctx, event, viewport):
     tool = MUIEventParser.get_tooltype(event)
+
+    # trigger on tool change
     if tool != ctx.tool:
         ctx.tool = tool
         
@@ -178,7 +180,10 @@ def vp_move_cursor(ctx, event, viewport):
         else:
             brush = ctx.brush
         
+        # we don't want that this changes becomes visible,
+        # so use non-notifying API to update document's brush
         viewport.docproxy.document.brush.set_from_brush(brush)
+
         viewport.set_cursor_radius(brush.radius_max)
              
     pos = viewport.get_view_pos(*MUIEventParser.get_screen_position(event))

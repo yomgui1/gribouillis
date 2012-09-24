@@ -45,7 +45,9 @@ import keymaps
 
 del keymaps, operators
 
-ctx.tool = None
+ctx.tool = None # operators
+ctx.eraser = None # BrushHouseWindowMediator
+ctx.brush = None # BrushHouseWindowMediator
 
 class GenericMediator(utils.Mediator):
     def show_dialog(self, title, msg):
@@ -59,7 +61,7 @@ class GenericMediator(utils.Mediator):
 
     def show_info_dialog(self, msg):
         self.show_dialog(_T('Info'), msg)
-        
+
     def evt2op(self, evt, name, *args):
         operator.execute(name, *args)
 
@@ -134,7 +136,7 @@ class ApplicationMediator(GenericMediator):
         self.facade.registerMediator(BrushEditorWindowMediator(self.viewComponent.windows['BrushEditor']))
         self.facade.registerMediator(BrushHouseWindowMediator(self.viewComponent.windows['BrushHouse']))
         #self.facade.registerMediator(DocInfoMediator(self.viewComponent.docinfo))
-        
+
         # Add a default empty document
         vo = model.vo.EmptyDocumentConfigVO()
         self.sendNotification(main.NEW_DOCUMENT, vo)
@@ -387,7 +389,7 @@ class DocumentMediator(GenericMediator):
 
         component.Notify('CloseRequest', self._on_win_close_req, when=True)
         component.Notify('Activate', self._on_win_activated, when=True)
-        
+
         docproxy.brush = ctx.brush
 
     def del_doc(self, docproxy):
@@ -798,10 +800,10 @@ class BrushHouseWindowMediator(GenericMediator):
         super(BrushHouseWindowMediator, self).__init__(viewComponent=component)
 
         eraser = None
-        ctx.erase_brush = None
-        
+        self.brush_proxy = self.facade.retrieveProxy(model.BrushProxy.NAME)
+
         component.set_current_cb(self._on_brush_selected)
-        
+
         # Load saved brushes
         l =  model.brush.Brush.load_brushes()
         assert l, RuntimeError("no brushes!")
@@ -813,13 +815,13 @@ class BrushHouseWindowMediator(GenericMediator):
                 if brush.erase == 0:
                     eraser = brush
         component.active_brush = l[0]
-        
+
         # No eraser brush set?
         # use last brush found with erase = 0
         # else use last brush
-        if ctx.erase_brush is None:
-            ctx.erase_brush = eraser or l[-1]
-        ctx.erase_brush.eraser = True
+        if eraser is None:
+            eraser = l[-1]
+        self.brush_proxy.set_attr(eraser, 'eraser', True)
 
     def _on_brush_selected(self, brush):
         ctx.brush = brush
@@ -834,8 +836,11 @@ class BrushHouseWindowMediator(GenericMediator):
 
     @mvcHandler(model.BrushProxy.BRUSH_PROP_CHANGED)
     def _on_brush_prop_changed(self, brush, name):
-        if name == 'name' and brush is self.viewComponent.active_brush:
-            self.viewComponent.refresh_active()
+        if name == 'name':
+            if brush is self.viewComponent.active_brush:
+                self.viewComponent.refresh_active()
+        elif name == 'eraser' and brush.eraser:
+            ctx.eraser = brush
 
 
 class DocViewPortMediator(GenericMediator):
@@ -946,7 +951,7 @@ class DocViewPortMediator(GenericMediator):
                 vp.repaint(vp.get_view_area(*area))
             else:
                 vp.repaint()
-                
+
     @mvcHandler(model.LayerProxy.LAYER_DIRTY)
     def _on_layer_dirty(self, docproxy, layer, area=None):
         "Redraw given area. If area is None => full redraw."

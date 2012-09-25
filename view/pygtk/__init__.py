@@ -165,10 +165,9 @@ class DocumentMediator(GenericMediator):
     # UI events handlers
     def _on_focus_in_event(self, win, evt):
         self.focused = win
-        self.sendNotification(main.DOC_ACTIVATE, win.docproxy)
 
     def _on_delete_event(self, win, evt=None):
-        self.sendNotification(main.DOC_DELETE, win.docproxy)
+        #FIXME: self.sendNotification(main.DOC_DELETE, win.docproxy)
 
         # quit application if last document window is closed
         if len(self.__docmap) == 0:

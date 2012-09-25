@@ -55,7 +55,7 @@ from .brusheditor import BrushEditorWindow
 # Needed by view module
 Application = app.Application
 
-ctx.facade = None # ApplicationMediator
+ctx.app_mediator = None # ApplicationMediator
 ctx.application = None # ApplicationMediator
 ctx.viewports = set() # DocViewportMediator
 
@@ -96,7 +96,7 @@ class ApplicationMediator(GenericMediator):
     def __init__(self, component):
         assert isinstance(component, Application)
         super(ApplicationMediator, self).__init__(viewComponent=component)
-        ctx.facade = self.facade
+        ctx.app_mediator = self
         ctx.application = component
 
     def onRegister(self):
@@ -119,6 +119,9 @@ class ApplicationMediator(GenericMediator):
 
     def get_document_filename(self, parent=None):
         return self.viewComponent.get_filename(parent)
+
+    def quit(self):
+        self.sendNotification(main.QUIT)
 
     ### notification handlers ###
 
@@ -171,9 +174,6 @@ class DocumentMediator(GenericMediator):
         if len(self.__docmap) == 0:
             self.sendNotification(main.QUIT)
 
-    def _on_menu_quit(self, win):
-        self.sendNotification(main.QUIT)
-
     def _on_menu_new_doc(self, win):
         "Interactive new document opening (ask for doc type)"
         vo = model.vo.EmptyDocumentConfigVO()
@@ -188,9 +188,6 @@ class DocumentMediator(GenericMediator):
                                                             read=False)
         if filename:
             self.sendNotification(main.DOC_SAVE, (win.docproxy, filename))
-
-    def _on_menu_clear_layer(self, win):
-        operator.execute('clear_active_layer')
 
     def _on_menu_load_image_as_layer(self, win):
         self.load_image_as_layer()
@@ -260,12 +257,10 @@ class DocumentMediator(GenericMediator):
         # associate Window's events to callbacks
         win.connect("delete-event", self._on_delete_event)
         win.connect("focus-in-event", self._on_focus_in_event)
-        win.connect("menu_quit", self._on_menu_quit)
         win.connect("menu_new_doc", self._on_menu_new_doc)
         win.connect("menu_load_doc", self._on_menu_load_doc)
         win.connect("menu_close_doc", self._on_delete_event)
         win.connect("menu_save_doc", self._on_menu_save_doc)
-        win.connect("menu_clear_layer", self._on_menu_clear_layer)
         win.connect("menu_open_window", self._on_menu_open_window)
         win.connect("menu_load_image_as_layer",
                     self._on_menu_load_image_as_layer)

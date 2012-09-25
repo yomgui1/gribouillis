@@ -40,7 +40,6 @@ def _menu_signal(name, opts=()):
                               gobject.TYPE_BOOLEAN, opts)
 
 # signal used to communicate between viewer's menu and document mediator
-sig_menu_quit                = _menu_signal('menu_quit')
 sig_menu_new_doc             = _menu_signal('menu_new_doc')
 sig_menu_load_doc            = _menu_signal('menu_load_doc')
 sig_menu_save_doc            = _menu_signal('menu_save_doc')
@@ -49,6 +48,7 @@ sig_menu_clear_layer         = _menu_signal('menu_clear_layer')
 sig_menu_load_background     = _menu_signal('menu_load_background')
 sig_menu_load_image_as_layer = _menu_signal('menu_load_image_as_layer')
 sig_menu_open_window         = _menu_signal('menu_open_window', (gobject.TYPE_STRING, ))
+
 
 class HViewportSplit(gtk.HBox):
     def __init__(self, parent, left, right):
@@ -164,7 +164,7 @@ class DocWindow(gtk.Window):
 
                 ('quit', gtk.STOCK_QUIT, _T('Quit!'),
                  None, None,
-                 lambda *a: self.emit('menu_quit')),
+                 lambda *a: operator.execute("quit_request")),
 
                 ('cmd-undo', gtk.STOCK_UNDO, _T('Undo last command'),
                  '<Control>z', None,
@@ -180,7 +180,7 @@ class DocWindow(gtk.Window):
 
                 ('cmd-win', gtk.STOCK_PROPERTIES, _T('Open commands historic'),
                  '<Alt>h', None,
-                 operator.execute('open_CmdHist')),
+                 lambda *a: operator.execute('open_CmdHist')),
 
                 ('layers-load-image', gtk.STOCK_ADD, _T('Load image as new layer...'),
                  '<Control><Alt>z', None,
@@ -192,7 +192,7 @@ class DocWindow(gtk.Window):
 
                 ('layers-clear-active', gtk.STOCK_CLEAR, _T('Clear active layer'),
                  '<Control>k', None,
-                 lambda *a: self.emit('menu_clear_layer')),
+                 lambda *a: operator.execute("clear_active_layer")),
 
                 ('view-load-background', None, _T('Load background image'),
                  '<Control><Alt>b', None,

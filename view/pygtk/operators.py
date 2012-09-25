@@ -86,6 +86,9 @@ def hist_flush(ctx):
 def clear_active_layer(ctx):
     ctx.active_docproxy.clear_layer()
 
+@execoperator(_T('quit'))
+def quit_request(ctx):
+    ctx.app_mediator.quit()
 
 ##
 ## Event operators

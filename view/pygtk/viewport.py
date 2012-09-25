@@ -73,9 +73,9 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
     storage = {}
     selpath = None
 
-    def __init__(self, win, docproxy):
+    def __init__(self, win, docproxy=None):
         super(DocViewport, self).__init__()
-        
+
         self._win = win
         self.docproxy = docproxy
         self.device = model.devices.InputDevice()
@@ -84,11 +84,9 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
         self._km.use_map("Viewport")
 
         # Viewport's
-        self._docvp = view.DocumentViewPort(docproxy)
+        self._docvp = view.DocumentViewPort()
         self._toolsvp = view.ToolsViewPort()
-        
         self._curvp = tools.Cursor()
-        self._curvp.set_radius(docproxy.document.brush.radius_max)
 
         # Aliases
         self.get_view_area = self._docvp.get_view_area
@@ -103,10 +101,10 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
                         | gdk.LEAVE_NOTIFY_MASK
                         | gdk.KEY_PRESS_MASK
                         | gdk.KEY_RELEASE_MASK)
-        
+
         self.set_can_focus(True)
         self.set_sensitive(True)
-        
+
         self.connect("expose-event"        , self._on_expose)
         self.connect("motion-notify-event" , self._on_motion_notify)
         self.connect("button-press-event"  , self._on_button_press)
@@ -117,10 +115,9 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
         self.connect("key-press-event"     , self._on_key_press)
         self.connect("key-release-event"   , self._on_key_release)
 
-        fn = utils.resolve_path(main.Gribouillis.TRANSPARENT_BACKGROUND)
-        self.set_background(fn)
+        if docproxy is not None:
+            self.set_docproxy(docproxy)
 
-    
     # Paint function
 
     def _on_expose(self, widget, evt):
@@ -135,7 +132,7 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
         # GTK Note: by default widgets paint is double-buffered.
         # So we don't have to support that here.
         #
-        
+
         area = evt.area
         width = self.allocation.width
         height = self.allocation.height
@@ -184,7 +181,7 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
         if self._debug:
             cr.set_source_rgba(1,0,0,random()*.7)
             cr.paint()
-            
+
         # Paint tools surface
         cr.set_source_surface(self._toolsvp.cairo_surface, 0, 0)
         cr.paint()
@@ -199,12 +196,12 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
             y -= self._cur_area[3]/2
             cr.set_source_surface(self._curvp.cairo_surface, x, y)
             cr.paint()
-            
+
         return True
-    
-    
+
+
     # Events dispatchers
-    
+
     def _on_motion_notify(self, widget, evt):
         mods = evt.state.value_nicks
         mods.remove('mod2-mask')
@@ -231,7 +228,7 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
             mods.remove('mod2-mask')
             return self._km.process(evt, 'button-release-%u' % evt.button,
                                     mods, viewport=self)
-    
+
     def _on_scroll(self, widget, evt):
         mods = evt.state.value_nicks
         mods.remove('mod2-mask')
@@ -253,15 +250,22 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
             name = 'key-release-%s' % gdk.keyval_name(evt.keyval)
         return self._km.process(evt, name, mods, viewport=self)
 
-    
+
     # Public API
-    
+
+    def set_docproxy(self, docproxy):
+        self.docproxy = docproxy
+        self._docvp.docproxy = docproxy
+        fill = docproxy.document.fill or utils.resolve_path(main.Gribouillis.TRANSPARENT_BACKGROUND)
+        self.set_background(fill)
+        self.width = self.height = None
+
     def get_model_distance(self, *a):
         return self._docvp.get_model_distance(*a)
 
     def get_model_point(self, *a):
         return self._docvp.get_model_point(*a)
-    
+
     def is_tool_hit(self, tool, *pos):
         return self._toolsvp.is_tool_hit(tool, *pos)
 
@@ -269,9 +273,9 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
     def cursor_position(self):
         return self._cur_pos
 
-    
+
     # Rendering
-    
+
     def redraw(self, clip=None):
         if clip:
             clip = tuple(clip)
@@ -283,7 +287,7 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
     @utils.delayedmethod(0.5)
     def _force_redraw(self):
         self.window.process_updates(False)
-    
+
     def repaint(self, clip=None, redraw=True):
         self._docvp.repaint(clip)
         if redraw:
@@ -293,13 +297,13 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
         self._toolsvp.repaint(clip)
         if redraw:
             self.redraw(clip)
-    
+
     def repaint_cursor(self, *pos):
         # erase previous rendering
         if self._cur_area:
             self._cur_on = False
             self.redraw(self._cur_area)
-            
+
         if not self._cur_on:
             return
 
@@ -308,9 +312,9 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
         self._cur_pos = pos
         self.redraw(self._get_cursor_clip(*pos))
 
-    
+
     # Cursor related
-    
+
     def _get_cursor_clip(self, dx, dy):
         w = self._curvp.width
         h = self._curvp.height
@@ -324,19 +328,19 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
 
     def show_brush_cursor(self, state=False):
         self._cur_on = state
-        
+
         if state:
             self.repaint_cursor(*self._cur_pos)
 
         # Remove the cursor if was blit and not needed
         elif self._cur_area:
             self.redraw(self._cur_area)
-        
+
         return self._cur_pos
-    
-    
+
+
     # View transformations
-    
+
     def reset(self):
         self._swap_x = self._swap_y = None
         self._docvp.reset_view()
@@ -346,7 +350,7 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
     def reset_rotation(self):
         self._docvp.reset_rotation()
         self.repaint()
-        
+
     def scale_up(self, cx=.0, cy=.0):
         x, y = self._docvp.get_model_point(cx, cy)
         if self._docvp.scale_up():
@@ -391,17 +395,17 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
         # |        #4        |
         # +==================+
         #
-        
+
         w = self.width
         h = self.height
-        
+
         f = dvp.repaint
-        
+
         if dy > 0:
             f([0, 0, w, dy]) #3
         elif dy < 0:
             f([0, h+dy, w, h]) #4
-        
+
         if dx > 0:
             if dy >= 0:
                 f([0, dy, dx, h]) #1
@@ -429,7 +433,7 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
             self._swap_x = None
         self._docvp.update_matrix()
         self.repaint()
-        
+
     def swap_y(self, y):
         if self._swap_y is None:
             self._swap_y = y
@@ -440,9 +444,9 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
         self._docvp.update_matrix()
         self.repaint()
 
-    
+
     # Device state handling
-    
+
     def update_dev_state(self, evt, new_state=model.devices.DeviceState):
         state = new_state()
 
@@ -467,9 +471,9 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
         self.device.add_state(state) # for recording
         return state
 
-    
+
     # Tools
-    
+
     def add_tool(self, tool):
         self._toolsvp.add_tool(tool)
         self.redraw(tool.area)

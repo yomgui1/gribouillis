@@ -155,6 +155,7 @@ class DocWindow(pymui.Window):
                                         **kwds)
 
         self._watchers = {'pick': None}
+        self.set_docproxy(docproxy)
 
         # Root = paged group, with 2 pages:
         # 1 : ruled viewport group
@@ -176,11 +177,14 @@ class DocWindow(pymui.Window):
         else:
             self.pointer = self.POINTERTYPE_NORMAL
 
-    def set_watcher(self, name, cb, *args):
-        self._watchers[name] = (cb, args)
+    def _refresh_title(self):
+        self.Title = self.title_header % (docproxy.docname, self._scale * 100,
+                                          name)
 
     # Public API
-    #
+
+    def set_watcher(self, name, cb, *args):
+        self._watchers[name] = (cb, args)
 
     def show_ruled(self):
         self.RootObject.ActivePage = 0
@@ -188,14 +192,14 @@ class DocWindow(pymui.Window):
     def show_splited(self):
         self.RootObject.ActivePage = 1
 
-    def on_activate_docproxy(self, docproxy):
-        name = docproxy.active_layer.name.encode('latin1', 'replace')
-        self.Title = self.title_header % (docproxy.docname,
-                                          self._scale * 100, name)
+    def set_docproxy(self, docproxy):
+        self.docproxy = docproxy
+        self._name = docproxy.active_layer.name.encode('latin1', 'replace')
+        self._refresh_title()
 
     def set_scale(self, scale):
         self._scale = scale
-        self.refresh_title()
+        self._refresh_title()
 
     def confirm_close(self):
         return pymui.DoRequest(pymui.GetApp(),

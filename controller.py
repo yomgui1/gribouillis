@@ -99,15 +99,12 @@ class DeleteDocumentCmd(SimpleCommand, ICommand):
     def execute(self, note):
         docproxy = note.getBody()
 
-        # delete from view
-        appmed = self.facade.retrieveMediator(view.ApplicationMediator.NAME)
-        appmed.del_doc(docproxy)
+        # release all references
+        self.sendNotification(main.DOC_RELEASE, docproxy)
 
-        # delete from model
+        # remove from model
         self.facade.removeProxy('HP_' + docproxy.getProxyName())
         self.facade.removeProxy(docproxy.getProxyName())
-
-        del docproxy
 
 
 class SaveDocumentCmd(SimpleCommand, ICommand):

@@ -37,11 +37,12 @@ import utils
 
 from model.devices import *
 from view import viewport
+from utils import _T
 
 from .app import Application
 from .widgets import Ruler
 from .viewport import DocViewport
-from const import *
+from .const import *
 
 
 class RuledViewGroup(pymui.Group):
@@ -51,7 +52,7 @@ class RuledViewGroup(pymui.Group):
     and one vertical rulers.
     """
 
-    def __init__(self, docproxy):
+    def __init__(self, win, docproxy):
         super(RuledViewGroup, self).__init__(Horiz=False, Columns=2,
                                              InnerSpacing=0, Spacing=0)
 
@@ -77,9 +78,10 @@ class RuledViewGroup(pymui.Group):
         self.AddChild(self.vruler)
 
         # Viewport
-        self.viewport = DocViewport(docproxy, rulers=(self.hruler,
-                                                      self.vruler))
+        self.viewport = DocViewport(win, docproxy, rulers=(self.hruler,
+                                                           self.vruler))
         self.AddChild(self.viewport)
+        win.register_viewport(self.viewport)
 
     def _on_ruler_metric(self, evt, pop, lst):
         pop.Close(0)
@@ -97,7 +99,7 @@ class SplitableViewGroup(pymui.Group):
     if args is empty, the group starts with a single (non splited) viewport.
     """
 
-    def __init__(self, horiz=True, *args, **kwds):
+    def __init__(self, win, horiz=True, *args, **kwds):
         super(SplitableViewGroup, self).__init__(InnerSpacing=0, Spacing=0,
                                                  Horiz=horiz)
         if args:
@@ -106,18 +108,23 @@ class SplitableViewGroup(pymui.Group):
             self.AddChild(v1)
             self.AddChild(BetterBalance(ID=0))
             self.AddChild(v2)
+            for vp in args:
+                if isinstance(vp, DocViewport):
+                    win.register_viewport(vp)
         else:
-            self.contents = DocViewport()
+            self.contents = DocViewport(win)
             self.AddChild(self.contents)
             if 'docproxy' in kwds:
                 self.contents.set_docproxy(kwds['docproxy'])
+            win.register_viewport(self.contents)
+        self._win = win
 
     def split(self, horiz=True):
         self.InitChange()
         try:
             self.RemChild(self.contents)
-            self.contents = SplitableViewGroup(horiz, self.contents,
-                                               DocViewport())
+            self.contents = SplitableViewGroup(self._win, horiz, self.contents,
+                                               DocViewport(self._win))
             self.AddChild(self.contents)
         finally:
             self.ExitChange()
@@ -140,10 +147,9 @@ class DocWindow(pymui.Window):
     _name = None
     _scale = 1.0
 
-    # Private API
-    #
+    # private API
 
-    def __init__(self, docproxy, **kwds):
+    def __init__(self, docproxy, register_viewport_cb, unregister_viewport_cb, **kwds):
         self.title_header = _T("Document") + ": %s @ %u%% (%s)"
         super(DocWindow, self).__init__(None,
                                         ID=0,  # The haitian power
@@ -154,7 +160,8 @@ class DocWindow(pymui.Window):
                                         TabletMessages=True,
                                         **kwds)
 
-        self._watchers = {'pick': None}
+        self.register_viewport = register_viewport_cb
+        self.unregister_viewport = unregister_viewport_cb
         self.set_docproxy(docproxy)
 
         # Root = paged group, with 2 pages:
@@ -163,8 +170,8 @@ class DocWindow(pymui.Window):
 
         self.RootObject = root = pymui.VGroup(PageMode=True)
 
-        self._ruled = RuledViewGroup(docproxy)
-        self._splitable = SplitableViewGroup(docproxy=docproxy)
+        self._ruled = RuledViewGroup(self, docproxy)
+        self._splitable = SplitableViewGroup(self, docproxy=docproxy)
 
         root.AddChild(self._ruled, self._splitable)
 
@@ -178,13 +185,9 @@ class DocWindow(pymui.Window):
             self.pointer = self.POINTERTYPE_NORMAL
 
     def _refresh_title(self):
-        self.Title = self.title_header % (docproxy.docname, self._scale * 100,
-                                          name)
+        self.Title = self.title_header % (self._dname, self._scale * 100, self._lname)
 
     # Public API
-
-    def set_watcher(self, name, cb, *args):
-        self._watchers[name] = (cb, args)
 
     def show_ruled(self):
         self.RootObject.ActivePage = 0
@@ -193,8 +196,8 @@ class DocWindow(pymui.Window):
         self.RootObject.ActivePage = 1
 
     def set_docproxy(self, docproxy):
-        self.docproxy = docproxy
-        self._name = docproxy.active_layer.name.encode('latin1', 'replace')
+        self._dname = docproxy.docname
+        self._lname = docproxy.active_layer.name.encode('latin1', 'replace')
         self._refresh_title()
 
     def set_scale(self, scale):

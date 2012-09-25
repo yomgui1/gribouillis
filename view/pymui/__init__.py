@@ -48,8 +48,9 @@ del keymaps, operators
 ctx.tool = None # operators
 ctx.eraser = None # BrushHouseWindowMediator
 ctx.brush = None # BrushHouseWindowMediator
-ctx.active_docproxy = None
+ctx.active_docproxy = None # ApplicationMediator
 ctx.active_docwin = None
+ctx.viewports = set() # DocViewportMediator
 
 
 class GenericMediator(utils.Mediator):
@@ -83,11 +84,11 @@ class ApplicationMediator(GenericMediator):
     document_mediator = None
     layermgr_mediator = None
 
-    #### Private API ####
+    # Private API
 
     def __init__(self, component):
         assert isinstance(component, app.Application)
-        super(ApplicationMediator, self).__init__(ApplicationMediator.NAME, component)
+        super(ApplicationMediator, self).__init__(viewComponent=component)
 
         ctx.app = component
 
@@ -100,12 +101,12 @@ class ApplicationMediator(GenericMediator):
         component.menu_items['load-doc'].Bind(self.request_document)
         component.menu_items['save-doc'].Bind(self._menu_save_document)
         component.menu_items['save-as-doc'].Bind(self._menu_save_as_document)
-        component.menu_items['clear_layer'].Bind(self._menu_clear_active_layer)
+        component.menu_items['clear_layer'].Bind(self.evt2op, "clear_active_layer")
         component.menu_items['load-background'].Bind(self._menu_load_background)
-        component.menu_items['reset-view'].Bind(self._menu_reset_view)
+        component.menu_items['reset-view'].Bind(self.evt2op, "reset_active_viewport")
         component.menu_items['load-layer-image'].Bind(self._menu_load_image_as_layer)
-        component.menu_items['toggle-line-guide'].Bind(self._menu_line_guide)
-        component.menu_items['toggle-ellipse-guide'].Bind(self._menu_ellipse_guide)
+        #component.menu_items['toggle-line-guide'].Bind(self._menu_line_guide)
+        #component.menu_items['toggle-ellipse-guide'].Bind(self._menu_ellipse_guide)
         #component.menu_items['split-viewport-horiz'].Bind(self._menu_split_viewport_horiz)
         #component.menu_items['split-viewport-vert'].Bind(self._menu_split_viewport_vert)
         component.menu_items['color-lighten'].Bind(self._menu_color_lighten)
@@ -147,7 +148,7 @@ class ApplicationMediator(GenericMediator):
         evt.Source.WindowObject.object.Open = False
         self.open_document(filename)
 
-    ## Menu items binding
+    # menu items binding
 
     def _menu_save_document(self, evt):
         self.document_mediator.save_document()
@@ -161,17 +162,8 @@ class ApplicationMediator(GenericMediator):
     def _menu_load_background(self, evt):
         self.document_mediator.load_background()
 
-    def _menu_reset_view(self, evt):
-        pass
-
     def _menu_load_image_as_layer(self, evt):
         self.layermgr_mediator.load_image_as_layer()
-
-    def _menu_line_guide(self, evt):
-        pass
-
-    def _menu_ellipse_guide(self, evt):
-        pass
 
     def _menu_color_lighten(self, evt):
         model.DocumentProxy.get_active().multiply_color(1.0, 1.0, 1.1)
@@ -185,41 +177,10 @@ class ApplicationMediator(GenericMediator):
     def _menu_color_desaturate(self, evt):
         model.DocumentProxy.get_active().multiply_color(1.0, 0.9, 1.0)
 
-    def _menu_split_viewport_horiz(self, evt):
-        pass
-
-    def _menu_split_viewport_vert(self, evt):
-        pass
-
-    def _menu_toggle_rulers(self, evt):
-        self.document_mediator.toggle_rulers()
-
-
-    ### notification handlers ###
+    # notification handlers
 
     @mvcHandler(main.QUIT)
-    def _quit(self, note):
-        self.quit()
-
-    @mvcHandler(main.DOC_ACTIVATED)
-    def _activate_document(self, docproxy):
-        self.viewComponent.on_doc_activated(docproxy)
-
-    #### Public API ####
-
-    def del_doc(self, docproxy):
-        # Keep this order!
-        win = self.document_mediator.get_win(docproxy)
-        win.Open = False
-        self.viewComponent.RemChild(win)
-        self.document_mediator.del_doc(docproxy)
-        del win
-
-        # Close the application if no document remains
-        if not len(self.document_mediator):
-            self.viewComponent.quit()
-
-    def quit(self, *a):
+    def _on_quit(self, note):
         # test here if some documents need to be saved
         if any(map(lambda dp: dp.document.modified and not dp.document.empty, self.document_mediator.proxies)):
             res = pymui.DoRequest(self.viewComponent,
@@ -228,7 +189,16 @@ class ApplicationMediator(GenericMediator):
                                   format="Some documents are not saved yet.\nSure to leave the application?")
             if not res:
                 return
-        self.viewComponent.quit()
+        self.viewComponent.Quit()
+
+    @mvcHandler(main.DOC_ACTIVATED)
+    def _on_doc_activated(self, docproxy):
+        ctx.active_docproxy = docproxy
+
+    # public API
+    
+    def quit(self):
+        self.sendNotification(main.QUIT)
 
     def new_document(self, *a):
         # TODO: ask for document type
@@ -259,11 +229,22 @@ class DocumentMediator(GenericMediator):
 
     def __init__(self, component):
         assert isinstance(component, app.Application)
-        super(DocumentMediator, self).__init__(DocumentMediator.NAME, component)
+        super(DocumentMediator, self).__init__(viewComponent=component)
         self.__docmap = {}
 
     def __len__(self):
         return len(self.__docmap)
+
+    def _save_doc(self, docproxy, filename):
+        app = self.viewComponent
+        win = app.new_save_status_window()
+        win.OpenWindow()
+        app.Sleep = True
+        try:
+            self.sendNotification(main.DOC_SAVE, (docproxy, filename))
+            win.CloseWindow()
+        finally:
+            app.Sleep = False
 
     # ui events handlers
 
@@ -272,29 +253,29 @@ class DocumentMediator(GenericMediator):
         doc = win.docproxy.document
         if doc.modified and not doc.empty and not win.confirm_close():
             return
-
         self.sendNotification(main.DOC_DELETE, win.docproxy)
 
-    def _on_win_activated(self, evt):
-        self.sendNotification(main.DOC_ACTIVATE, evt.Source.docproxy)
-
-    ### notification handlers ###
+    # notification handlers
 
     @mvcHandler(model.DocumentProxy.DOC_ADDED)
     def _on_doc_added(self, docproxy):
         self.new_window(docproxy)
 
+    @mvcHandler(main.DOC_RELEASE)
+    def _on_doc_release(self, docproxy):
+        win = self.__docmap.pop(docproxy)
+        win.Open = True
+        self.viewComponent.RemChild(win)
+            
+        if len(self.__docmap):
+            docproxy = self.__docmap.keys()[-1]
+            self.sendNotification(main.DOC_ACTIVATE, docproxy)
+        else:
+            self.sendNotification(main.QUIT)
+
     @mvcHandler(main.DOC_SAVE_RESULT)
     def _on_save_document_result(self, docproxy, result):
         pass
-
-    @mvcHandler(main.DOC_ACTIVATED)
-    def _on_activate_document(self, docproxy):
-        ctx.active_docproxy = docproxy
-        win = ctx.active_docwin = self.get_win(docproxy)
-        if not win.Activate:
-            win.NNSet('Activate', True)
-        win.on_activate_docproxy(docproxy)
 
     @mvcHandler(model.BrushProxy.BRUSH_PROP_CHANGED)
     def _on_doc_brush_prop_changed(self, brush, name):
@@ -311,26 +292,25 @@ class DocumentMediator(GenericMediator):
     def _on_doc_layer_activated(self, docproxy, layer):
         self.get_win(docproxy).refresh_title()
 
-    @mvcHandler('pymui-toggle-erase')
-    def _toggle_erase(self, docproxy):
-        # Don't change the recorded brush setting, but a state of the drawing brush
-        docproxy.drawbrush.erase = 1.0 - docproxy.drawbrush.erase
-
-    def _save_doc(self, docproxy, filename):
-        app = self.viewComponent
-        win = app.new_save_status_window()
-        win.OpenWindow()
-        app.Sleep = True
-        try:
-            self.sendNotification(main.DOC_SAVE, (docproxy, filename))
-            win.CloseWindow()
-        finally:
-            app.Sleep = False
-
     # public API
 
     def register_viewport(self, viewport):
         self.facade.registerMediator(DocViewportMediator(viewport))
+
+    def unregister_viewport(self, viewport):
+        mediator = self.facade.retrieveMediator(hex(id(viewport)))
+        self.facade.removeMediator(mediator)
+
+    def new_window(self, docproxy):
+        "Create and attach a document window to given docproxy"
+
+        component = DocWindow(docproxy, self.register_viewport, self.unregister_viewport)
+        self.__docmap[docproxy] = component
+        self.viewComponent.AddChild(component)
+
+        component.RootObject.object.Redraw()  # needed to force rulers to be redraw
+        component.Notify('CloseRequest', self._on_win_close_req, when=True)
+        component.Open = True
 
     def save_document(self, docproxy=None):
         docproxy = docproxy or model.DocumentProxy.get_active()
@@ -357,25 +337,6 @@ class DocumentMediator(GenericMediator):
     def get_win(self, docproxy):
         return self.__docmap[docproxy]
 
-    def new_window(self, docproxy):
-        "Create and attach a document window to given docproxy"
-
-        component = DocWindow(docproxy, self.register_viewport)
-        self.__docmap[docproxy] = component
-        self.viewComponent.AddChild(component)
-
-        component.RootObject.object.Redraw()  # needed to force rulers to be redraw
-        component.Notify('CloseRequest', self._on_win_close_req, when=True)
-        component.Notify('Activate', self._on_win_activated, when=True)
-        component.Open = True
-
-    def del_doc(self, docproxy):
-        component = self.__docmap.pop(docproxy)
-        if len(self.__docmap):
-            docproxy = self.__docmap.keys()[-1]
-            self.sendNotification(main.DOC_ACTIVATE, docproxy)
-        return component
-
     def load_background(self):
         docproxy = model.DocumentProxy.get_active()
         filename = self.viewComponent.get_image_filename(parent=self.get_win(docproxy),
@@ -393,17 +354,9 @@ class DocumentMediator(GenericMediator):
         win = self.get_win(docproxy)
         win.set_background_rgb(rgb)
 
-    def clear_active_layer(self, docproxy=None):
-        docproxy = docproxy or model.DocumentProxy.get_active()
-        docproxy.clear_layer(docproxy.active_layer)
-
     def refresh_all(self):
         for win in self.__docmap.itervalues():
             win.RootObject.object.Redraw()
-
-    def toggle_rulers(self, docproxy=None):
-        win = self.get_win(docproxy or model.DocumentProxy.get_active())
-        win.toggle_rulers()
 
     @property
     def proxies(self):
@@ -825,25 +778,35 @@ class BrushHouseWindowMediator(GenericMediator):
             ctx.eraser = brush
 
 
-class DocViewPortMediator(GenericMediator):
-    NAME = "DocViewPortMediator"
+class DocViewportMediator(GenericMediator):
+    NAME = "DocViewportMediator"
 
     # private API
 
     def __init__(self, component):
         assert isinstance(component, DocViewport)
         self.NAME = "%s_%x" % (DocViewportMediator.NAME, id(component))
-        super(DocViewPortMediator, self).__init__(name, viewComponent=component)
+        super(DocViewportMediator, self).__init__(viewComponent=component)
 
     def onRegister(self):
+        self.viewComponent.mediator = self
         ctx.viewports.add(self)
 
     def onRemove(self):
+        self.viewComponent.mediator = None
         ctx.viewports.remove(self)
 
-    # public API
-
     # notification handlers
+
+    @mvcHandler(main.DOC_ACTIVATED)
+    def _on_doc_activated(self, docproxy):
+        vp = self.viewComponent
+        if vp.docproxy is docproxy:
+            win = ctx.active_docwin = vp.window
+            if not win.Activate:
+                win.NNSet('Activate', True)
+            win.set_docproxy(docproxy)
+            win.set_scale(vp.scale)
 
     @mvcHandler(model.DocumentProxy.DOC_UPDATED)
     def _on_doc_updated(self, docproxy, area=None):

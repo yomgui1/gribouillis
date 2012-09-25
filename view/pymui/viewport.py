@@ -87,10 +87,11 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
     # Class only
     __focus_lock = None
 
-    def __init__(self, docproxy=None, rulers=None):
+    def __init__(self, window, docproxy=None, rulers=None):
         super(DocViewport, self).__init__(InnerSpacing=0, FillArea=False, DoubleBuffer=False)
 
         self.device = InputDevice()
+        self.window = window
 
         self._km = KeymapManager()
         self._km.use_map("Viewport")
@@ -137,7 +138,6 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
 
     @pymui.muimethod(pymui.MUIM_Setup)
     def MCC_Setup(self, msg):
-        self._win = self.WindowObject.object
         self._ev.install(self, pymui.IDCMP_RAWKEY | pymui.IDCMP_MOUSEBUTTONS | pymui.IDCMP_MOUSEOBJECTMUI)
         return msg.DoSuper()
 

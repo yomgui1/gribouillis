@@ -68,55 +68,15 @@ def actvp_rotate(ctx, angle):
     vp = ctx.active_viewport
     vp.rotate(angle)
 
+@execoperator(_T('clear active layer'))
+def clear_active_layer(ctx):
+    ctx.active_docproxy.clear_layer()
+
+@execoperator(_T('reset active viewport'))
+def reset_active_viewport(ctx):
+    ctx.active_viewport.reset_transforms()
+
 #----
-
-@execoperator(_T('open brush house window'))
-def cmd_open_brush_house(ctx):
-    ctx.app.open_brush_house()
-
-@execoperator(_T('open brush editor window'))
-def cmd_open_brush_editor(ctx):
-    ctx.app.open_brush_editor()
-
-@execoperator(_T('open execoperators historic window'))
-def cmd_open_cmdhist(ctx):
-    ctx.app.open_cmdhistoric()
-
-@execoperator(_T('open layer manager window'))
-def cmd_open_layer_mgr(ctx):
-    ctx.app.open_layer_mgr()
-    
-@execoperator(_T('open preferences window'))
-def cmd_open_preferences(ctx):
-    ctx.app.open_preferences()
-    
-@execoperator(_T('open color manager window'))
-def cmd_open_colorwin(ctx):
-    ctx.app.open_color_mgr()
-    
-@execoperator(_T('open document information window'))
-def cmd_open_docinfo(ctx):
-    ctx.app.open_docinfo()
-    
-@execoperator(_T('toggle color manager window'))
-def cmd_toggle_colorwin(ctx):
-    ctx.app.toggle_color_mgr()
-
-@execoperator(_T('toggle brush house window'))
-def cmd_toggle_brush_house(ctx):
-    ctx.app.toggle_brush_house()
-
-@execoperator(_T('toggle brush editor window'))
-def cmd_toggle_brush_editor(ctx):
-    ctx.app.toggle_brush_editor()
-
-@execoperator(_T('toggle execoperators historic window'))
-def cmd_toggle_cmdhist(ctx):
-    ctx.app.toggle_cmdhistoric()
-
-@execoperator(_T('toggle layer manager window'))
-def cmd_toggle_layer_mgr(ctx):
-    ctx.app.toggle_layer_mgr()
 
 @execoperator(_T('cleanup workspace'))
 def cmd_cleanup_workspace(ctx):

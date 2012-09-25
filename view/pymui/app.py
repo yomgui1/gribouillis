@@ -211,10 +211,6 @@ class Application(pymui.Application, view.mixin.ApplicationMixin):
 
     # Internal API
     #
-    def on_doc_activated(self, docproxy):
-        #self.cms_assign_win.docproxy = docproxy
-        #self.cms_conv_win.docproxy = docproxy
-        pass
 
     def _do_gc_collect(self):
         gc.set_debug(gc.DEBUG_LEAK)
@@ -238,9 +234,6 @@ class Application(pymui.Application, view.mixin.ApplicationMixin):
 
         self.windows['Splash'].Open = 'splash' in wins_to_open
         self.Run()
-
-    def quit(self):
-        self.Quit()
 
     def get_filename(self, title, parent=None, read=True, pat='#?', **kwds):
         filename = pymui.GetFilename(parent, title,

@@ -1,5 +1,3 @@
-# -*- coding: latin-1 -*-
-
 ###############################################################################
 # Copyright (c) 2009-2011 Guillaume Roguez
 #
@@ -25,13 +23,17 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import pymui, sys
+import pymui
+import sys
 import traceback as tb
 
 from pymui.mcc.betterbalance import BetterBalance
 from random import random
 
-import model, view, main, utils
+import model
+import view
+import main
+import utils
 
 from model.devices import *
 from view import viewport
@@ -42,19 +44,20 @@ from .viewport import DocViewport
 from const import *
 
 
-__all__ = [ 'DocWindow', 'DocWindowFullscreen' ]
-
 class RuledViewGroup(pymui.Group):
     """RuledViewGroup() -> PyMUI Group instance
-    
-    Container for a single Viewport with one horizontal and one vertical rulers.
+
+    Container for a single Viewport with one horizontal
+    and one vertical rulers.
     """
-    
+
     def __init__(self, docproxy):
-        super(RuledViewGroup, self).__init__(Horiz=False, Columns=2, InnerSpacing=0, Spacing=0)
-        
+        super(RuledViewGroup, self).__init__(Horiz=False, Columns=2,
+                                             InnerSpacing=0, Spacing=0)
+
         # Rulers pop button
-        lst = pymui.List(SourceArray=[ Ruler.METRICS[k][0] for k in Ruler.METRIC_KEYS ],
+        names = [Ruler.METRICS[k][0] for k in Ruler.METRIC_KEYS]
+        lst = pymui.List(SourceArray=names,
                          AdjustWidth=True,
                          MultiSelect=pymui.MUIV_List_MultiSelect_None)
         self._popruler = pymui.Popobject(
@@ -64,19 +67,20 @@ class RuledViewGroup(pymui.Group):
             InputMode='RelVerify'))
         lst.Notify('DoubleClick', self._on_ruler_metric, self._popruler, lst)
         self.AddChild(self._popruler)
-        
+
         # Top ruler
         self.hruler = Ruler(Horiz=True)
         self.AddChild(self.hruler)
-        
+
         # Left ruler
         self.vruler = Ruler(Horiz=False)
         self.AddChild(self.vruler)
-        
+
         # Viewport
-        self.viewport = DocViewport(docproxy, rulers=(self.hruler, self.vruler))
+        self.viewport = DocViewport(docproxy, rulers=(self.hruler,
+                                                      self.vruler))
         self.AddChild(self.viewport)
-        
+
     def _on_ruler_metric(self, evt, pop, lst):
         pop.Close(0)
         k = Ruler.METRIC_KEYS[lst.Active.value]
@@ -86,15 +90,16 @@ class RuledViewGroup(pymui.Group):
 
 class SplitableViewGroup(pymui.Group):
     """SplitableViewGroup() -> PyMUI Group instance
-    
+
     Container for two Viewport splited horizontaly or verticaly,
     and separated by a balance object.
     Each side can be again splited calling split() method.
     if args is empty, the group starts with a single (non splited) viewport.
     """
-    
+
     def __init__(self, horiz=True, *args, **kwds):
-        super(SplitableViewGroup, self).__init__(InnerSpacing=0, Spacing=0, Horiz=horiz)
+        super(SplitableViewGroup, self).__init__(InnerSpacing=0, Spacing=0,
+                                                 Horiz=horiz)
         if args:
             self.contents = args
             v1, v2 = args
@@ -106,12 +111,13 @@ class SplitableViewGroup(pymui.Group):
             self.AddChild(self.contents)
             if 'docproxy' in kwds:
                 self.contents.set_docproxy(kwds['docproxy'])
-            
+
     def split(self, horiz=True):
         self.InitChange()
         try:
             self.RemChild(self.contents)
-            self.contents = SplitableViewGroup(horiz, self.contents, DocViewport())
+            self.contents = SplitableViewGroup(horiz, self.contents,
+                                               DocViewport())
             self.AddChild(self.contents)
         finally:
             self.ExitChange()
@@ -119,7 +125,7 @@ class SplitableViewGroup(pymui.Group):
     @property
     def viewports(self):
         if isinstance(self.contents, DocViewport):
-            return [ self.contents ]
+            return [self.contents]
         else:
             return self.contents[0].viewports + self.contents[1].viewports
 
@@ -127,43 +133,43 @@ class SplitableViewGroup(pymui.Group):
 class DocWindow(pymui.Window):
     # Pointers type from C header file 'intuition/pointerclass.h'
     POINTERTYPE_NORMAL = 0
-    POINTERTYPE_DRAW   = 6
-    POINTERTYPE_PICK   = 5
+    POINTERTYPE_DRAW = 6
+    POINTERTYPE_PICK = 5
 
-    focus = 0 # used by viewport objects
+    focus = 0  # used by viewport objects
     _name = None
     _scale = 1.0
-    
+
     # Private API
     #
 
     def __init__(self, docproxy, **kwds):
         self.title_header = 'Document: %s @ %u%% (%s)'
         super(DocWindow, self).__init__(None,
-                                        ID=0,       # The haitian power
+                                        ID=0,  # The haitian power
                                         LeftEdge='centered',
                                         TopEdge='centered',
                                         WidthVisible=50,
                                         HeightVisible=50,
-                                        TabletMessages=True, # enable tablet events support
+                                        TabletMessages=True,
                                         **kwds)
 
         self._watchers = {'pick': None}
-        
+
         # Root = paged group, with 2 pages:
         # 1 : ruled viewport group
         # 2 : tiled viewport group
-        
+
         self.RootObject = root = pymui.VGroup(PageMode=True)
-        
+
         self._ruled = RuledViewGroup(docproxy)
         self._splitable = SplitableViewGroup(docproxy=docproxy)
-        
+
         root.AddChild(self._ruled, self._splitable)
 
         self.Notify('Activate', self._on_activate)
         self.show_ruled()
-        
+
     def _on_activate(self, evt):
         if evt.value:
             self.pointer = self.POINTERTYPE_DRAW
@@ -175,15 +181,17 @@ class DocWindow(pymui.Window):
 
     # Public API
     #
-    
+
     def show_ruled(self):
         self.RootObject.ActivePage = 0
-        
+
     def show_splited(self):
         self.RootObject.ActivePage = 1
-    
+
     def on_activate_docproxy(self, docproxy):
-        self.Title = self.title_header % (docproxy.docname, self._scale*100, docproxy.active_layer.name.encode('latin1', 'replace'))
+        name = docproxy.active_layer.name.encode('latin1', 'replace')
+        self.Title = self.title_header % (docproxy.docname,
+                                          self._scale * 100, name)
 
     def set_scale(self, scale):
         self._scale = scale
@@ -191,14 +199,15 @@ class DocWindow(pymui.Window):
 
     def confirm_close(self):
         return pymui.DoRequest(pymui.GetApp(),
-                               gadgets= "_Yes|*_No",
-                               title  = "Need confirmation",
-                               format = "This document is modified and not saved yet.\nSure to close it?")
+                               gadgets="_Yes|*_No",
+                               title="Need confirmation",
+                               format="This document is modified and not " \
+                                   "saved yet.\nSure to close it?")
 
     def set_cursor_radius(self, r):
         for da in self.viewports:
             da.set_cursor_radius(r)
-            
+
     def set_background_rgb(self, rgb):
         for da in self.disp_areas:
             da.set_background_rgb(rgb)

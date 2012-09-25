@@ -61,6 +61,7 @@ class HViewportSplit(gtk.HBox):
     def remove_left(self):
         self.parent.replace_child(self, self.right)
 
+
 class DocWindow(gtk.Window):
     #### Private API ####
 
@@ -109,11 +110,12 @@ class DocWindow(gtk.Window):
         </ui>
         """
     
-    def __init__(self, docproxy):
+    def __init__(self, docproxy, register_viewport_cb, unregister_viewport_cp):
         super(DocWindow, self).__init__()
 
-        ctx.viewports = set()
         self.docproxy = docproxy
+        self._reg_vp_cb = register_viewport_cb
+        self._unreg_vp_cp = unregister_viewport_cp
         self.__fullscreen = False
 
         self.connect("window-state-event", self._on_window_state)
@@ -259,9 +261,6 @@ class DocWindow(gtk.Window):
         vp = DocViewport(self, docproxy)
         self._add_vp(vp)
 
-        vp = DocViewport(self, docproxy)
-        self._add_vp(vp)
-
         #self.set_can_focus(True)
         self.move(0, 0)
         self.set_default_size(600, 400)
@@ -277,8 +276,11 @@ class DocWindow(gtk.Window):
         self.__fullscreen = event.new_window_state & gdk.WINDOW_STATE_FULLSCREEN
 
     def _add_vp(self, vp):
-        ctx.viewports.add(vp)
+        self._reg_vp_cb(vp)
         self._drbox.pack_start(vp, True, True, 0)
+
+    def _remove_vp(self, vp):
+        self._unreg_vp_cp(vp)
 
     #### Public API ####
 

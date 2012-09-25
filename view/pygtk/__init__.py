@@ -55,6 +55,10 @@ from .brusheditor import BrushEditorWindow
 # Needed by view module
 Application = app.Application
 
+ctx.facade = None # ApplicationMediator
+ctx.application = None # ApplicationMediator
+ctx.viewports = set() # DocViewportMediator
+
 
 class GenericMediator(utils.Mediator):
     """Base class for all PyGTK mediators.
@@ -91,12 +95,11 @@ class ApplicationMediator(GenericMediator):
 
     def __init__(self, component):
         assert isinstance(component, Application)
-        super(ApplicationMediator, self).__init__(ApplicationMediator.NAME,
-                                                  component)
+        super(ApplicationMediator, self).__init__(viewComponent=component)
+        ctx.facade = self.facade
         ctx.application = component
 
     def onRegister(self):
-        self.facade.registerMediator(DocViewportMediator(self.viewComponent))
         self.document_mediator = DocumentMediator(self.viewComponent)
         self.facade.registerMediator(self.document_mediator)
         m = ColorWindowMediator(ctx.windows['ColorManager'])
@@ -136,16 +139,6 @@ class ApplicationMediator(GenericMediator):
         # TODO: check for modified documents
         self.viewComponent.quit()
 
-    #### Public API ####
-
-    def del_doc(self, docproxy):
-        # Detach the window from the appplication and destroy it
-        self.document_mediator.del_doc(docproxy)
-
-        # Close the application if no document remains.
-        if not len(self.document_mediator):
-            self.viewComponent.quit()
-
 
 class DocumentMediator(GenericMediator):
     """DocumentMeditor()
@@ -156,16 +149,12 @@ class DocumentMediator(GenericMediator):
     NAME = "DocumentMediator"
 
     focused = None
-    viewport_mediator = None
 
     # private API
     def __init__(self, component):
         assert isinstance(component, Application)
         super(DocumentMediator, self).__init__(viewComponent=component)
-
         self.__docmap = {}
-        name = DocViewportMediator.NAME
-        self.viewport_mediator = self.facade.retrieveMediator(name)
 
     def __len__(self):
         return len(self.__docmap)
@@ -177,6 +166,10 @@ class DocumentMediator(GenericMediator):
 
     def _on_delete_event(self, win, evt=None):
         self.sendNotification(main.DOC_DELETE, win.docproxy)
+
+        # quit application if last document window is closed
+        if len(self.__docmap) == 0:
+            self.sendNotification(main.QUIT)
 
     def _on_menu_quit(self, win):
         self.sendNotification(main.QUIT)
@@ -219,7 +212,7 @@ class DocumentMediator(GenericMediator):
 
     @mvcHandler(model.DocumentProxy.DOC_ADDED)
     def _on_doc_added(self, docproxy):
-        self.add_new_doc(docproxy)
+        self.new_window(docproxy)
 
     @mvcHandler(model.DocumentProxy.DOC_UPDATED)
     def _on_doc_updated(self, docproxy):
@@ -237,20 +230,34 @@ class DocumentMediator(GenericMediator):
         if win and win is not self.focused:
             win.present()
 
+    @mvcHandler(main.DOC_RELEASE)
+    def _on_doc_release(self, docproxy):
+        win = self.__docmap.pop(docproxy)
+        win.destroy()
+
     # public API
+
+    def register_viewport(self, viewport):
+        self.facade.registerMediator(DocViewportMediator(viewport))
+
+    def unregister_viewport(self, viewport):
+        mediator = self.facade.retrieveMediator(hex(id(viewport)))
+        self.facade.removeMediator(mediator)
+
     def has_doc(self, docproxy):
         return docproxy in self.__docmap
 
     def get_win(self, docproxy):
         return self.__docmap[docproxy]
 
-    def add_new_doc(self, docproxy):
+    def new_window(self, docproxy):
         "Register and associate a document proxy to a new document window"
 
-        win = DocWindow(docproxy)
+        win = DocWindow(docproxy, self.register_viewport,
+                        self.unregister_viewport)
         self.__docmap[docproxy] = win
 
-        # Associate Window's events to callbacks
+        # associate Window's events to callbacks
         win.connect("delete-event", self._on_delete_event)
         win.connect("focus-in-event", self._on_focus_in_event)
         win.connect("menu_quit", self._on_menu_quit)
@@ -262,16 +269,6 @@ class DocumentMediator(GenericMediator):
         win.connect("menu_open_window", self._on_menu_open_window)
         win.connect("menu_load_image_as_layer",
                     self._on_menu_load_image_as_layer)
-
-        # Attach viewports to mediators
-        map(self.viewport_mediator.add_viewport, ctx.viewports)
-
-        if ctx.brush:
-            docproxy.brush = ctx.brush
-
-    def del_doc(self, docproxy):
-        win = self.__docmap.pop(docproxy)
-        win.destroy()
 
     def load_new_doc(self, win):
         filename = self.viewComponent.get_document_filename(parent=win)
@@ -285,65 +282,52 @@ class DocViewportMediator(GenericMediator):
 
     # private API
     def __init__(self, component):
-        assert isinstance(component, Application)
+        assert isinstance(component, DocViewport)
+        self.NAME = hex(id(component))
         super(DocViewportMediator, self).__init__(viewComponent=component)
-        self.__vpmap = {}
 
-    # public API
-    def add_viewport(self, viewport):
-        dp = viewport.docproxy
-        vpl = self.__vpmap.get(dp)
-        if vpl:
-            vpl.append(viewport)
-        else:
-            self.__vpmap[dp] = [viewport]
+    def onRegister(self):
+        self.viewComponent.mediator = self
+        ctx.viewports.add(self.viewComponent)
+
+    def onRemove(self):
+        self.viewComponent.mediator = None
+        ctx.viewports.remove(self.viewComponent)
 
     # notification handlers
+
     @mvcHandler(model.DocumentProxy.DOC_UPDATED)
     def _on_doc_updated(self, docproxy, area=None):
-        """Called when specific document area need to be rasterized.
-        If area is None, full visible area is considered.
-        Rasterization is processed on whole document,
-        for all viewports.
-        """
-
-        repaint = DocViewport.repaint
-
         if area:
-            for vp in self.__vpmap[docproxy]:
-                repaint(vp.get_view_area(*area))
-        else:
-            map(repaint, self.__vpmap[docproxy])
+            area = self.viewComponent.get_view_area(*area)
+        self.viewComponent.repaint(area)
 
     @mvcHandler(model.LayerProxy.LAYER_DIRTY)
-    def _on_doc_dirty(self, docproxy, layer, area=None):
+    def _on_layer_dirty(self, docproxy, layer, area=None):
         "Redraw given area. If area is None => full redraw."
-        repaint = DocViewport.repaint
+
         if area:
-            for vp in self.__vpmap[docproxy]:
-                repaint(vp, vp.get_view_area(*area))
-        else:
-            map(repaint, self.__vpmap[docproxy])
+            area = self.viewComponent.get_view_area(*area)
+        self.viewComponent.repaint(area)
 
     @mvcHandler(model.DocumentProxy.DOC_LAYER_ADDED)
     @mvcHandler(main.DOC_LAYER_STACK_CHANGED)
     @mvcHandler(main.DOC_LAYER_UPDATED)
     @mvcHandler(main.DOC_LAYER_DELETED)
-    def _on_layer_dirty(self, docproxy, layer, *args):
+    def _on_layer_repaint(self, docproxy, layer, *args):
         "Specific layer repaint, limited to its area."
+
         if not layer.empty:
             area = layer.area
-            for vp in self.__vpmap[docproxy]:
-                vp.repaint(vp.get_view_area(*area))
+            vp = self.viewComponent
+            vp.repaint(vp.get_view_area(*area))
 
     @mvcHandler(model.BrushProxy.BRUSH_PROP_CHANGED)
     def _on_brush_prop_changed(self, brush, name):
         "Update viewport brush rendering"
 
         if name is 'radius_max':
-            r = getattr(brush, name)
-            for vp in ctx.viewports:
-                vp.set_cursor_radius(r)
+            self.viewComponent.set_cursor_radius(getattr(brush, name))
 
 
 class BrushEditorWindowMediator(GenericMediator):

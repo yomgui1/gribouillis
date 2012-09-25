@@ -144,7 +144,7 @@ class DocWindow(pymui.Window):
     #
 
     def __init__(self, docproxy, **kwds):
-        self.title_header = 'Document: %s @ %u%% (%s)'
+        self.title_header = _T("Document") + ": %s @ %u%% (%s)"
         super(DocWindow, self).__init__(None,
                                         ID=0,  # The haitian power
                                         LeftEdge='centered',

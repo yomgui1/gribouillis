@@ -85,7 +85,7 @@ class ViewPortBase(object):
         self.stride = self._buf.stride
         self.__surf = cairo.ImageSurface.create_for_data(self._buf, cairo.FORMAT_ARGB32, width, height)
         self._ctx = cairo.Context(self.__surf)
-
+        
         return (0, 0, width, height)
 
     def update_matrix(self):
@@ -294,6 +294,7 @@ class ViewPortBase(object):
 
     matrix = property(fget=get_matrix, fset=set_matrix)
 
+
 class BackgroundMixin:
     _backcolor = None  # background as solid color
     _backpat = None  # background as pattern
@@ -331,9 +332,6 @@ class DocumentViewPort(ViewPortBase):
     _filter = None
     passepartout = False
     docproxy = None # need to be set before repaint() call
-
-    def __init__(self):
-        ViewPortBase.__init__(self)
 
     def enable_fast_filter(self, state=True):
         self._filter = cairo.FILTER_FAST if state else None

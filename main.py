@@ -40,7 +40,7 @@ DOC_ACTIVATE = 'doc-activate'
 DOC_ACTIVATED = 'doc-activated'                       # gives the working document
 DOC_SAVE = 'doc-save'
 DOC_SAVE_RESULT = 'doc-save-result'
-DOC_DELETE = 'doc-del'
+DOC_DELETE = 'doc-delete'
 DOC_RELEASE = 'doc-release'
 
 # document's layer notifications

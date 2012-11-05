@@ -71,28 +71,7 @@ class NewDocumentCmd(SimpleCommand, ICommand):
     """
     def execute(self, note):
         vo = note.getBody()  # DocumentConfigVO
-
-        if isinstance(vo, model.vo.EmptyDocumentConfigVO):
-            vo.name = model.DocumentProxy.get_unique_name(vo.name)
-            docproxy = model.DocumentProxy.new_proxy(vo)
-        else:
-            # FileDocumentConfigVO
-            # Search first if document isn't created yet,
-            # if is it, the existing document is just activated.
-            # New document are created/loaded then activated.
-
-            docproxy = model.DocumentProxy.from_doc_name(vo.name)
-            if not docproxy:
-                # If the active docproxy is in 'safe' state (empty or
-                # untouched), it's going to be used as container for the
-                # wanted document. Otherwise a new docproxy is created.
-                docproxy = vo.docproxy
-                if not docproxy or not docproxy.document.close_safe:
-                    docproxy = model.DocumentProxy.new_proxy(vo)
-                else:
-                    docproxy.load(vo.name)
-
-        self.sendNotification(main.DOC_ACTIVATE, docproxy)
+        self.sendNotification(main.DOC_ACTIVATE, model.DocumentProxy.new_doc(vo))
 
 
 class DeleteDocumentCmd(SimpleCommand, ICommand):

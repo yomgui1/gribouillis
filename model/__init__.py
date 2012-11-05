@@ -26,6 +26,7 @@
 import cairo
 import re
 from puremvc.patterns.proxy import Proxy
+from itertools import imap
 
 import main
 import utils
@@ -131,6 +132,7 @@ class DocumentProxy(Proxy):
     docname_num_match = re.compile('(.* #)([0-9]+)').match
     layerproxy = None
     active = None
+    refcnt = 0
 
     def __init__(self, doc):
         assert isinstance(doc, Document)
@@ -172,6 +174,14 @@ class DocumentProxy(Proxy):
         self.facade.removeProxy(self.layerproxy)
 
     #### Public API ####
+    def obtain(self):
+        self.refcnt += 1
+    
+    def release(self):
+        self.refcnt -= 1
+        if self.refcnt < 1:
+            self.sendNotification(main.DOC_DELETE, self)
+        
     def activate(self):
         DocumentProxy.active = self
         self.sendNotification(main.DOC_ACTIVATED, self)
@@ -208,6 +218,10 @@ class DocumentProxy(Proxy):
         return cls.__instances.itervalues()
 
     @classmethod
+    def has_modified(cls):
+        return any(imap(lambda dp: dp.document.modified and not dp.document.empty, cls.__instances.itervalues()))
+
+    @classmethod
     def new_proxy(cls, vo):
         """
         Helper classmethod to create DocumentProxy with document
@@ -219,6 +233,29 @@ class DocumentProxy(Proxy):
         # Docproxy ready to be used
         self.sendNotification(cls.DOC_ADDED, self)
         return self
+
+    @classmethod
+    def new_doc(cls, vo):
+        if isinstance(vo, model.vo.EmptyDocumentConfigVO):
+            vo.name = cls.get_unique_name(vo.name)
+            docproxy = cls.new_proxy(vo)
+        else:
+            # FileDocumentConfigVO
+            # Search first if document isn't created yet,
+            # if is it, the existing document is just activated.
+            # New document are created/loaded then activated.
+
+            docproxy = cls.from_doc_name(vo.name)
+            if not docproxy:
+                # If the active docproxy is in 'safe' state (empty or
+                # untouched), it's going to be used as container for the
+                # wanted document. Otherwise a new docproxy is created.
+                docproxy = vo.docproxy
+                if not docproxy or not docproxy.document.close_safe:
+                    docproxy = cls.new_proxy(vo)
+                else:
+                    docproxy.load(vo.name)
+        return docproxy
 
     def load(self, filename):
         """Replace current document by loading a new one.

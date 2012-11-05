@@ -110,9 +110,14 @@ def cmd_rem_active_layer(ctx):
 def cmd_enter_color_pick_mode(ctx):
     return 'Pick Mode'
 
+
 #=============================================================================
 # Event operators
 #
+
+@eventoperator(_T('toggle fullscreen mode'))
+def toggle_fullscreen(ctx, event, viewport):
+    ctx.app.toggle_fullscreen(viewport.WindowObject.object)
 
 @eventoperator(_T("viewport enter"))
 def vp_enter(ctx, event, viewport):
@@ -120,6 +125,8 @@ def vp_enter(ctx, event, viewport):
     KeymapManager.use_map("Viewport")
     viewport.enable_motion_events(True)
     viewport.show_brush_cursor(True)
+    if ctx.active_docproxy != viewport.docproxy:
+        ctx.app.mediator.sendNotification(main.DOC_ACTIVATE, viewport.docproxy)
 
 @eventoperator("vp-leave")
 def vp_leave(ctx, event, viewport):

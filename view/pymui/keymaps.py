@@ -26,6 +26,9 @@
 from view.keymap import KeymapManager
 
 KeymapManager.register_keymap("Viewport", {
+        # UI
+        "f-press": "toggle_fullscreen",
+        
         # Brush related
         "cursor-enter": "vp_enter",
         "cursor-leave": "vp_leave",
@@ -39,16 +42,16 @@ KeymapManager.register_keymap("Viewport", {
         "mouse_middle-press": "vp_scroll_start",
         "wheel_down-press": "scale_down_at_cursor",
         "wheel_up-press": "scale_up_at_cursor",
-        "key-press-bracketright": ("vp_rotate_right", None),
-        "key-press-bracketleft": ("vp_rotate_left", None),
-        "key-press-x": "vp_swap_x",
-        "key-press-y": "vp_swap_y",
-        "key-press-equal": "vp_reset_all",
-        "key-press-plus": ("vp_reset_rotation", None),
-        "key-press-Left": "vp_scroll_left",
-        "key-press-Right": "vp_scroll_right",
-        "key-press-Up": "vp_scroll_up",
-        "key-press-Down": "vp_scroll_down",
+        "bracketright-press": ("vp_rotate_right", None),
+        "bracketleft-press": ("vp_rotate_left", None),
+        "x-press": "vp_swap_x",
+        "y-press": "vp_swap_y",
+        "equal-press": "vp_reset_all",
+        "plus-press": ("vp_reset_rotation", None),
+        "Left-press": "vp_scroll_left",
+        "Right-press": "vp_scroll_right",
+        "Up-press": "vp_scroll_up",
+        "Down-press": "vp_scroll_down",
         })
 
 KeymapManager.register_keymap("Stroke", {

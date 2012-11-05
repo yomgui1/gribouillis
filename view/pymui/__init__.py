@@ -37,19 +37,20 @@ import view.operator as operator
 from utils import _T, mvcHandler
 
 from .app import Application
-from .docviewer import DocWindow
 from .viewport import DocViewport
+from .docviewer import DrawingRoot
 
 import operators
 import keymaps
 
 del keymaps, operators
 
+ctx.app = None # ApplicationMediator
 ctx.tool = None # operators
 ctx.eraser = None # BrushHouseWindowMediator
 ctx.brush = None # BrushHouseWindowMediator
 ctx.active_docproxy = None # ApplicationMediator
-ctx.active_docwin = None
+ctx.active_docwin = None # DocWindowBase
 ctx.viewports = set() # DocViewportMediator
 
 
@@ -81,7 +82,7 @@ class ApplicationMediator(GenericMediator):
 
     NAME = "ApplicationMediator"
 
-    document_mediator = None
+    drawingroot_mediator = None
     layermgr_mediator = None
 
     # Private API
@@ -125,8 +126,8 @@ class ApplicationMediator(GenericMediator):
             item.Notify('Pressed', self._on_last_sel, when=False, filename=item.path)
 
     def onRegister(self):
-        self.document_mediator = DocumentMediator(self.viewComponent)
-        self.facade.registerMediator(self.document_mediator)
+        self.drawingroot_mediator = DrawRootMediator(self.viewComponent)
+        self.facade.registerMediator(self.drawingroot_mediator)
 
         self.layermgr_mediator = LayerMgrMediator(self.viewComponent.windows['LayerMgr'])
         self.facade.registerMediator(self.layermgr_mediator)
@@ -137,9 +138,8 @@ class ApplicationMediator(GenericMediator):
         self.facade.registerMediator(BrushHouseWindowMediator(self.viewComponent.windows['BrushHouse']))
         #self.facade.registerMediator(DocInfoMediator(self.viewComponent.docinfo))
 
-        # Add a default empty document
-        vo = model.vo.EmptyDocumentConfigVO()
-        self.sendNotification(main.NEW_DOCUMENT, vo)
+        # Open a new empty document
+        self.new_document()
 
     def get_document_filename(self, parent=None):
         return self.viewComponent.get_document_filename(parent)
@@ -151,16 +151,16 @@ class ApplicationMediator(GenericMediator):
     # menu items binding
 
     def _menu_save_document(self, evt):
-        self.document_mediator.save_document()
+        pass
 
     def _menu_save_as_document(self, evt):
-        self.document_mediator.save_as_document()
+        pass
 
     def _menu_clear_active_layer(self, evt):
-        self.document_mediator.clear_active_layer()
+        pass
 
     def _menu_load_background(self, evt):
-        self.document_mediator.load_background()
+        pass
 
     def _menu_load_image_as_layer(self, evt):
         self.layermgr_mediator.load_image_as_layer()
@@ -182,7 +182,7 @@ class ApplicationMediator(GenericMediator):
     @mvcHandler(main.QUIT)
     def _on_quit(self, note):
         # test here if some documents need to be saved
-        if any(map(lambda dp: dp.document.modified and not dp.document.empty, self.document_mediator.proxies)):
+        if model.DocumentProxy.has_modified():
             res = pymui.DoRequest(self.viewComponent,
                                   gadgets="_Yes|*_No",
                                   title="Need confirmation",
@@ -200,14 +200,20 @@ class ApplicationMediator(GenericMediator):
     def quit(self):
         self.sendNotification(main.QUIT)
 
+    def request_document(self, *a):
+        filename = self.viewComponent.get_document_filename(parent=ctx.active_docwin, read=False)
+        if filename:
+            self.open_document(filename)
+
     def new_document(self, *a):
-        # TODO: ask for document type
         vo = model.vo.EmptyDocumentConfigVO()
         if self.viewComponent.get_new_document_type(vo):
             try:
-                self.sendNotification(main.NEW_DOCUMENT, vo)
+                docproxy = model.DocumentProxy.new_doc(vo)
             except:
                 self.show_error_dialog(_T("Failed to create document"))
+
+        self.drawingroot_mediator.add_docproxy(docproxy)
 
     def open_document(self, filename):
         vo = model.vo.FileDocumentConfigVO(filename)
@@ -216,81 +222,17 @@ class ApplicationMediator(GenericMediator):
         except IOError:
             self.show_error_dialog(_T("Can't open file:\n%s" % filename))
 
-    def request_document(self, *a):
-        filename = self.viewComponent.get_document_filename(parent=ctx.active_docwin, read=False)
-        if filename:
-            self.open_document(filename)
 
-
-class DocumentMediator(GenericMediator):
-    NAME = "DocumentMediator"
-
+class DrawRootMediator(GenericMediator):
+    NAME = "DrawRootMediator"
+    
     # private API
 
     def __init__(self, component):
-        assert isinstance(component, app.Application)
-        super(DocumentMediator, self).__init__(viewComponent=component)
-        self.__docmap = {}
-
-    def __len__(self):
-        return len(self.__docmap)
-
-    def _save_doc(self, docproxy, filename):
-        app = self.viewComponent
-        win = app.new_save_status_window()
-        win.OpenWindow()
-        app.Sleep = True
-        try:
-            self.sendNotification(main.DOC_SAVE, (docproxy, filename))
-            win.CloseWindow()
-        finally:
-            app.Sleep = False
-
-    # ui events handlers
-
-    def _on_win_close_req(self, evt):
-        win = evt.Source
-        doc = win.docproxy.document
-        if doc.modified and not doc.empty and not win.confirm_close():
-            return
-        self.sendNotification(main.DOC_DELETE, win.docproxy)
+        assert isinstance(component, Application)
+        super(DrawRootMediator, self).__init__(viewComponent=component)
 
     # notification handlers
-
-    @mvcHandler(model.DocumentProxy.DOC_ADDED)
-    def _on_doc_added(self, docproxy):
-        self.new_window(docproxy)
-
-    @mvcHandler(main.DOC_RELEASE)
-    def _on_doc_release(self, docproxy):
-        win = self.__docmap.pop(docproxy)
-        win.Open = True
-        self.viewComponent.RemChild(win)
-            
-        if len(self.__docmap):
-            docproxy = self.__docmap.keys()[-1]
-            self.sendNotification(main.DOC_ACTIVATE, docproxy)
-        else:
-            self.sendNotification(main.QUIT)
-
-    @mvcHandler(main.DOC_SAVE_RESULT)
-    def _on_save_document_result(self, docproxy, result):
-        pass
-
-    @mvcHandler(model.BrushProxy.BRUSH_PROP_CHANGED)
-    def _on_doc_brush_prop_changed(self, brush, name):
-        if brush != ctx.brush or name == 'color':
-            return
-
-        # synchronize all document's drawing brushes
-        v = getattr(brush, name)
-        for docproxy in self.__docmap.iterkeys():
-            setattr(docproxy.document.brush, name, v)
-
-    @mvcHandler(main.DOC_LAYER_ACTIVATED)
-    @mvcHandler(main.DOC_LAYER_RENAMED)
-    def _on_doc_layer_activated(self, docproxy, layer):
-        self.get_win(docproxy).refresh_title()
 
     # public API
 
@@ -298,83 +240,84 @@ class DocumentMediator(GenericMediator):
         self.facade.registerMediator(DocViewportMediator(viewport))
 
     def unregister_viewport(self, viewport):
+        viewport.docproxy.release()
         mediator = self.facade.retrieveMediator(hex(id(viewport)))
         self.facade.removeMediator(mediator)
 
-    def new_window(self, docproxy):
-        "Create and attach a document window to given docproxy"
+    def add_docproxy(self, docproxy):
+        root = DrawingRoot(docproxy, self.register_viewport, self.unregister_viewport)
+        ctx.app.attach_new_contents(root)
 
-        component = DocWindow(docproxy, self.register_viewport, self.unregister_viewport)
-        self.__docmap[docproxy] = component
-        self.viewComponent.AddChild(component)
 
-        component.RootObject.object.Redraw()  # needed to force rulers to be redraw
-        component.Notify('CloseRequest', self._on_win_close_req, when=True)
-        component.Open = True
+class DocViewportMediator(GenericMediator):
+    NAME = "DocViewportMediator"
 
-    def save_document(self, docproxy=None):
-        docproxy = docproxy or model.DocumentProxy.get_active()
-        filename = docproxy.document.filename
-        if not filename:
-            self.save_as_document()
-        self._save_doc(docproxy, filename)
+    # private API
 
-    def save_as_document(self, docproxy=None):
-        docproxy = docproxy or model.DocumentProxy.get_active()
+    def __init__(self, component):
+        assert isinstance(component, DocViewport)
+        self.NAME = "%s_%x" % (DocViewportMediator.NAME, id(component))
+        super(DocViewportMediator, self).__init__(viewComponent=component)
 
-        if docproxy.document.empty:
-            self.sendNotification(main.SHOW_ERROR_DIALOG, _T("Empty document!") % filename)
-            return
+    def onRegister(self):
+        self.viewComponent.mediator = self
+        ctx.viewports.add(self)
 
-        win = self.get_win(docproxy)
-        filename = self.viewComponent.get_document_filename(parent=win, read=False)
-        if filename:
-            self._save_doc(docproxy, filename)
+    def onRemove(self):
+        self.viewComponent.mediator = None
+        ctx.viewports.remove(self)
 
-    def has_doc(self, docproxy):
-        return docproxy in self.__docmap
+    # notification handlers
 
-    def get_win(self, docproxy):
-        return self.__docmap[docproxy]
+    @mvcHandler(model.DocumentProxy.DOC_UPDATED)
+    def _on_doc_updated(self, docproxy, area=None):
+        vp = self.viewComponent
+        if vp.docproxy is not docproxy: return
+        if area:
+            area = vp.get_view_area(*area)
+        vp.repaint(area)
 
-    def load_background(self):
-        docproxy = model.DocumentProxy.get_active()
-        filename = self.viewComponent.get_image_filename(parent=self.get_win(docproxy),
-            drawer=utils.resolve_path(model.prefs['backgrounds-path']))
-        if filename and os.path.isfile(filename):
-            try:
-                docproxy.set_background(filename)
-            except:
-                self.sendNotification(main.SHOW_ERROR_DIALOG,
-                                      "Failed to load background image %s.\n" % filename +
-                                      "(Note: Only PNG files are supported as background).")
+    @mvcHandler(model.LayerProxy.LAYER_DIRTY)
+    def _on_layer_dirty(self, docproxy, layer, area=None):
+        "Redraw given area. If area is None => full redraw."
+        
+        vp = self.viewComponent
+        if vp.docproxy is not docproxy: return
+        if area:
+            area = vp.get_view_area(*area)
+        vp.repaint(area)
 
-    def set_background_rgb(self, rgb):
-        docproxy = model.DocumentProxy.get_active()
-        win = self.get_win(docproxy)
-        win.set_background_rgb(rgb)
+    @mvcHandler(model.DocumentProxy.DOC_LAYER_ADDED)
+    @mvcHandler(main.DOC_LAYER_STACK_CHANGED)
+    @mvcHandler(main.DOC_LAYER_UPDATED)
+    @mvcHandler(main.DOC_LAYER_DELETED)
+    def _on_layer_repaint(self, docproxy, layer, *args):
+        "Specific layer repaint, limited to its area."
 
-    def refresh_all(self):
-        for win in self.__docmap.itervalues():
-            win.RootObject.object.Redraw()
+        vp = self.viewComponent
+        if vp.docproxy is not docproxy: return
+        if not layer.empty:
+            area = layer.area
+            vp.repaint(vp.get_view_area(*area))
 
-    @property
-    def proxies(self):
-        return self.__docmap.iterkeys()
+    @mvcHandler(model.BrushProxy.BRUSH_PROP_CHANGED)
+    def _on_brush_prop_changed(self, brush, name):
+        "Update viewport brush rendering"
+
+        if name is 'radius_max':
+            self.viewComponent.set_cursor_radius(getattr(brush, name))
 
 
 class LayerMgrMediator(GenericMediator):
     NAME = "LayerMgrMediator"
 
     app_mediator = None
-    doc_mediator = None
 
     def __init__(self, component):
         assert isinstance(component, layermgr.LayerMgr)
         super(LayerMgrMediator, self).__init__(LayerMgrMediator.NAME, component)
 
         self.__docproxy = None
-        self.doc_mediator = self.facade.retrieveMediator(DocumentMediator.NAME)
         self.app_mediator = self.facade.retrieveMediator(ApplicationMediator.NAME)
 
         component.mediator = self
@@ -528,8 +471,7 @@ class LayerMgrMediator(GenericMediator):
 
     def load_image_as_layer(self):
         docproxy = model.DocumentProxy.get_active()
-        win = self.doc_mediator.get_win(docproxy)
-        filename = self.app_mediator.viewComponent.get_image_filename(parent=win)
+        filename = self.app_mediator.viewComponent.get_image_filename(parent=ctx.active_docwin)
         if filename:
             self.sendNotification(main.DOC_LOAD_IMAGE_AS_LAYER,
                                   model.vo.LayerConfigVO(docproxy=docproxy,
@@ -776,70 +718,6 @@ class BrushHouseWindowMediator(GenericMediator):
                 self.viewComponent.refresh_active()
         elif name == 'eraser' and brush.eraser:
             ctx.eraser = brush
-
-
-class DocViewportMediator(GenericMediator):
-    NAME = "DocViewportMediator"
-
-    # private API
-
-    def __init__(self, component):
-        assert isinstance(component, DocViewport)
-        self.NAME = "%s_%x" % (DocViewportMediator.NAME, id(component))
-        super(DocViewportMediator, self).__init__(viewComponent=component)
-
-    def onRegister(self):
-        self.viewComponent.mediator = self
-        ctx.viewports.add(self)
-
-    def onRemove(self):
-        self.viewComponent.mediator = None
-        ctx.viewports.remove(self)
-
-    # notification handlers
-
-    @mvcHandler(main.DOC_ACTIVATED)
-    def _on_doc_activated(self, docproxy):
-        vp = self.viewComponent
-        if vp.docproxy is docproxy:
-            win = ctx.active_docwin = vp.window
-            if not win.Activate:
-                win.NNSet('Activate', True)
-            win.set_docproxy(docproxy)
-            win.set_scale(vp.scale)
-
-    @mvcHandler(model.DocumentProxy.DOC_UPDATED)
-    def _on_doc_updated(self, docproxy, area=None):
-        if area:
-            area = self.viewComponent.get_view_area(*area)
-        self.viewComponent.repaint(area)
-
-    @mvcHandler(model.LayerProxy.LAYER_DIRTY)
-    def _on_layer_dirty(self, docproxy, layer, area=None):
-        "Redraw given area. If area is None => full redraw."
-
-        if area:
-            area = self.viewComponent.get_view_area(*area)
-        self.viewComponent.repaint(area)
-
-    @mvcHandler(model.DocumentProxy.DOC_LAYER_ADDED)
-    @mvcHandler(main.DOC_LAYER_STACK_CHANGED)
-    @mvcHandler(main.DOC_LAYER_UPDATED)
-    @mvcHandler(main.DOC_LAYER_DELETED)
-    def _on_layer_repaint(self, docproxy, layer, *args):
-        "Specific layer repaint, limited to its area."
-
-        if not layer.empty:
-            area = layer.area
-            vp = self.viewComponent
-            vp.repaint(vp.get_view_area(*area))
-
-    @mvcHandler(model.BrushProxy.BRUSH_PROP_CHANGED)
-    def _on_brush_prop_changed(self, brush, name):
-        "Update viewport brush rendering"
-
-        if name is 'radius_max':
-            self.viewComponent.set_cursor_radius(getattr(brush, name))
 
 
 class DocInfoMediator(GenericMediator):

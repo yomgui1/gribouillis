@@ -34,12 +34,12 @@ import model
 import view
 import main
 import utils
+import view.context as ctx
 
 from model.devices import *
 from view import viewport
 from utils import _T
 
-from .app import Application
 from .widgets import Ruler
 from .viewport import DocViewport
 from .const import *
@@ -52,7 +52,7 @@ class RuledViewGroup(pymui.Group):
     and one vertical rulers.
     """
 
-    def __init__(self, win, docproxy):
+    def __init__(self, root, docproxy):
         super(RuledViewGroup, self).__init__(Horiz=False, Columns=2,
                                              InnerSpacing=0, Spacing=0)
 
@@ -78,10 +78,10 @@ class RuledViewGroup(pymui.Group):
         self.AddChild(self.vruler)
 
         # Viewport
-        self.viewport = DocViewport(win, docproxy, rulers=(self.hruler,
+        self.viewport = DocViewport(root, docproxy, rulers=(self.hruler,
                                                            self.vruler))
         self.AddChild(self.viewport)
-        win.register_viewport(self.viewport)
+        root.register_viewport(self.viewport)
 
     def _on_ruler_metric(self, evt, pop, lst):
         pop.Close(0)
@@ -99,7 +99,7 @@ class SplitableViewGroup(pymui.Group):
     if args is empty, the group starts with a single (non splited) viewport.
     """
 
-    def __init__(self, win, horiz=True, *args, **kwds):
+    def __init__(self, root, horiz=True, *args, **kwds):
         super(SplitableViewGroup, self).__init__(InnerSpacing=0, Spacing=0,
                                                  Horiz=horiz)
         if args:
@@ -110,21 +110,21 @@ class SplitableViewGroup(pymui.Group):
             self.AddChild(v2)
             for vp in args:
                 if isinstance(vp, DocViewport):
-                    win.register_viewport(vp)
+                    root.register_viewport(vp)
         else:
-            self.contents = DocViewport(win)
+            self.contents = DocViewport(root)
             self.AddChild(self.contents)
             if 'docproxy' in kwds:
                 self.contents.set_docproxy(kwds['docproxy'])
-            win.register_viewport(self.contents)
-        self._win = win
+            root.register_viewport(self.contents)
+        self._root = root
 
     def split(self, horiz=True):
         self.InitChange()
         try:
             self.RemChild(self.contents)
-            self.contents = SplitableViewGroup(self._win, horiz, self.contents,
-                                               DocViewport(self._win))
+            self.contents = SplitableViewGroup(self._root, horiz, self.contents,
+                                               DocViewport(self._root))
             self.AddChild(self.contents)
         finally:
             self.ExitChange()
@@ -137,87 +137,34 @@ class SplitableViewGroup(pymui.Group):
             return self.contents[0].viewports + self.contents[1].viewports
 
 
-class DocWindow(pymui.Window):
-    # Pointers type from C header file 'intuition/pointerclass.h'
-    POINTERTYPE_NORMAL = 0
-    POINTERTYPE_DRAW = 6
-    POINTERTYPE_PICK = 5
+class DrawingRoot(pymui.Group):
+    # Root = paged group, with 2 pages:
+    # 1 : ruled viewport group
+    # 2 : tiled viewport group
 
-    focus = 0  # used by viewport objects
-    _name = None
-    _scale = 1.0
-
-    # private API
-
-    def __init__(self, docproxy, register_viewport_cb, unregister_viewport_cb, **kwds):
-        self.title_header = _T("Document") + ": %s @ %u%% (%s)"
-        super(DocWindow, self).__init__(None,
-                                        ID=0,  # The haitian power
-                                        LeftEdge='centered',
-                                        TopEdge='centered',
-                                        WidthVisible=50,
-                                        HeightVisible=50,
-                                        TabletMessages=True,
-                                        **kwds)
-
+    def __init__(self, docproxy, register_viewport_cb, unregister_viewport_cb):
+        super(DrawingRoot, self).__init__(Horiz=False, PageMode=True)
+        
         self.register_viewport = register_viewport_cb
         self.unregister_viewport = unregister_viewport_cb
-        self.set_docproxy(docproxy)
-
-        # Root = paged group, with 2 pages:
-        # 1 : ruled viewport group
-        # 2 : tiled viewport group
-
-        self.RootObject = root = pymui.VGroup(PageMode=True)
+        self.proxies = set() # handled docproxy list
 
         self._ruled = RuledViewGroup(self, docproxy)
         self._splitable = SplitableViewGroup(self, docproxy=docproxy)
+        self.AddChild(self._ruled, self._splitable)
 
-        root.AddChild(self._ruled, self._splitable)
-
-        self.Notify('Activate', self._on_activate)
+        # default is ruled view
         self.show_ruled()
 
-    def _on_activate(self, evt):
-        if evt.value:
-            self.pointer = self.POINTERTYPE_DRAW
-        else:
-            self.pointer = self.POINTERTYPE_NORMAL
-
-    def _refresh_title(self):
-        self.Title = self.title_header % (self._dname, self._scale * 100, self._lname)
-
-    # Public API
-
     def show_ruled(self):
-        self.RootObject.ActivePage = 0
+        self.ActivePage = 0
 
     def show_splited(self):
-        self.RootObject.ActivePage = 1
-
-    def set_docproxy(self, docproxy):
-        self._dname = docproxy.docname
-        self._lname = docproxy.active_layer.name.encode('latin1', 'replace')
-        self._refresh_title()
-
-    def set_scale(self, scale):
-        self._scale = scale
-        self._refresh_title()
-
-    def confirm_close(self):
-        return pymui.DoRequest(pymui.GetApp(),
-                               gadgets="_Yes|*_No",
-                               title="Need confirmation",
-                               format="This document is modified and not " \
-                                   "saved yet.\nSure to close it?")
-
+        self.ActivePage = 1
+        
     def set_cursor_radius(self, r):
         for da in self.viewports:
             da.set_cursor_radius(r)
-
-    def set_background_rgb(self, rgb):
-        for da in self.disp_areas:
-            da.set_background_rgb(rgb)
 
     @property
     def viewports(self):
@@ -231,12 +178,94 @@ class DocWindow(pymui.Window):
         return self.RootObject.object.ActivePage.value == 0
 
 
-class DocWindowFullscreen(DocWindow):
+class DocWindowBase(pymui.Window):
+    # Pointers type from C header file 'intuition/pointerclass.h'
+    POINTERTYPE_NORMAL = 0
+    POINTERTYPE_DRAW = 6
+    POINTERTYPE_PICK = 5
+    
+    contents = None
+    focus = 0  # used by viewport objects
+    
+    def __init__(self, **kwds):
+        super(DocWindowBase, self).__init__(None,
+                                            ID=0,  # The haitian power
+                                            CloseOnReq=True,
+                                            TabletMessages=True,
+                                            RootObject=pymui.Group(),
+                                            **kwds)
+        self.Notify('Activate', self._on_activate)
+
+    def _on_activate(self, evt):
+        if evt.value:
+            self.pointer = self.POINTERTYPE_DRAW
+        else:
+            self.pointer = self.POINTERTYPE_NORMAL
+        ctx.active_docwin = self
+
+    def use_contents(self, contents=None):
+        root = self.RootObject.object
+        root.InitChange()
+        old_contents = self.contents
+        if old_contents is not None:
+            root.RemChild(old_contents)
+        self.contents = contents
+        if contents:
+            root.AddChild(contents)
+        root.ExitChange()
+        return old_contents
+
+    def active_docproxy(self, docproxy):
+        pass
+
+    def set_scale(self, scale):
+        pass
+
+    def confirm_close(self):
+        return pymui.DoRequest(pymui.GetApp(),
+                               gadgets="_Yes|*_No",
+                               title="Need confirmation",
+                               format="This document is modified and not " \
+                                   "saved yet.\nSure to close it?")
+
+
+class FramedDocWindow(DocWindowBase):
+    _name = None
+    _scale = 1.0
+    _title_header = _T("Document") + ": %s @ %u%% (%s)"
+
+    # private API
+
+    def __init__(self):
+        super(FramedDocWindow, self).__init__(LeftEdge='centered',
+                                              TopEdge='centered',
+                                              WidthVisible=50,
+                                              HeightVisible=50)
+
+
+    def _refresh_title(self):
+        self.Title = FramedDocWindow._title_header % (self._dname, self._scale * 100, self._lname)
+
+    # Public API
+    
+    def active_docproxy(self, docproxy):
+        "Modify window properties using the given active docproxy"
+
+        self._dname = docproxy.docname
+        self._lname = docproxy.active_layer.name.encode('latin1', 'replace')
+        self._refresh_title()
+
+    def set_scale(self, scale):
+        self._scale = scale
+        self._refresh_title()
+
+
+class FullscreenDocWindow(DocWindowBase):
     # Private API
     #
 
     def __init__(self):
-        super(DocWindowFullscreen, self).__init__(WidthScreen=100,
+        super(FullscreenDocWindow, self).__init__(WidthScreen=100,
                                                   HeightScreen=100,
                                                   Backdrop=True,
                                                   Borderless=True)

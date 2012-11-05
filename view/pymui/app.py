@@ -44,6 +44,7 @@ from .brusheditor import *
 from .cms import *
 from .prefwin import *
 from .docinfo import *
+from .docviewer import FullscreenDocWindow, FramedDocWindow
 
 __all__ = [ 'Application' ]
 
@@ -109,6 +110,9 @@ class Application(pymui.Application, view.mixin.ApplicationMixin):
                                      Position=('moused', 'moused'),
                                      RootObject=pymui.Text(_T("Saving...")))
         self.AddChild(self._busywin)
+ 
+        self.fullscreen_win = FullscreenDocWindow()
+        self.AddChild(self.fullscreen_win)
  
         self.windows = dwin = {}
 
@@ -265,6 +269,35 @@ class Application(pymui.Application, view.mixin.ApplicationMixin):
     def new_save_status_window(self):
         return self._busywin
 
+    def attach_new_contents(self, contents):
+        if self.fullscreen:
+            win = self.fullscreen_win
+        else:
+            win = FramedDocWindow()
+            self.AddChild(win)
+        win.use_contents(contents)
+        win.Open = True
+        
+    def toggle_fullscreen(self, framed_win):
+        fsw = self.fullscreen_win
+        
+        if self.fullscreen:
+            fsw.Open = False
+            fsw.link.use_contents(fsw.use_contents())
+            fsw.link.Open = True
+            fsw.link = None
+
+        else:
+            framed_win.Open = False
+            fsw.link = framed_win
+            fsw.use_contents(framed_win.use_contents())
+            fsw.Open = True
+
+    @property
+    def fullscreen(self):
+        return self.fullscreen_win.Open.value
+
+
 class MyRoot(pymui.Group):
     _MCC_=True
     
@@ -285,6 +318,7 @@ class MyRoot(pymui.Group):
     def __init__(self, *a, **k):
         super(MyRoot, self).__init__(Horiz=False, *a, **k)
         self._ev = pymui.EventHandler()
+
 
 class Splash(pymui.Window):
     def __init__(self, name):
@@ -369,6 +403,7 @@ class Splash(pymui.Window):
         root.AddChild(top_bar)
         root.AddChild(logo)
         root.AddChild(bottom_bar)
+
 
 class AboutWindow(pymui.Window):
     def __init__(self):

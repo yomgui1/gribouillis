@@ -49,7 +49,6 @@ from model.devices import *
 from utils import resolve_path, _T
 
 from .eventparser import MUIEventParser
-from .app import Application
 from .widgets import Ruler
 from .const import *
 
@@ -68,6 +67,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
 
     _MCC_ = True
     width = height = None
+    _drawbuf = None
     _clip = None
     _cur_area = None
     _cur_pos = (0,0)
@@ -79,6 +79,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
     _debug = 0
     selpath = None
     ctx = None
+    docproxy = None
 
     # Tools
     line_guide = None
@@ -87,12 +88,12 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
     # Class only
     __focus_lock = None
 
-    def __init__(self, window, docproxy=None, rulers=None):
+    def __init__(self, root, docproxy=None, rulers=None):
         super(DocViewport, self).__init__(InnerSpacing=0, FillArea=False, DoubleBuffer=False)
 
         self.device = InputDevice()
-        self.window = window
-
+        self.root = root
+        
         self._km = KeymapManager()
         self._km.use_map("Viewport")
         self._ev = pymui.EventHandler()
@@ -123,7 +124,13 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
             self.set_docproxy(docproxy)
 
     def set_docproxy(self, docproxy):
+        if self.docproxy is docproxy: return
+        if self.docproxy:
+            self.root.proxies.remove(self.docproxy)
+            self.docproxy.release()
+        docproxy.obtain()
         self.docproxy = docproxy
+        self.root.proxies.add(docproxy)
         self._docvp.docproxy = docproxy
         fill = docproxy.document.fill or resolve_path(main.Gribouillis.TRANSPARENT_BACKGROUND)
         self.set_background(fill)
@@ -395,6 +402,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         self.Redraw()
 
     def repaint(self, clip=None, redraw=True):
+        if self._drawbuf is None: return
         self._docvp.repaint(clip)
         if redraw:
             self.redraw(clip)

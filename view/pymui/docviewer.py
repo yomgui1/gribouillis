@@ -249,7 +249,7 @@ class DocWindowBase(pymui.Window, ModifiableContainer):
     def __init__(self, **kwds):
         root = pymui.HGroup()
         super(DocWindowBase, self).__init__(None,
-                                            ID=0,  # The haitian power
+                                            ID=0, # Haitian power
                                             CloseOnReq=True,
                                             TabletMessages=True,
                                             RootObject=root,
@@ -286,15 +286,33 @@ class FramedDocWindow(DocWindowBase):
     _name = None
     _scale = 1.0
     _title_header = _T("Document") + ": %s @ %u%% (%s)"
+    __instances = set()
 
     # private API
 
     def __init__(self):
-        super(FramedDocWindow, self).__init__(LeftEdge='centered',
-                                              TopEdge='centered',
+        super(FramedDocWindow, self).__init__(Position=('centered', 'centered'),
                                               WidthVisible=50,
                                               HeightVisible=50)
+        FramedDocWindow.__instances.add(self)
+        
+        self.Notify('CloseRequest', lambda *a: FramedDocWindow.__instances.remove(self))
 
+    @staticmethod
+    def open_all(state=True):
+        for win in FramedDocWindow.__instances:
+            # MUI lacks of a way to remember window position during runtime
+            # without save it at closing if user has requested it.
+            # So I emulate that using a PyMUI function that call
+            # the instuition function ChangeWindowBox().
+            if win.Open.value and not state:
+                win.__box = win.LeftEdge.value, win.TopEdge.value, \
+                            win.Width.value, win.Height.value
+            
+            win.Open = state
+            
+            if win.Open.value and state:
+                win.SetWindowBox(*win.__box)
 
     def _refresh_title(self):
         self.Title = FramedDocWindow._title_header % (self._dname, self._scale * 100, self._lname)

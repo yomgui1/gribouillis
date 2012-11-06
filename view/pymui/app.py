@@ -275,14 +275,14 @@ class Application(pymui.Application, view.mixin.ApplicationMixin):
         
         if self.fullscreen:
             fsw.Open = False
-            fsw.link.use_contents(fsw.use_contents())
-            fsw.link.Open = True
+            fsw.link.contents = fsw.set_contents()
+            FramedDocWindow.open_all()
             fsw.link = None
 
         else:
-            framed_win.Open = False
+            FramedDocWindow.open_all(False)
             fsw.link = framed_win
-            fsw.use_contents(framed_win.use_contents())
+            fsw.contents = framed_win.set_contents()
             fsw.Open = True
 
     @property

@@ -217,9 +217,11 @@ class ApplicationMediator(GenericMediator):
     def open_document(self, filename):
         vo = model.vo.FileDocumentConfigVO(filename)
         try:
-            self.sendNotification(main.NEW_DOCUMENT, vo)
+            docproxy = model.DocumentProxy.new_doc(vo)
         except IOError:
             self.show_error_dialog(_T("Can't open file:\n%s" % filename))
+            
+        self.drawingroot_mediator.add_docproxy(docproxy)
 
 
 class DrawRootMediator(GenericMediator):

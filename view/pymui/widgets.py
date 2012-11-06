@@ -105,7 +105,7 @@ class Ruler(pymui.Rectangle):
         hi = self.hi / pxpu
         
         dist = hi - lo
-        if dist == 0:
+        if not dist:
             return
             
         scale = ceil(self.max_size / pxpu)

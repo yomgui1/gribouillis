@@ -104,12 +104,6 @@ class Application(pymui.Application, view.mixin.ApplicationMixin):
             Menustrip   = self._create_menustrip())
 
         self.ctx = new_context('Application', app=self, docproxy=None, viewport=None)
-
-        self._busywin = pymui.Window(ID=0, DepthGadget=False, CloseGadget=False, SizeGadget=False,
-                                     NoMenus=True, DragBar=False,
-                                     Position=('moused', 'moused'),
-                                     RootObject=pymui.Text(_T("Saving...")))
-        self.AddChild(self._busywin)
  
         self.fullscreen_win = FullscreenDocWindow()
         self.AddChild(self.fullscreen_win)
@@ -266,16 +260,14 @@ class Application(pymui.Application, view.mixin.ApplicationMixin):
         for win in self.windows.itervalues():
             win.Open = False
             
-    def new_save_status_window(self):
-        return self._busywin
-
-    def attach_new_contents(self, contents):
+    def show_drawroot(self, root):
         if self.fullscreen:
             win = self.fullscreen_win
         else:
             win = FramedDocWindow()
             self.AddChild(win)
-        win.use_contents(contents)
+        win.contents = root
+        root.show_splited()
         win.Open = True
         
     def toggle_fullscreen(self, framed_win):

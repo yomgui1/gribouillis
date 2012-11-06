@@ -51,7 +51,6 @@ ctx.eraser = None # BrushHouseWindowMediator
 ctx.brush = None # BrushHouseWindowMediator
 ctx.active_docproxy = None # ApplicationMediator
 ctx.active_docwin = None # DocWindowBase
-ctx.viewports = set() # DocViewportMediator
 
 
 class GenericMediator(utils.Mediator):
@@ -232,21 +231,18 @@ class DrawRootMediator(GenericMediator):
         assert isinstance(component, Application)
         super(DrawRootMediator, self).__init__(viewComponent=component)
 
-    # notification handlers
-
     # public API
 
     def register_viewport(self, viewport):
         self.facade.registerMediator(DocViewportMediator(viewport))
 
     def unregister_viewport(self, viewport):
-        viewport.docproxy.release()
         mediator = self.facade.retrieveMediator(hex(id(viewport)))
         self.facade.removeMediator(mediator)
 
     def add_docproxy(self, docproxy):
         root = DrawingRoot(docproxy, self.register_viewport, self.unregister_viewport)
-        ctx.app.attach_new_contents(root)
+        ctx.app.show_drawroot(root)
 
 
 class DocViewportMediator(GenericMediator):
@@ -260,12 +256,10 @@ class DocViewportMediator(GenericMediator):
         super(DocViewportMediator, self).__init__(viewComponent=component)
 
     def onRegister(self):
-        self.viewComponent.mediator = self
-        ctx.viewports.add(self)
+        self.viewComponent.mediator = self # FixMe: bad design
 
     def onRemove(self):
         self.viewComponent.mediator = None
-        ctx.viewports.remove(self)
 
     # notification handlers
 

@@ -124,6 +124,7 @@ def vp_enter(ctx, event, viewport):
     ctx.active_viewport = viewport
     KeymapManager.use_map("Viewport")
     viewport.enable_motion_events(True)
+    viewport._do_rulers()
     viewport.show_brush_cursor(True)
     if ctx.active_docproxy != viewport.docproxy:
         ctx.app.mediator.sendNotification(main.DOC_ACTIVATE, viewport.docproxy)

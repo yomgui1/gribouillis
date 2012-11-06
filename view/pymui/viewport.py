@@ -117,24 +117,33 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         if rulers:
             self._hruler, self._vruler = rulers
         else:
-            self._do_rulers = lambda self: None
-            self._update_rulers = lambda self, ev: None
+            self._do_rulers = utils.idle_cb
+            self._update_rulers = utils.idle_cb
 
         if docproxy is not None:
             self.set_docproxy(docproxy)
 
+    def duplicate(self):
+        vp = self.__class__(self.root, self.docproxy)
+        vp.like(self)
+        return vp
+        
     def set_docproxy(self, docproxy):
         if self.docproxy is docproxy: return
         if self.docproxy:
-            self.root.proxies.remove(self.docproxy)
             self.docproxy.release()
         docproxy.obtain()
         self.docproxy = docproxy
-        self.root.proxies.add(docproxy)
         self._docvp.docproxy = docproxy
         fill = docproxy.document.fill or resolve_path(main.Gribouillis.TRANSPARENT_BACKGROUND)
         self.set_background(fill)
         self.width = self.height = None
+        self.repaint()
+
+    def like(self, other):
+        assert isinstance(other, DocViewport)
+        self._docvp.like(other._docvp)
+        self.set_docproxy(other.docproxy)
 
     def _update_rulers(self, ev):
         self._hruler.set_pos(ev.MouseX)
@@ -245,9 +254,6 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
                 # Redraw the internal pixels buffer
                 self._redraw(x, y, w, h)
 
-                # Set HRuler range
-                self._do_rulers()
-
             elif self._clip:
                 x, y, w, h = self._clip
                 self._clip = None
@@ -326,12 +332,6 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
 
     def is_tool_hit(self, tool, *pos):
         return self._toolsvp.is_tool_hit(tool, *pos)
-
-    def pick_mode(self, state):
-        if state:
-            self._win.pointer = DocWindow.POINTERTYPE_PICK
-        else:
-            self._win.pointer = DocWindow.POINTERTYPE_NORMAL
 
     def set_docs_strip(self, proxies):
         strip = pymui.Menustrip()

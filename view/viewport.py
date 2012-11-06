@@ -129,6 +129,19 @@ class ViewPortBase(object):
         self._rot_imat = None
         self._scale_idx = ViewPortBase.SCALES.index(1.)
         self.update_matrix()
+        
+    def like(self, other):
+        assert isinstance(other, ViewPortBase)
+        for name in "_ox _oy _sox _soy _facx _facy _scale_idx".split():
+            setattr(self, name, getattr(other, name))
+        
+        if other._rot_mat:
+            self._rot_mat = cairo.Matrix(*other._rot_mat)
+            self._rot_imat = get_imat(self._rot_mat)
+        else:
+            self._rot_mat = self._rot_imat = None
+        
+        self.update_matrix()
 
     def clear_area(self, clip=None):
         if clip is None:

@@ -73,7 +73,7 @@ class ModifiableContainer:
                 root.RemChild(old_contents)
             self.__contents = contents
             if contents:
-                print "Set %s as contents of %s" % (contents, root)
+                #print "Set %s as contents of %s" % (contents, root)
                 root.AddTail(contents)
         finally:
             root.ExitChange()
@@ -334,7 +334,7 @@ class FramedDocWindow(DocWindowBase):
 class FullscreenDocWindow(DocWindowBase):
     # Private API
     #
-
+        
     def __init__(self):
         super(FullscreenDocWindow, self).__init__(WidthScreen=100,
                                                   HeightScreen=100,

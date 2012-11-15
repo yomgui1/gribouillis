@@ -90,6 +90,7 @@ $base uses following technologies:
     Internet for the knownledge database.
 """))
 
+
 class Application(pymui.Application, view.mixin.ApplicationMixin):
     _open_doc = None # last open document filename
 

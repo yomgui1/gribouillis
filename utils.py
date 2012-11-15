@@ -147,6 +147,8 @@ def mvcHandler(signal):
 
 def join_area(a1, a2):
     # TODO: make a C version
+    if not a1: return a2
+    if not a2: return a1
     x1 = min(a1[0], a2[0])
     y1 = min(a1[1], a2[1])
     x2 = max(a1[0]+a1[2], a2[0]+a2[2])

@@ -52,7 +52,7 @@ from .layer import TiledLayer
 from .brush import DrawableBrush
 from .openraster import OpenRasterFileWriter, OpenRasterFileReader
 
-from utils import _T
+from utils import _T, join_area
 
 __all__ = [ 'Document' ]
 
@@ -358,53 +358,27 @@ class Document(list):
         The context must have its matrix and clip set before calling this function.
         Note: the clip must be set before setting the viewing matrix.
         """
-        
-        mat = cr.get_matrix()
-        
-        new_surface = cairo.ImageSurface.create_for_data # shortcut for speed
-        fmt = _pixbuf.FORMAT_ARGB8 # cairo uses alpha-premul pixels buffers
-        
-        # Paint visible layers on the transparent raster
-        for layer in (layers or self):
-            if not layer.visible and not all: continue
 
-            # XXX: pycairo < 1.8.8 has inverted matrix multiply operation
-            # when done using '*' operator.
-            # So I use the multiply method here.
-            cr.set_matrix(layer.matrix.multiply(mat))
-            
-            x,y,w,h = cr.clip_extents()
-            
-            # Convert to integer and add an extra border pixel
-            # due to the cairo filtering.
-            x = int(floor(x)-1)
-            y = int(floor(y)-1)
-            w = int(ceil(w)+1) - x + 1
-            h = int(ceil(h)+1) - y + 1
-            model_area = x,y,w,h
-            
-            # render temporary buffer (sized by the model redraw area)
-            pb = _pixbuf.Pixbuf(fmt, w, h)
-            pb.clear()
-            rsurf = new_surface(pb, cairo.FORMAT_ARGB32, w, h)
-            
-            # Blit layer's tiles using over ope mode on the render surface
-            def blit(tile):
-                tile.blit(pb, tile.x - x, tile.y - y)
-                          
-            layer.surface.rasterize(model_area, blit)
-            rsurf.mark_dirty() # refresh cairo internal states
-            
-            # Now paint the render surface on the model surface
-            cr.set_source_surface(rsurf, x, y)
-            cr.get_source().set_filter(filter)
-            if not layers:
-                cr.set_operator(layer.OPERATORS[layer.operator])
-            cr.paint_with_alpha(layer.opacity)
-            
+        # Paint visible layers on the transparent raster
+        if layers:
+            if all:
+                for layer in layers:
+                    self.rasterize_layer(layer, cr, filter)
+            else:
+                for layer in layers:
+                    if layer.visible:
+                        self.rasterize_layer(layer, cr, filter)
+        else:
+            if all:
+                for layer in self:
+                    self.rasterize_layer(layer, cr, filter, layer.OPERATORS[layer.operator])
+            else:
+                for layer in self:
+                    if layer.visible:
+                        self.rasterize_layer(layer, cr, filter, layer.OPERATORS[layer.operator])
+
         # Finish by rendering the background
         if back and self.__fill:
-            #cr.set_matrix(mat)
             cr.identity_matrix()
             cr.set_operator(cairo.OPERATOR_DEST_OVER)
             if isinstance(self.__fill, cairo.Pattern):
@@ -412,6 +386,57 @@ class Document(list):
             else:
                 cr.set_source_rgb(*self.__fill)
             cr.paint()
+
+    def rasterize_layer(self, layer, cr, filter, ope=cairo.OPERATOR_OVER,
+            fmt=_pixbuf.FORMAT_ARGB8, new_surface = cairo.ImageSurface.create_for_data):
+        # FORMAT_ARGB8 => cairo uses alpha-premul pixels buffers
+        
+        clip = layer.area
+        if clip is None:
+            return
+        
+        cr.save()
+        
+        # XXX: pycairo < 1.8.8 has inverted matrix multiply operation
+        # when done using '*' operator.
+        # So I use the multiply method here.
+        cr.transform(layer.matrix)
+        
+        # Reduce again the clipping area to the layer area
+        cr.rectangle(*clip)
+        cr.clip()
+        
+        x,y,w,h = cr.clip_extents()
+        #if x == w or y == h:
+        #    return
+        
+        # Convert to integer and add an extra border pixel
+        # due to the cairo filtering.
+        x = int(floor(x)-1)
+        y = int(floor(y)-1)
+        w = int(ceil(w)+1) - x + 1
+        h = int(ceil(h)+1) - y + 1
+        model_area = x,y,w,h
+        
+        # render temporary buffer (sized by the model redraw area)
+        pb = _pixbuf.Pixbuf(fmt, w, h)
+        pb.clear()
+        
+        # Blit layer's tiles using over ope mode on the render surface
+        def blit(tile):
+            tile.blit(pb, tile.x - x, tile.y - y)
+                      
+        layer.surface.rasterize(model_area, blit)
+        
+        rsurf = new_surface(pb, cairo.FORMAT_ARGB32, w, h)
+        
+        # Now paint the render surface on the model surface
+        cr.set_source_surface(rsurf, x, y)
+        cr.get_source().set_filter(filter)
+        cr.set_operator(ope)
+        cr.paint_with_alpha(layer.opacity)
+        
+        cr.restore()
 
     def as_cairo_surface(self, layers=None, all=False, **kwds):
         rect = self.get_bbox(layers, all)

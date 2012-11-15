@@ -180,7 +180,7 @@ class Layer(object):
         area = self.get_bbox()
         if area:
             return area[0], area[1], area[2]-area[0]+1, area[3]-area[1]+1
-            
+
     @property
     def extends(self):
         return self._surface.bbox

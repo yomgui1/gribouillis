@@ -1471,31 +1471,31 @@ initialize_pixbuf(PyPixbuf *self, int width, int height, int pixfmt, PyPixbuf *s
     self->bpr = width * ((self->bpc * self->nc) >> 3);
 
     self->data_alloc = AllocVecTaskPooled((self->bpr*height)+15);
-    if (NULL != self->data_alloc)
+    if (!self->data_alloc)
     {
-        /* 16-bytes alignment */
-        self->data = (void*)((((unsigned long)self->data_alloc)+15) & ~15);
-        if (NULL != src)
-            memcpy(self->data, src->data, self->bpr * height);
-
-        self->damaged = FALSE;
-        self->x = self->y = 0;
-        self->pixfmt = pixfmt;
-        self->width = width;
-        self->height = height;
-        self->cfromfloat = init_values->cfromfloat;
-        self->ctofloat = init_values->ctofloat;
-        self->writepixel = init_values->writepixel;
-        self->write2pixel = init_values->write2pixel;
-        self->readpixel = init_values->readpixel;
-        self->writepixel_alpha_locked = init_values->writepixel_alpha_locked;
-
-        return 0;
-    }
-    else
         PyErr_NoMemory();
+        return 1;
+    }
 
-    return 1;
+    /* 16-bytes alignment */
+    self->data = (void*)((((unsigned long)self->data_alloc)+15) & ~15);
+    
+    if (NULL != src)
+        memcpy(self->data, src->data, self->bpr * height);
+
+    self->damaged = FALSE;
+    self->x = self->y = 0;
+    self->pixfmt = pixfmt;
+    self->width = width;
+    self->height = height;
+    self->cfromfloat = init_values->cfromfloat;
+    self->ctofloat = init_values->ctofloat;
+    self->writepixel = init_values->writepixel;
+    self->write2pixel = init_values->write2pixel;
+    self->readpixel = init_values->readpixel;
+    self->writepixel_alpha_locked = init_values->writepixel_alpha_locked;
+
+    return 0;
 }
 
 static PyObject *
@@ -1772,10 +1772,10 @@ pixbuf_get_size(PyPixbuf *self, void *closure)
 static PyObject *
 pixbuf_blit(PyPixbuf *self, PyObject *args)
 {
-	/* NOTE: This is the most important function in Gribouillis!
-	 * This function is called heavy called during all drawing operations.
-	 * So most of optimisation efforts must be here!
-	 */
+    /* NOTE: This is the most important function in Gribouillis!
+     * This function is called heavy called during all drawing operations.
+     * So most of optimisation efforts must be here!
+     */
 
     PyPixbuf *dst_pixbuf;
     int dxoff=0, dyoff=0;
@@ -1789,16 +1789,16 @@ pixbuf_blit(PyPixbuf *self, PyObject *args)
     height = self->height;
 
     if (!PyArg_ParseTuple(args, "O!|iiIIIIi", &PyPixbuf_Type, &dst_pixbuf,
-						  &dxoff, &dyoff, &sxoff, &syoff,
-						  &width, &height, &endian_care))
+                          &dxoff, &dyoff, &sxoff, &syoff,
+                          &width, &height, &endian_care))
         return NULL;
 
     blit = get_blit_function(self->pixfmt, dst_pixbuf->pixfmt, endian_care);
     if (NULL == blit)
         return PyErr_Format(PyExc_TypeError,
-							"Don't know how to blit from format 0x%08x"
-							" to format 0x%08x",
-							self->pixfmt, dst_pixbuf->pixfmt);
+                            "Don't know how to blit from format 0x%08x"
+                            " to format 0x%08x",
+                            self->pixfmt, dst_pixbuf->pixfmt);
 
     if (clip_area(self, dst_pixbuf, &dxoff, &dyoff, &sxoff, &syoff, &width, &height))
         Py_RETURN_NONE;
@@ -2116,10 +2116,11 @@ pixbuf_getbuffer(PyPixbuf *self, Py_ssize_t segment, void **ptrptr)
 static PyObject *
 pixbuf_scroll(PyPixbuf *self, PyObject *args)
 {
-    int dx, dy, y;
-    unsigned int pixel_size;
-    uint8_t *ptr_src = self->data;
-    uint8_t *ptr_dst = self->data;
+    int dx, dy;
+    unsigned int pixel_size, size;
+    register int y;
+    register uint8_t *ptr_src = self->data;
+    register uint8_t *ptr_dst = self->data;
     
     if (!PyArg_ParseTuple(args, "ii", &dx, &dy))
         return NULL;
@@ -2137,47 +2138,43 @@ pixbuf_scroll(PyPixbuf *self, PyObject *args)
 
     pixel_size = get_pixel_size(self->pixfmt);
     
-    if (dy > 0)
+    
+    if (dx >= 0)
     {
-        y = self->height - 1;
-        
-        if (dx > 0)
-        {
-            ptr_src += (y-dy)*self->bpr;
-            ptr_dst += y*self->bpr + dx*pixel_size;
-            
-            for (; y; y--, ptr_src -= self->bpr, ptr_dst -= self->bpr)
-                memmove(ptr_dst, ptr_src, pixel_size*(self->width - dx));
-        }
-        else
-        {
-            ptr_src += (y-dy)*self->bpr - dx*pixel_size;
-            ptr_dst += y*self->bpr;
-            
-            for (; y; y--, ptr_src -= self->bpr, ptr_dst -= self->bpr)
-                memmove(ptr_dst, ptr_src, pixel_size*(self->width + dx));
-        }
+        ptr_dst += dx * pixel_size;
     }
     else
     {
-        y = -dy;
-        
-        if (dx > 0)
-        {
-            ptr_src += y*self->bpr;
-            ptr_dst += dx*pixel_size;
-            
-            for (; y < self->height; y++, ptr_src += self->bpr, ptr_dst += self->bpr)
-                memmove(ptr_dst, ptr_src, pixel_size*(self->width - dx));
-        }
-        else
-        {
-            ptr_src += y*self->bpr - dx*pixel_size;
-            
-            for (; y < self->height; y++, ptr_src += self->bpr, ptr_dst += self->bpr)
-                memmove(ptr_dst, ptr_src, pixel_size*(self->width + dx));
-        }
+        dx = -dx;
+        ptr_src += dx * pixel_size;
     }
+    
+    size = pixel_size*(self->width - dx);
+    
+    Forbid();
+    if (dy > 0)
+    {
+        y = self->height - 1;
+        ptr_src += (y-dy)*self->bpr;
+        ptr_dst += y*self->bpr;
+        
+        for (; y; y--, ptr_src -= self->bpr, ptr_dst -= self->bpr)
+            memcpy(ptr_dst, ptr_src, size);
+    }
+    else if (dy < 0)
+    {
+        y = -dy;
+        ptr_src += y*self->bpr;
+
+        for (; y < self->height; y++, ptr_src += self->bpr, ptr_dst += self->bpr)
+            memcpy(ptr_dst, ptr_src, size);
+    }
+    else
+    {
+        for (y = 0; y < self->height; y++, ptr_src += self->bpr, ptr_dst += self->bpr)
+            memmove(ptr_dst, ptr_src, size);
+    }
+    Permit();
 
     Py_RETURN_NONE;
 }
@@ -2338,8 +2335,6 @@ static PyTypeObject PyPixbuf_Type = {
     tp_as_sequence  : &pixbuf_as_sequence,
 };
 
-
-
 /*******************************************************************************************
 ** Module
 */
@@ -2365,7 +2360,6 @@ static PyMethodDef methods[] = {
     {"format_from_colorspace", (PyCFunction)module_format_from_colorspace, METH_VARARGS, NULL},
     {NULL} /* sentinel */
 };
-
 
 static int add_constants(PyObject *m)
 {

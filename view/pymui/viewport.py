@@ -1,5 +1,3 @@
-# -*- coding: latin-1 -*-
-
 ###############################################################################
 # Copyright (c) 2009-2012 Guillaume Roguez
 #
@@ -53,8 +51,6 @@ from .widgets import Ruler
 from .const import *
 
 
-__all__ = [ 'DocViewport' ]
-
 class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
     """DocViewport class.
 
@@ -79,7 +75,6 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
     _swap_x = _swap_y = None
     _focus = False
     _docs_strip = None
-    _debug = 0
     _hruler = _vruler = None
     selpath = None
     docproxy = None
@@ -128,32 +123,6 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
 
         if docproxy is not None:
             self.set_docproxy(docproxy)
-
-    def duplicate(self):
-        vp = self.__class__(self.root, self.docproxy)
-        vp.like(self)
-        return vp
-        
-    def set_docproxy(self, docproxy):
-        if self.docproxy is docproxy: return
-        if self.docproxy:
-            self.docproxy.release()
-        docproxy.obtain()
-        self.docproxy = docproxy
-        self._docvp.docproxy = docproxy
-        fill = docproxy.document.fill or resolve_path(main.Gribouillis.TRANSPARENT_BACKGROUND)
-        self.set_background(fill)
-        self.width = self.height = None
-        self.repaint_doc()
-
-    def like(self, other):
-        assert isinstance(other, DocViewport)
-        self._docvp.like(other._docvp)
-        self.set_docproxy(other.docproxy)
-
-    def _update_rulers(self, ev):
-        self._hruler.set_pos(ev.MouseX)
-        self._vruler.set_pos(ev.MouseY)
 
     # MUI interface
     #
@@ -267,11 +236,31 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
     # Public API
     #
 
-    def get_model_distance(self, *a):
-        return self._docvp.get_model_distance(*a)
+    def duplicate(self):
+        vp = self.__class__(self.root, self.docproxy)
+        vp.like(self)
+        return vp
+        
+    def set_docproxy(self, docproxy):
+        if self.docproxy is docproxy: return
+        if self.docproxy:
+            self.docproxy.release()
+        docproxy.obtain()
+        self.docproxy = docproxy
+        self._docvp.docproxy = docproxy
+        fill = docproxy.document.fill or resolve_path(main.Gribouillis.TRANSPARENT_BACKGROUND)
+        self.set_background(fill)
+        self.width = self.height = None
+        self.repaint_doc()
 
-    def get_model_point(self, *a):
-        return self._docvp.get_model_point(*a)
+    def like(self, other):
+        assert isinstance(other, DocViewport)
+        self._docvp.like(other._docvp)
+        self.set_docproxy(other.docproxy)
+
+    def _update_rulers(self, ev):
+        self._hruler.set_pos(ev.MouseX)
+        self._vruler.set_pos(ev.MouseY)
 
     def enable_motion_events(self, state=True):
         self._ev.uninstall()
@@ -309,9 +298,6 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         elif self._focus and cl.__focus_lock is None:
             self._focus = False
 
-    def is_tool_hit(self, tool, *pos):
-        return self._toolsvp.is_tool_hit(tool, *pos)
-
     def set_docs_strip(self, proxies):
         strip = pymui.Menustrip()
         menu = pymui.Menu(_T('Documents'))
@@ -326,19 +312,21 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
             self._docs_strip.Dispose()
         self._docs_strip = strip
 
-    @property
-    def scale(self):
-        return self._docvp.scale
-
-    def get_offset(self):
-        return self._docvp.offset
-
-    def set_offset(self, offset):
-        self._docvp.offset = offset
-        self._docvp.update_matrix()
-
-    offset = property(get_offset, set_offset)
     focus = property(fget=lambda self: self._focus, fset=set_focus)
+
+    def _do_rulers(self):
+        x0, y0 = self.get_model_point(0, 0)
+        x1, y1 = self.get_model_point(self.width, self.height)
+
+        # Set HRuler range
+        self._hruler.lo = x0
+        self._hruler.hi = x1
+        self._hruler.Redraw()
+
+        # Set VRuler range
+        self._vruler.lo = y0
+        self._vruler.hi = y1
+        self._vruler.Redraw()
 
     #### Rendering ####
 
@@ -446,21 +434,37 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
                 self.repaint_cursor(*self.device.current.cpos)
         return self._cur_pos
 
+    def get_device_state(self, event):
+        state = DeviceState()
+
+        state.time = MUIEventParser.get_time(event)
+
+        # Get raw device position
+        state.cpos = self.get_view_pos(*MUIEventParser.get_screen_position(event))
+        state.vpos = state.cpos
+
+        # Tablet stuffs
+        state.pressure = MUIEventParser.get_pressure(event)
+        state.xtilt = MUIEventParser.get_cursor_xtilt(event)
+        state.ytilt = MUIEventParser.get_cursor_ytilt(event)
+
+        # Filter view pos by tools
+        if self._filter:
+            self._filter(state)
+
+        # Translate to surface coordinates (using layer offset) and record
+        pos = self._docvp.get_model_point(*state.vpos)
+        state.spos = self.docproxy.get_layer_pos(*pos)
+        self.device.add_state(state)
+        return state
+
     #### Document viewport methods ####
 
-    def _do_rulers(self):
-        x0, y0 = self.get_model_point(0, 0)
-        x1, y1 = self.get_model_point(self.width, self.height)
+    def get_model_distance(self, *a):
+        return self._docvp.get_model_distance(*a)
 
-        # Set HRuler range
-        self._hruler.lo = x0
-        self._hruler.hi = x1
-        self._hruler.Redraw()
-
-        # Set VRuler range
-        self._vruler.lo = y0
-        self._vruler.hi = y1
-        self._vruler.Redraw()
+    def get_model_point(self, *a):
+        return self._docvp.get_model_point(*a)
 
     def get_view_pos(self, mx, my):
         "Convert Mouse coordinates from intuition event into viewport coordinates"
@@ -659,32 +663,19 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         except:
             return
 
-    #### Device state handling ####
+    @property
+    def scale(self):
+        return self._docvp.scale
 
-    def get_device_state(self, event):
-        state = DeviceState()
+    def get_offset(self):
+        return self._docvp.offset
 
-        state.time = MUIEventParser.get_time(event)
+    def set_offset(self, offset):
+        self._docvp.offset = offset
+        self._docvp.update_matrix()
 
-        # Get raw device position
-        state.cpos = self.get_view_pos(*MUIEventParser.get_screen_position(event))
-        state.vpos = state.cpos
-
-        # Tablet stuffs
-        state.pressure = MUIEventParser.get_pressure(event)
-        state.xtilt = MUIEventParser.get_cursor_xtilt(event)
-        state.ytilt = MUIEventParser.get_cursor_ytilt(event)
-
-        # Filter view pos by tools
-        if self._filter:
-            self._filter(state)
-
-        # Translate to surface coordinates (using layer offset) and record
-        pos = self._docvp.get_model_point(*state.vpos)
-        state.spos = self.docproxy.get_layer_pos(*pos)
-        self.device.add_state(state)
-        return state
-
+    offset = property(get_offset, set_offset)
+    
     #### Tools/Handlers ####
 
     def add_tool(self, tool):
@@ -722,6 +713,9 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         elif name == 'ellipse':
             if self.toggle_tool(self.ellipse_guide) and self.line_guide.added:
                 self.rem_tool(self.line_guide)
+
+    def is_tool_hit(self, tool, *pos):
+        return self._toolsvp.is_tool_hit(tool, *pos)
 
     @property
     def tools(self):

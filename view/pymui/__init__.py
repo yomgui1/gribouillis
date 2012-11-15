@@ -271,7 +271,7 @@ class DocViewportMediator(GenericMediator):
         if vp.docproxy is not docproxy: return
         if area:
             area = vp.get_view_area(*area)
-        vp.repaint(area)
+        vp.repaint_doc(area)
 
     @mvcHandler(model.LayerProxy.LAYER_DIRTY)
     def _on_layer_dirty(self, docproxy, layer, area=None):
@@ -281,7 +281,7 @@ class DocViewportMediator(GenericMediator):
         if vp.docproxy is not docproxy: return
         if area:
             area = vp.get_view_area(*area)
-        vp.repaint(area)
+        vp.repaint_doc(area)
 
     @mvcHandler(model.DocumentProxy.DOC_LAYER_ADDED)
     @mvcHandler(main.DOC_LAYER_STACK_CHANGED)
@@ -294,7 +294,7 @@ class DocViewportMediator(GenericMediator):
         if vp.docproxy is not docproxy: return
         if not layer.empty:
             area = layer.area
-            vp.repaint(vp.get_view_area(*area))
+            vp.repaint_doc(vp.get_view_area(*area))
 
     @mvcHandler(model.BrushProxy.BRUSH_PROP_CHANGED)
     def _on_brush_prop_changed(self, brush, name):

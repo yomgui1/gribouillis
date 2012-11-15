@@ -67,9 +67,12 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
 
     _MCC_ = True
     width = height = None
-    _drawbuf = None
+    _docrp = None
+    _toolsrp = None
+    _currp = None
     _clip = None
     _cur_area = None
+    _cur_area2 = None
     _cur_pos = (0,0)
     _cur_on = False
     _filter = None
@@ -77,8 +80,8 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
     _focus = False
     _docs_strip = None
     _debug = 0
+    _hruler = _vruler = None
     selpath = None
-    ctx = None
     docproxy = None
 
     # Tools
@@ -102,6 +105,9 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         self._docvp = view.DocumentViewPort()
         self._toolsvp = view.ToolsViewPort()
         self._curvp = tools.Cursor()
+        
+        # Rendering
+        
 
         # Tools
         self.line_guide = tools.LineGuide(300, 200)
@@ -138,7 +144,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         fill = docproxy.document.fill or resolve_path(main.Gribouillis.TRANSPARENT_BACKGROUND)
         self.set_background(fill)
         self.width = self.height = None
-        self.repaint()
+        self.repaint_doc()
 
     def like(self, other):
         assert isinstance(other, DocViewport)
@@ -155,11 +161,16 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
     @pymui.muimethod(pymui.MUIM_Setup)
     def MCC_Setup(self, msg):
         self._ev.install(self, pymui.IDCMP_RAWKEY | pymui.IDCMP_MOUSEBUTTONS | pymui.IDCMP_MOUSEOBJECTMUI)
+        self._docrp = pymui.Raster()
+        self._toolsrp = pymui.Raster()
+        self._currp = pymui.Raster()
+        self._render_cursor()
         return msg.DoSuper()
 
     @pymui.muimethod(pymui.MUIM_Cleanup)
     def MCC_Cleanup(self, msg):
         self._ev.uninstall()
+        del self._docrp, self._toolsrp, self._currp
         return msg.DoSuper()
 
     @pymui.muimethod(pymui.MUIM_HandleEvent)
@@ -231,59 +242,27 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
             if self.width != width or self.height != height:
                 self.width = width
                 self.height = height
-
-                # Rendering context
                 self._new_render_context(width, height)
-
-                # Now viewport has a size we can initialize gfx elements
-                self._docvp.set_view_size(width, height)
-                self._toolsvp.set_view_size(width, height)
-
-                # Repaint all viewports
-                self._docvp.repaint()
-                self._toolsvp.repaint()
-
-                if self._clip:
-                    x, y, w, h = self._clip
-                    self._clip = None
-                else:
-                    x = y = 0
-                    w = width
-                    h = height
-
-                # Redraw the internal pixels buffer
-                self._redraw(x, y, w, h)
-
-            elif self._clip:
-                x, y, w, h = self._clip
-                self._clip = None
-            else:
-                x = y = 0
-                w = width
-                h = height
-
-            # Blit the internal buffer using computed/requested clip area
-            self._rp.Blit8(self._drawbuf, self._drawbuf.stride, self.MLeft + x, self.MTop + y, w, h, x, y)
-
-            if self._debug:
-                self._rp.Rect(int(random()*255), self.MLeft + x, self.MTop + y, self.MLeft + x + w - 1, self.MTop + y + h - 1, 0)
-
+                
+            if self._cur_area2:
+                x, y, w, h = self._cur_area2
+                args = x + self.MLeft, y + self.MTop, w, h, x, y
+                self._docrp.BltBitMapRastPort(self._rp, 0, *args)
+                self._toolsrp.BltBitMapRastPort(self._rp, 1, *args)
+                self._cur_area2 = None
+                
+            x, y, w, h = self._clip
+            args = x + self.MLeft, y + self.MTop, w, h, x, y
+            self._docrp.BltBitMapRastPort(self._rp, 0, *args)
+            self._toolsrp.BltBitMapRastPort(self._rp, 1, *args)
+            
+            if self._cur_on:
+                x, y, w, h = self._cur_area2 = self._cur_area
+                self._currp.BltBitMapRastPort(self._rp, 1, x + self.MLeft, y + self.MTop, w, h)
         except:
             tb.print_exc(limit=20)
-
         finally:
             self.RemoveClipping()
-
-    # Private API
-    #
-
-    def _new_render_context(self, width, height):
-        # As we are doing the double buffering ourself we create
-        # a pixel buffer suitable to be blitted on the window RastPort (ARGB no-alpha premul)
-        self._drawbuf = model._pixbuf.Pixbuf(model._pixbuf.FORMAT_ARGB8_NOA, width, height)
-        self._drawsurf = cairo.ImageSurface.create_for_data(self._drawbuf, cairo.FORMAT_ARGB32, width, height)
-        self._drawcr = cairo.Context(self._drawsurf)
-        return self._drawbuf
 
     # Public API
     #
@@ -363,70 +342,84 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
 
     #### Rendering ####
 
+    def _new_render_context(self, width, height):
+        self._docrp.AllocBitMap(width, height, 32, self)
+        self._toolsrp.AllocBitMap(width, height, 32, self)
+        
+        self._docvp.set_view_size(width, height)
+        self._toolsvp.set_view_size(width, height)
+        
+        # Full rendering
+        self._docvp.repaint()
+        self._toolsvp.repaint()
+        
+        self._clip = (0, 0, width, height)
+        self._blit_doc(*self._clip)
+        self._blit_tools(*self._clip)
+        self._blit_cursor()
+
     def _check_clip(self, x, y, w, h):
         # Check for RastPort boundaries
         if x < 0: x = 0; w += x
         if y < 0: y = 0; h += y
         return x, y, w, h
 
-    def _redraw(self, x, y, w, h):
-        # For each viewport convert to the correct pixels format and blit result on rastport
-        args = (self._drawbuf, x, y, x, y, w, h)
-        self._docvp.pixbuf.compose(*args)
-        self._toolsvp.pixbuf.compose(*args)
-
-        # Blit a cursor?
-        if self._cur_on:
-            self._curvp.pixbuf.compose(self._drawbuf, self._cur_area[0], self._cur_area[1], 0, 0, self._cur_area[2], self._cur_area[3])
-
-    def redraw(self, clip=None):
-        # Compute the redraw area (user/full clip + cursor clip to remove)
-        if clip and self._cur_area:
-            clip = utils.join_area(clip, self._cur_area)
-            self._cur_area = None
-
-        # new cursor clip
-        if self._cur_on:
-            self._curvp.render()
-            self._cur_area = self._get_cursor_clip(*self._cur_pos)
-            if clip:
-                clip = utils.join_area(clip, self._cur_area)
-
-        if clip:
-            self._clip = self._check_clip(*clip)
-        else:
-            self._clip = (0, 0, self.width, self.height)
-
-
-        self._redraw(*self._clip)
-        self.Redraw()
-
-    def repaint(self, clip=None, redraw=True):
-        if self._drawbuf is None: return
+    def _blit_doc(self, x, y, w, h):
+        buf = self._docvp.pixbuf
+        self._docrp.Blit8(buf, buf.stride, x, y, w, h, x, y) # Solid
+        
+    def _blit_tools(self, x, y, w, h):
+        buf = self._toolsvp.pixbuf
+        self._toolsrp.Blit8(buf, buf.stride, x, y, w, h, x, y)
+        
+    def _blit_cursor(self):
+        buf = self._curvp.pixbuf
+        self._currp.Blit8(buf, buf.stride,
+            0, 0, self._curvp.width, self._curvp.height)
+    
+    def _render_cursor(self):
+        self._currp.AllocBitMap(self._curvp.width, self._curvp.height, 32, self)
+        self._curvp.render()
+        self._blit_cursor()
+        
+    def repaint_doc(self, clip=None, redraw=True):
+        if not self.width:
+            return
+        if not clip:
+            clip = (0, 0, self.width, self.height)
         self._docvp.repaint(clip)
         if redraw:
-            self.redraw(clip)
+            self._blit_doc(*clip)
+            self._clip = clip
+            self.Redraw()
 
     def repaint_tools(self, clip=None, redraw=False):
+        if not self.width:
+            return
+        if not clip:
+            clip = (0, 0, self.width, self.height)
         self._toolsvp.repaint(clip)
         if redraw:
-            self.redraw(clip)
+            self._blit_tools(*clip)
+            self._clip = clip
+            self.Redraw()
 
     def repaint_cursor(self, *pos):
         if self._focus:
-            # Draw the new one
-            self._cur_on = True
             self._cur_pos = pos
-            self.redraw(self._get_cursor_clip(*pos))
+            self._cur_area = self._get_cursor_clip(*pos)
+            self._clip = self._cur_area
+            self.Redraw()
 
     def clear_tools_area(self, clip, redraw=False):
         self._toolsvp.clear_area(clip)
         if redraw:
-            self.redraw(clip)
+            self._blit_tools(*clip)
+            self._clip = clip
+            self.Redraw()
 
     def enable_passepartout(self, state=True):
-        self._docvp.passepartout = state
-        self.repaint()
+        pass
 
     #### Cursor related ####
 
@@ -439,16 +432,18 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
 
     def set_cursor_radius(self, r):
         self._curvp.set_radius(r)
+        self._render_cursor()
         self.repaint_cursor(*self._cur_pos)
 
     def show_brush_cursor(self, state=True):
-        if state and self.device.current:
-            self.repaint_cursor(*self.device.current.cpos)
-        else:
+        if state:
+            self._cur_on = True
+            if self.device.current:
+                self.repaint_cursor(*self.device.current.cpos)
+        elif self._cur_on:
             self._cur_on = False
-            # Remove the cursor if was blit and not needed
-            if self._cur_area:
-                self.redraw(self._cur_area)
+            if self.device.current:
+                self.repaint_cursor(*self.device.current.cpos)
         return self._cur_pos
 
     #### Document viewport methods ####
@@ -475,14 +470,15 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         self._swap_x = self._swap_y = None
         self._docvp.reset_view()
         self._curvp.set_scale(self._docvp.scale)
-        self.repaint()
+        self._render_cursor()
+        self.repaint_doc()
         self._do_rulers()
 
     def reset_translation(self):
         dvp = self._docvp
         if dvp.reset_translation():
             dvp.update_matrix()
-            self.repaint()
+            self.repaint_doc()
             self._do_rulers()
 
     def reset_scaling(self, cx=0, cy=0):
@@ -495,6 +491,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
 
             # Sync cursor size
             self._curvp.set_scale(dvp.scale)
+            self._render_cursor()
 
             # Center vp on current cursor position
             x, y = dvp.get_view_point(x, y)
@@ -517,28 +514,31 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         x, y = self._docvp.get_model_point(cx, cy)
         if self._docvp.scale_up():
             self._curvp.set_scale(self._docvp.scale)
+            self._render_cursor()
             self._docvp.update_matrix()
             x, y = self._docvp.get_view_point(x, y)
             self._docvp.scroll(cx-x, cy-y)
             self._docvp.update_matrix()
-            self.repaint()
+            self.repaint_doc()
             self._do_rulers()
 
     def scale_down(self, cx=.0, cy=.0):
         x, y = self._docvp.get_model_point(cx, cy)
         if self._docvp.scale_down():
             self._curvp.set_scale(self._docvp.scale)
+            self._render_cursor()
             self._docvp.update_matrix()
             x, y = self._docvp.get_view_point(x, y)
             self._docvp.scroll(cx-x, cy-y)
             self._docvp.update_matrix()
-            self.repaint()
+            self.repaint_doc()
             self._do_rulers()
 
     def scroll(self, *delta):
         # Scroll the document viewport
         self._docvp.scroll(*delta)
         self._docvp.update_matrix()
+        self._do_rulers()
 
         dx, dy = delta
 
@@ -581,19 +581,16 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
                 drects.append([w+dx, 0, w, h+dy]) #2
 
         # Re-render only damaged parts
-        for clip in drects:
-            self._docvp.repaint(clip)
+        for area in drects:
+            self._docvp.repaint(area)
 
         # Rasterize full area
-        clip = (0, 0, self.width, self.height)
-        self._redraw(*clip)
-        self._clip = clip
+        self._clip = 0, 0, w, h
+        self._blit_doc(*self._clip)
         self.Redraw()
 
-        self._do_rulers()
-
     def rotate(self, angle):
-        if self._win.rulers:
+        if self._hruler:
             return
 
         self._docvp.rotate(angle)
@@ -622,9 +619,8 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         del cr, srcbuf
 
         # Rasterize full area
-        clip = (0, 0, self.width, self.height)
-        self._redraw(*clip)
-        self._clip = clip
+        self._clip = 0, 0, w, h
+        self._blit_doc(*self._clip)
         self.Redraw()
 
     def swap_x(self, x):
@@ -636,7 +632,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
             self._swap_x = None
 
         self._docvp.update_matrix()
-        self.repaint()
+        self.repaint_doc()
         self._do_rulers()
 
     def swap_y(self, y):
@@ -648,7 +644,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
             self._swap_y = None
 
         self._docvp.update_matrix()
-        self.repaint()
+        self.repaint_doc()
         self._do_rulers()
 
     def get_exact_color(self, *pos):
@@ -699,7 +695,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
             self._filter = tool.filter
         self._toolsvp.add_tool(tool)
         tool.added = True
-        self.redraw(tool.area)
+        self.repaint_tools(*tool.area)
 
     def rem_tool(self, tool):
         if not tool.added:
@@ -710,7 +706,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         area = tool.area # saving because may be destroyed during rem_tool
         self._toolsvp.rem_tool(tool)
         tool.added = False
-        self.redraw(area)
+        self.repaint_tools(*tool.area)
 
     def toggle_tool(self, tool):
         if tool.added:

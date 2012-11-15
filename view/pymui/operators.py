@@ -169,7 +169,6 @@ def vp_stroke_start(ctx, event, viewport):
 def vp_stroke_confirm(ctx, event, viewport):
     state = viewport.get_device_state(event)
     viewport.docproxy.draw_end()
-    viewport.repaint_cursor(*state.cpos)
     viewport.show_brush_cursor(True)
     KeymapManager.restore_map()
 

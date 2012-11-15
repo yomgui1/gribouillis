@@ -31,7 +31,7 @@ import sys
 import traceback as tb
 
 from pymui.mcc.betterbalance import BetterBalance
-from math import ceil
+from math import ceil, floor
 from random import random
 
 import model
@@ -348,8 +348,16 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
 
     def _check_clip(self, x, y, w, h):
         # Check for RastPort boundaries
-        if x < 0: x = 0; w += x
-        if y < 0: y = 0; h += y
+        if x < 0:
+            w += x
+            x = 0
+        if w > self.width:
+            w = self.width
+        if y < 0:
+            h += y
+            y = 0
+        if h > self.height:
+            h = self.height
         return x, y, w, h
 
     def _blit_doc(self, x, y, w, h):
@@ -539,15 +547,17 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
             self._do_rulers()
 
     def scroll(self, *delta):
+        clip = self.get_view_area(*self.docproxy.document.area)
+        
         # Scroll the document viewport
         self._docvp.scroll(*delta)
         self._docvp.update_matrix()
-        self._do_rulers()
-
-        dx, dy = delta
+        
+        # this is the maximal modified area possible
+        clip = utils.join_area(clip, self.get_view_area(*self.docproxy.document.area))
 
         # Scroll the internal docvp buffer
-        self._docvp.pixbuf.scroll(dx, dy)
+        self._docvp.pixbuf.scroll(*delta)
 
         ## Compute the damaged rectangles list...
         # 4 damaged rectangles possible, but only two per delta:
@@ -563,9 +573,9 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         # +==================+
         #
 
+        dx, dy = delta
         w = self.width
         h = self.height
-
         drects = []
 
         if dy > 0:
@@ -588,10 +598,12 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         for area in drects:
             self._docvp.repaint(area)
 
-        # Rasterize full area
-        self._clip = 0, 0, w, h
-        self._blit_doc(*self._clip)
+        # Rasterize to the minimal viewable area
+        self._clip = clip = self._check_clip(*clip)
+        self._blit_doc(*clip)
         self.Redraw()
+        
+        self._do_rulers()
 
     def rotate(self, angle):
         if self._hruler:

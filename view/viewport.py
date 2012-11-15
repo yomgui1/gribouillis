@@ -353,14 +353,16 @@ class DocumentViewPort(ViewPortBase):
         if clip is None:
             clip = (0, 0, self.width, self.height)
 
+        # Start with a fully transparent region
+        self.clear_area(clip)
+
+        # Cairo rendering pipeline start here
         cr = self._ctx
         cr.save()
 
+        # Clip again on requested area
         cr.rectangle(*clip)
         cr.clip()
-
-        # Start with a fully transparent region
-        self.clear_area(clip)
 
         # Setup our cairo context using document viewing matrix
         cr.set_matrix(self._mat_model2view)
@@ -374,6 +376,8 @@ class DocumentViewPort(ViewPortBase):
         self.docproxy.document.rasterize(cr, filter=flt)
         cr.restore()
 
+    def render_passepartout(self):
+        cr = self._ctx
         cr.save()
 
         # Add a Passe-Partout on request

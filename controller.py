@@ -311,14 +311,17 @@ class RecordStrokeCmd(UndoableCommand):
 
     def execute(self, note):
         vo = note.getBody()
-        vo.dirty_area = vo.layer.document_area(*vo.snapshot.dirty_area)
+        vo.dirty_area = None # don't repaint immediately
         self.__name = 'Stroke (%2.3fMB)' % (vo.snapshot.size / (1024. * 1024))
         super(RecordStrokeCmd, self).execute(note)
         self.registerUndoCommand(_UnsnaphotLayerCmd)
 
     def executeCommand(self):
         vo = self.getNote().getBody()
-        vo.docproxy.layerproxy.unsnapshot(vo.layer, vo.snapshot, True)
+        if vo.dirty_area:
+            vo.docproxy.layerproxy.unsnapshot(vo.layer, vo.snapshot, True)
+        else:
+            vo.dirty_area = vo.layer.document_area(*vo.snapshot.dirty_area)
 
     def getCommandName(self):
         return self.__name

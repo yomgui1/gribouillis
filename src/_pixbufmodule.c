@@ -121,6 +121,7 @@ rgb8_writepixel(void *data, float opacity, float erase, uint16_t *color)
     /* G */ pixel[1] = (alpha*color[1] + one_minus_alpha*pixel[1]) / 255;
     /* B */ pixel[2] = (alpha*color[2] + one_minus_alpha*pixel[2]) / 255;
 }
+
 static void
 rgba8_writepixel(void *data, float opacity, float erase, uint16_t *color)
 {
@@ -215,6 +216,7 @@ cmyk8_writepixel(void *data, float opacity, float erase, uint16_t *color)
     /* Y */ pixel[2] = (((alpha*color[2]*255)>>15) + one_minus_alpha*pixel[2]) / 255;
     /* K */ pixel[3] = (((alpha*color[3]*255)>>15) + one_minus_alpha*pixel[3]) / 255;
 }
+
 static void
 rgba15x_writepixel(void *data, float opacity, float erase, uint16_t *color)
 {
@@ -233,6 +235,7 @@ rgba15x_writepixel(void *data, float opacity, float erase, uint16_t *color)
     /* B */ pixel[2] = (alpha*color[2] + one_minus_alpha*pixel[2]) / (1<<15);
     /* A */ pixel[3] =  alpha          + one_minus_alpha*pixel[3]  / (1<<15);
 }
+
 static void
 argb15x_writepixel(void *data, float opacity, float erase, uint16_t *color)
 {
@@ -251,6 +254,7 @@ argb15x_writepixel(void *data, float opacity, float erase, uint16_t *color)
     /* G */ pixel[2] = (alpha*color[1] + one_minus_alpha*pixel[2]) / (1<<15);
     /* B */ pixel[3] = (alpha*color[2] + one_minus_alpha*pixel[3]) / (1<<15);
 }
+
 static void
 argb15x_writepixel_alpha_locked(void *data, float opacity, float erase, uint16_t *color)
 {
@@ -269,6 +273,7 @@ argb15x_writepixel_alpha_locked(void *data, float opacity, float erase, uint16_t
     /* G */ pixel[2] = (alpha*color[1] + one_minus_alpha*pixel[2]) / (1<<15);
     /* B */ pixel[3] = (alpha*color[2] + one_minus_alpha*pixel[3]) / (1<<15);
 }
+
 static void
 cmyka15x_writepixel(void *data, float opacity, float erase, uint16_t *color)
 {
@@ -325,6 +330,7 @@ dummy_readpixel(void *data, uint16_t *color)
     /* B */ color[2] = 0;
     /* A */ color[3] = 0;
 }
+
 static void
 argb15x_readpixel(void *data, uint16_t *color)
 {
@@ -336,6 +342,7 @@ argb15x_readpixel(void *data, uint16_t *color)
     /* B */ color[2] = pixel[3];
     /* A */ color[3] = alpha;
 }
+
 static void
 rgba15x_readpixel(void *data, uint16_t *color)
 {
@@ -346,6 +353,7 @@ rgba15x_readpixel(void *data, uint16_t *color)
     /* B */ color[2] = pixel[2];
     /* A */ color[3] = pixel[3];
 }
+
 static void
 rgba8_readpixel(void *data, uint16_t *color)
 {
@@ -356,6 +364,7 @@ rgba8_readpixel(void *data, uint16_t *color)
     /* B */ color[2] = pixel[2];
     /* A */ color[3] = pixel[3];
 }
+
 static void
 argb8_readpixel(void *data, uint16_t *color)
 {
@@ -372,36 +381,30 @@ argb8_readpixel(void *data, uint16_t *color)
 
 /* /!\ no clamping applied ! */
 
-//+ rgb8_fromfloat
 static void
 rgb8_fromfloat(float from, void *to)
 {
     *((uint16_t *)to) = (uint8_t)(from * 255);
 }
-//-
-//+ rgba15x_fromfloat
+
 static void
 rgba15x_fromfloat(float from, void *to)
 {
     *((uint16_t *)to) = (uint16_t)(from * (1<<15));
 }
-//-
 
-//+ rgb8_tofloat
 static float
 rgb8_tofloat(void *from)
 {
     /* We expect no round errors causing float > 1.0 */
     return ((float)*(uint16_t *)from) / 255;
 }
-//-
-//+ rgba15x_tofloat
+
 static float
 rgba15x_tofloat(void *from)
 {
     return (float)(*(uint16_t *)from) / (1<<15);
 }
-//-
 
 /********* Bliting **************************************/
 
@@ -449,6 +452,7 @@ argb15x_to_argb8_row(uint16_t *src, uint8_t *dst, unsigned int w)
         dst += 4;
     }
 }
+
 static void
 argb15x_to_argb8(uint16_t *src1, uint8_t *dst1,
                  unsigned int w, unsigned int h,
@@ -1052,6 +1056,7 @@ argb8_noa_to_argb8_noa(uint8_t *src1, uint8_t *dst1,
     for (y=0; y < h; y++, src1 += src_stride, dst1 += dst_stride)
         memcpy(dst1, src1, w*sizeof(dst1));
 }
+
 static void
 rgbx15x_to_rgbx15x(uint16_t *src1, uint16_t *dst1,
                    uint32_t w, uint32_t h,
@@ -1105,6 +1110,7 @@ compose_argb8_noa_to_argb8_noa(uint8_t *src1, uint8_t *dst1,
         }
     }
 }
+
 /* Alpha-premul is removed */
 static void
 compose_argb8_to_argb8_noa(uint8_t *src1, uint8_t *dst1,
@@ -1149,6 +1155,7 @@ compose_argb8_to_argb8_noa(uint8_t *src1, uint8_t *dst1,
         }
     }
 }
+
 static void
 compose_argb15x_to_argb15x(uint16_t *src1, uint16_t *dst1,
                            uint32_t w, uint32_t h,
@@ -1412,6 +1419,7 @@ clip_area(PyPixbuf *self,
 }
 
 static PyPixbuf *g_last=NULL;
+
 static int
 _get_color(PyObject *get_tile_cb, int x, int y, int pix_size, uint16_t *color)
 {
@@ -1639,6 +1647,7 @@ pixbuf_get_pixel(PyPixbuf *self, PyObject *args)
 
     return py_color;
 }
+
 static PyObject *
 pixbuf_get_average_pixel(PyPixbuf *self, PyObject *args)
 {
@@ -1757,6 +1766,7 @@ pixbuf_get_average_pixel(PyPixbuf *self, PyObject *args)
 
     return py_color;
 }
+
 static PyObject *
 pixbuf_get_mem_size(PyPixbuf *self, void *closure)
 {
@@ -1949,6 +1959,7 @@ pixbuf_clear(PyPixbuf *self)
     bzero(self->data, self->bpr * self->height);
     Py_RETURN_NONE;
 }
+
 static PyObject *
 pixbuf_clear_area(PyPixbuf *self, PyObject *args)
 {

@@ -87,6 +87,8 @@ OTHER DEALINGS IN THE SOFTWARE.
 #define PRINT_ERROR printf
 #define AllocVecTaskPooled malloc
 #define FreeVecTaskPooled free
+#define Forbid()
+#define Permit()
 #endif
 
 /* Implemented in platform dependent file */

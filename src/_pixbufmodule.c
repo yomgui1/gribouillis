@@ -1448,8 +1448,7 @@ _get_color(PyObject *get_tile_cb, int x, int y, int pix_size, uint16_t *color)
     }
     else
         bzero(color, sizeof(uint16_t) * MAX_CHANNELS);
-        
-    //Py_DECREF(tile); /* the owner dict keep refcount > 0, so we don't track it here */
+
     return 0;
 }
 
@@ -2197,14 +2196,14 @@ pixbuf_slow_transform_affine(PyPixbuf *self, PyObject *args)
     double fa, fb, fc, fd, fe, ff; /* Affine matrix coefiscients */
     PyObject *get_tile_cb;
     PyPixbuf *pb_dst; /* pixbuf destination */
-    int ix, iy;
+    int ix, iy, bilinear=0;
     int dst_pix_size, src_pix_size;
     void *dst_row_ptr;
     
-    if (!PyArg_ParseTuple(args, "OO!dddddd", &get_tile_cb, &PyPixbuf_Type, &pb_dst, &fa, &fb, &fc, &fd, &fe, &ff))
+    if (!PyArg_ParseTuple(args, "OO!dddddd|i", &get_tile_cb, &PyPixbuf_Type, &pb_dst, &fa, &fb, &fc, &fd, &fe, &ff, &bilinear))
         return NULL;
     
-    src_pix_size = get_pixel_size(self->pixfmt);    
+    src_pix_size = get_pixel_size(self->pixfmt);
     dst_pix_size = get_pixel_size(pb_dst->pixfmt);
     
     dst_row_ptr = pb_dst->data;
@@ -2218,55 +2217,79 @@ pixbuf_slow_transform_affine(PyPixbuf *self, PyObject *args)
         for (ix=pb_dst->x; ix < (pb_dst->x + pb_dst->width); ix++, dst_data += dst_pix_size)
         {
             double ox, oy;
-            
-            /* Transform destination point into original coordinates
-             * (using pixbuf relative coordinates)
-             */
-            ox = ix * fa + iy * fc + fe;
-            oy = ix * fb + iy * fd + ff;
-                
-            uint16_t color[MAX_CHANNELS];
-            uint16_t c0[MAX_CHANNELS];
-            uint16_t c1[MAX_CHANNELS];
-            uint16_t c2[MAX_CHANNELS];
-            uint16_t c3[MAX_CHANNELS];
-            
-            int x_lo, x_hi;
-            int y_lo, y_hi;
-            
-            x_lo = trunc(ox);
-            x_hi = ceil(ox);
-            y_lo = trunc(oy);
-            y_hi = ceil(oy);
-            
-            /* Read four pixels for interpolations */
-            if (_get_color(get_tile_cb, x_lo, y_lo, src_pix_size, c0))
-                return NULL;
-                
-            if (_get_color(get_tile_cb, x_hi, y_lo, src_pix_size, c1))
-                return NULL;
-                
-            if (_get_color(get_tile_cb, x_hi, y_hi, src_pix_size, c2))
-                return NULL;
-                
-            if (_get_color(get_tile_cb, x_lo, y_hi, src_pix_size, c3))
-                return NULL;
 
-            /* Compute interpolation factors */
-            double fx, fy, f0, f1, f2, f3;
+            uint16_t color[MAX_CHANNELS];
             
-            fx = ox - floor(ox);
-            fy = oy - floor(oy);
-            
-            f0 = (1. - fx) * (1. - fy);
-            f1 =       fx  * (1. - fy);
-            f2 =       fx  *       fy ;
-            f3 = (1. - fx) *       fy ;
-            
-            /* Bilinear interpolation on each channel */
-            int i;
-            for (i=0; i < pb_dst->nc; i++)
-                color[i] = (((double)c0[i]/(1<<15)*f0) + ((double)c1[i]/(1<<15)*f1) + ((double)c2[i]/(1<<15)*f2) + ((double)c3[i]/(1<<15)*f3)) * (1<<15);
+            if (bilinear)
+            {
+                uint16_t c0[MAX_CHANNELS];
+                uint16_t c1[MAX_CHANNELS];
+                uint16_t c2[MAX_CHANNELS];
+                uint16_t c3[MAX_CHANNELS];
+                
+                int x_lo, x_hi;
+                int y_lo, y_hi;
+                
+                double ixf = ix + 0.5;
+                double iyf = iy + 0.5;
+                
+                /* Transform destination point into original coordinates
+                 * (using pixbuf relative coordinates)
+                 */
+                ox = ixf * fa + iyf * fc + fe;
+                oy = ixf * fb + iyf * fd + ff;
+                
+                x_lo = trunc(ox);
+                x_hi = ceil(ox);
+                y_lo = trunc(oy);
+                y_hi = ceil(oy);
+                
+                /* Read four pixels for interpolations */
+                if (_get_color(get_tile_cb, x_lo, y_lo, src_pix_size, c0))
+                    return NULL;
+                    
+                if (_get_color(get_tile_cb, x_hi, y_lo, src_pix_size, c1))
+                    return NULL;
+                    
+                if (_get_color(get_tile_cb, x_hi, y_hi, src_pix_size, c2))
+                    return NULL;
+                    
+                if (_get_color(get_tile_cb, x_lo, y_hi, src_pix_size, c3))
+                    return NULL;
+
+                /* Compute interpolation factors */
+                double fx, fy, f0, f1, f2, f3;
+                
+                fx = ox - floor(ox);
+                fy = oy - floor(oy);
+                
+                f0 = (1. - fx) * (1. - fy);
+                f1 =       fx  * (1. - fy);
+                f2 =       fx  *       fy ;
+                f3 = (1. - fx) *       fy ;
+                
+                /* Bilinear interpolation on each channel */
+                int i;
+                for (i=0; i < pb_dst->nc; i++)
+                    color[i] = (((double)c0[i]/(1<<15)*f0) + ((double)c1[i]/(1<<15)*f1) + ((double)c2[i]/(1<<15)*f2) + ((double)c3[i]/(1<<15)*f3)) * (1<<15);
+            }
+            else
+            {
+                int x_lo;
+                int y_lo;
+                
+                /* Transform destination point into original coordinates
+                 * (using pixbuf relative coordinates)
+                 */
+                ox = ix * fa + iy * fc + fe;
+                oy = ix * fb + iy * fd + ff;
+                
+                x_lo = trunc(ox);
+                y_lo = trunc(oy);
+                
+                if (_get_color(get_tile_cb, x_lo, y_lo, src_pix_size, color))
+                    return NULL;
+            }
             
             pb_dst->write2pixel(dst_data, color);
         }

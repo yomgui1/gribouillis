@@ -152,15 +152,15 @@ class DocumentMediator(GenericMediator):
     NAME = "DocumentMediator"
 
     focused = None
+    __count = 0
 
     # private API
     def __init__(self, component):
         assert isinstance(component, Application)
         super(DocumentMediator, self).__init__(viewComponent=component)
-        self.__docmap = {}
 
     def __len__(self):
-        return len(self.__docmap)
+        return self.__count
 
     # UI events handlers
     def _on_focus_in_event(self, win, evt):
@@ -170,7 +170,8 @@ class DocumentMediator(GenericMediator):
         #FIXME: self.sendNotification(main.DOC_DELETE, win.docproxy)
 
         # quit application if last document window is closed
-        if len(self.__docmap) == 0:
+        self.__count -= 1
+        if self.__count == 0:
             self.sendNotification(main.QUIT)
 
     def _on_menu_new_doc(self, win):
@@ -197,39 +198,28 @@ class DocumentMediator(GenericMediator):
     # notification handlers
     @mvcHandler(main.DOC_SAVE_RESULT)
     def _on_doc_save_result(self, docproxy, result, err=None):
-        win = self.get_win(docproxy)
         if not result:
             msg = "%s:\n'%s'\n\n%s:\n\n%s" % (_T("Failed to save document"),
                                               docproxy.docname,
                                               _T("Reason"), err)
-            self.show_error_dialog(msg, parent=win)
+            self.show_error_dialog(msg)
         else:
-            self.show_info_dialog(_T("Document saved"), parent=win)
+            self.show_info_dialog(_T("Document saved"))
 
     @mvcHandler(model.DocumentProxy.DOC_ADDED)
     def _on_doc_added(self, docproxy):
         self.new_window(docproxy)
 
-    @mvcHandler(model.DocumentProxy.DOC_UPDATED)
-    def _on_doc_updated(self, docproxy):
-        win = self.get_win(docproxy)
-        if win:
-            win.proxy_updated()
-
     @mvcHandler(main.DOC_ACTIVATED)
     def _on_activate_document(self, docproxy):
         ctx.active_docproxy = docproxy
+        return
         win = self.get_win(docproxy)
         # present() causes a focus-in GTK event
         # and focus-in event trigs DOC_ACTIVATE.
         # So `focused` is checked to break the loop
         if win and win is not self.focused:
             win.present()
-
-    @mvcHandler(main.DOC_RELEASE)
-    def _on_doc_release(self, docproxy):
-        win = self.__docmap.pop(docproxy)
-        win.destroy()
 
     # public API
 
@@ -240,18 +230,11 @@ class DocumentMediator(GenericMediator):
         mediator = self.facade.retrieveMediator(hex(id(viewport)))
         self.facade.removeMediator(mediator)
 
-    def has_doc(self, docproxy):
-        return docproxy in self.__docmap
-
-    def get_win(self, docproxy):
-        return self.__docmap[docproxy]
-
     def new_window(self, docproxy):
         "Register and associate a document proxy to a new document window"
 
         win = DocWindow(docproxy, self.register_viewport,
                         self.unregister_viewport)
-        self.__docmap[docproxy] = win
 
         # associate Window's events to callbacks
         win.connect("delete-event", self._on_delete_event)
@@ -263,6 +246,7 @@ class DocumentMediator(GenericMediator):
         win.connect("menu_open_window", self._on_menu_open_window)
         win.connect("menu_load_image_as_layer",
                     self._on_menu_load_image_as_layer)
+        self.__count += 1
 
     def load_new_doc(self, win):
         filename = self.viewComponent.get_document_filename(parent=win)

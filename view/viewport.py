@@ -40,7 +40,7 @@ SurfaceViewPort: model is only a single surface.
 import cairo
 import random
 
-from math import floor, ceil, pi, atan
+from math import floor, ceil, pi, atan, log
 
 import main
 
@@ -81,7 +81,7 @@ class ViewPortBase(object):
         self.update_matrix()
 
         # create new cairo surface/context
-        self._buf = _pixbuf.Pixbuf(_pixbuf.FORMAT_ARGB8, width, height)
+        self._buf = _pixbuf.Pixbuf(_pixbuf.FORMAT_RGBA8, width, height)
         self.stride = self._buf.stride
         self.__surf = cairo.ImageSurface.create_for_data(self._buf, cairo.FORMAT_ARGB32, width, height)
         self._ctx = cairo.Context(self.__surf)
@@ -345,7 +345,7 @@ class DocumentViewPort(ViewPortBase):
     _filter = None
     passepartout = False
     docproxy = None # need to be set before repaint() call
-
+    
     def enable_fast_filter(self, state=True):
         self._filter = cairo.FILTER_FAST if state else None
 
@@ -373,7 +373,7 @@ class DocumentViewPort(ViewPortBase):
         else:
             flt = cairo.FILTER_FAST if self._scale_idx > prefs['view-filter-threshold'] else cairo.FILTER_BILINEAR
 
-        self.docproxy.document.rasterize(cr, filter=flt)
+        self.docproxy.document.rasterize(cr, self._buf, filter=flt)
         cr.restore()
 
     def render_passepartout(self):

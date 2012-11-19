@@ -12,7 +12,7 @@ if os.name == 'morphos':
     pb_plat_srcs = [ 'src/platform-morphos.c' ]
     defines = [ ('NDEBUG', None),
                 ('__MORPHOS_SHAREDLIBS', None) ]
-    link_opt = [ '-llcms2', '-lm' ]
+    link_opt = [ '-llcms2', '-lGL', '-lGLU', '-lGLUT', '-lm' ]
 
 elif os.name == 'posix':
     opt = None
@@ -50,6 +50,10 @@ setup(name='Gribouillis',
                                 extra_compile_args=opt,
                                 extra_link_args=link_opt),
                       Extension('model/_lcms', [ 'src/_lcmsmodule.c' ] + pb_srcs,
+                                define_macros=defines,
+                                extra_compile_args=opt,
+                                extra_link_args=link_opt),
+                      Extension('view/pymui/_glbackend', [ 'src/_glbackend.c' ] + pb_srcs,
                                 define_macros=defines,
                                 extra_compile_args=opt,
                                 extra_link_args=link_opt),

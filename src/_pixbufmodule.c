@@ -431,15 +431,16 @@ argb15x_to_argb8_row(uint16_t *src, uint8_t *dst, unsigned int w)
 
         if (alpha > 0)
         {
-            uint8_t r,g,b;
+            uint8_t r,g,b,a;
 
             /* Convert to range [0, 255], keep values alpha pre-multiplied */
             r = ((uint32_t)src[1] * 255 + ROUND_ERROR_15BITS) >> 15;
             g = ((uint32_t)src[2] * 255 + ROUND_ERROR_15BITS) >> 15;
             b = ((uint32_t)src[3] * 255 + ROUND_ERROR_15BITS) >> 15;
+            a = (alpha * 255 + ROUND_ERROR_15BITS) >> 15;
 
             /* ARGB8 */
-            dst[0] = (alpha * 255 + ROUND_ERROR_15BITS) >> 15;
+            dst[0] = a;
             dst[1] = r;
             dst[2] = g;
             dst[3] = b;
@@ -541,7 +542,7 @@ argb15x_to_argb8_noa(uint16_t *src1, uint8_t *dst1,
                 uint8_t a,r,g,b;
 
                 /* Un-multiply by alpha, rounding and convert to range [0, 255] */
-				a = (alpha * 255 + ROUND_ERROR_15BITS) >> 15;
+                a = (alpha * 255 + ROUND_ERROR_15BITS) >> 15;
                 r = ((((uint32_t)src[1]<<15) + alpha/2) / alpha * 255 + ROUND_ERROR_15BITS) >> 15;
                 g = ((((uint32_t)src[2]<<15) + alpha/2) / alpha * 255 + ROUND_ERROR_15BITS) >> 15;
                 b = ((((uint32_t)src[3]<<15) + alpha/2) / alpha * 255 + ROUND_ERROR_15BITS) >> 15;
@@ -623,18 +624,19 @@ argb15x_to_rgba8(uint16_t *src1, uint8_t *dst1,
 
             if (alpha > 0)
             {
-                uint8_t r,g,b;
+                uint8_t r,g,b,a;
 
                 /* Convert to range [0, 255], keep values alpha pre-multiplied */
                 r = ((uint32_t)src[1] * 255 + ROUND_ERROR_15BITS) >> 15;
                 g = ((uint32_t)src[2] * 255 + ROUND_ERROR_15BITS) >> 15;
                 b = ((uint32_t)src[3] * 255 + ROUND_ERROR_15BITS) >> 15;
+                a = (alpha * 255 + ROUND_ERROR_15BITS) >> 15;
 
                 /* RGBA8 */
                 dst[0] = r;
                 dst[1] = g;
                 dst[2] = b;
-                dst[3] = (alpha * 255 + ROUND_ERROR_15BITS) >> 15;
+                dst[3] = a;
             }
             else
                 *(uint32_t *)dst = 0;
@@ -956,6 +958,50 @@ bgra8_to_argb15x(uint8_t *src1, uint16_t *dst1,
 }
 
 static void
+argb8_to_rgba8(uint8_t *src1, uint8_t *dst1,
+               uint32_t w, uint32_t h,
+               Py_ssize_t src_stride, Py_ssize_t dst_stride)
+{
+    uint32_t x, y;
+
+    src_stride /= sizeof(*src1);
+    dst_stride /= sizeof(*dst1);
+
+    for (y=0; y < h; y++, src1 += src_stride, dst1 += dst_stride)
+    {
+        uint8_t *src = src1;
+        uint8_t *dst = dst1;
+
+        for (x=0; x < w; x++)
+        {
+            uint32_t alpha = src[0];
+
+            if (alpha > 0)
+            {
+                uint32_t r,g,b;
+
+                /* Read ARGB8 */
+                r = src[1];
+                g = src[2];
+                b = src[3];
+
+                /* Write RGBA8 */
+                dst[0] = r;
+                dst[1] = g;
+                dst[2] = b;
+                dst[3] = alpha;
+            }
+            else
+                *(uint32_t *)dst = 0;
+
+            /* Next ARGB pixel */
+            src += 4;
+            dst += 4;
+        }
+    }
+}
+
+static void
 argb8_to_argb8_noa(uint8_t *src1, uint8_t *dst1,
                    uint32_t w, uint32_t h,
                    Py_ssize_t src_stride, Py_ssize_t dst_stride)
@@ -1265,6 +1311,7 @@ get_blit_function(int src_fmt, int dst_fmt, int endian_care)
         switch (dst_fmt)
         {
             case PyPixbuf_PIXFMT_ARGB_15X:      return (blitfunc)argb8_to_argb15x;
+            case PyPixbuf_PIXFMT_RGBA_8:        return (blitfunc)argb8_to_rgba8;
             case PyPixbuf_PIXFMT_ARGB_8_NOA:    return (blitfunc)argb8_to_argb8_noa;
             case PyPixbuf_PIXFMT_RGBA_8_NOA:    return (blitfunc)argb8_to_rgba8_noa;
         }

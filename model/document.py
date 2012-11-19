@@ -352,7 +352,7 @@ class Document(list):
 
     ### Rendering API ###
 
-    def rasterize(self, cr, filter=cairo.FILTER_BEST, layers=None, all=False, back=True):
+    def rasterize(self, cr, dst, filter=cairo.FILTER_BEST, layers=None, all=False, back=True):
         """Rasterize document on given cairo context.
         
         The context must have its matrix and clip set before calling this function.
@@ -363,19 +363,19 @@ class Document(list):
         if layers:
             if all:
                 for layer in layers:
-                    self.rasterize_layer(layer, cr, filter)
+                    self.rasterize_layer(layer, cr, dst, filter)
             else:
                 for layer in layers:
                     if layer.visible:
-                        self.rasterize_layer(layer, cr, filter)
+                        self.rasterize_layer(layer, cr, dst, filter)
         else:
             if all:
                 for layer in self:
-                    self.rasterize_layer(layer, cr, filter, layer.OPERATORS[layer.operator])
+                    self.rasterize_layer(layer, cr, dst, filter, layer.OPERATORS[layer.operator])
             else:
                 for layer in self:
                     if layer.visible:
-                        self.rasterize_layer(layer, cr, filter, layer.OPERATORS[layer.operator])
+                        self.rasterize_layer(layer, cr, dst, filter, layer.OPERATORS[layer.operator])
 
         # Finish by rendering the background
         if back and self.__fill:
@@ -387,7 +387,7 @@ class Document(list):
                 cr.set_source_rgb(*self.__fill)
             cr.paint()
 
-    def rasterize_layer(self, layer, cr, filter, ope=cairo.OPERATOR_OVER,
+    def rasterize_layer(self, layer, cr, dst, filter, ope=cairo.OPERATOR_OVER,
             fmt=_pixbuf.FORMAT_ARGB8, new_surface = cairo.ImageSurface.create_for_data):
         # FORMAT_ARGB8 => cairo uses alpha-premul pixels buffers
         
@@ -424,7 +424,7 @@ class Document(list):
         
         # Blit layer's tiles using over ope mode on the render surface
         def blit(tile):
-            tile.blit(pb, tile.x - x, tile.y - y)
+            tile.blit(pb, tile.x, tile.y)
                       
         layer.surface.rasterize(model_area, blit)
         

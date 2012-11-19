@@ -41,6 +41,7 @@ import utils
 import view
 import view.viewport
 import view.cairo_tools as tools
+import _glbackend as gl
 
 from view.keymap import KeymapManager
 from model.devices import *
@@ -78,6 +79,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
     _hruler = _vruler = None
     selpath = None
     docproxy = None
+    opengl = 1
 
     # Tools
     line_guide = None
@@ -331,11 +333,13 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
     #### Rendering ####
 
     def _new_render_context(self, width, height):
-        self._docrp.AllocBitMap(width, height, 32, self)
+        self._docrp.AllocBitMap(width, height, 32, self, self.opengl)
         self._toolsrp.AllocBitMap(width, height, 32, self)
         
         self._docvp.set_view_size(width, height)
         self._toolsvp.set_view_size(width, height)
+        
+        gl.init_gl_context(long(self._docrp), width, height)
         
         # Full rendering
         self._docvp.repaint()
@@ -362,7 +366,10 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
 
     def _blit_doc(self, x, y, w, h):
         buf = self._docvp.pixbuf
-        self._docrp.Blit8(buf, buf.stride, x, y, w, h, x, y) # Solid
+        if self.opengl:
+            gl.blit_pixbuf(buf, x, y, w, h)
+        else:
+            self._docrp.Blit8(buf, buf.stride, x, y, w, h, x, y)
         
     def _blit_tools(self, x, y, w, h):
         buf = self._toolsvp.pixbuf

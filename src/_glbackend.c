@@ -40,8 +40,10 @@ OTHER DEALINGS IN THE SOFTWARE.
 #define	checkImageHeight 64
 
 GLContext *tgl_context=NULL;
+struct BitMap *gBitMap=NULL;
 static UWORD gWidth, gHeight;
 static GLuint gTexID = -1;
+static GLint gMaxTexWidth = 0;
 
 static void draw_rect_tex(GLuint texid,
     GLfloat x, GLfloat y, GLfloat w, GLfloat h,
@@ -62,12 +64,18 @@ static PyObject* mod_initglcontext(PyObject *self, PyObject *args)
     
     if (!PyArg_ParseTuple(args, "kHH", &rp, &width, &height))
         return NULL;
-        
+     
     if (!GLAInitializeContextBitMap(tgl_context, rp->BitMap))
     {
         PyErr_SetString(PyExc_SystemError, "GLAInitializeContextBitMap() failed");
         return NULL;
     }
+    
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gMaxTexWidth);
+    dprintf("max tex width=%u\n", gMaxTexWidth);
+    //gMaxTexWidth = 1024;
+    
+    gBitMap = rp->BitMap;
     
     if (gTexID != -1)
         glDeleteTextures(1, &gTexID);
@@ -79,7 +87,6 @@ static PyObject* mod_initglcontext(PyObject *self, PyObject *args)
     
     /* 2D setup */
     glViewport(0, 0, width, height);
-    //glScissor(0, 0, width, height);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     glOrtho(0.0, width-1, 0.0, height-1, -1, 1);
@@ -95,19 +102,34 @@ static PyObject* mod_initglcontext(PyObject *self, PyObject *args)
     glEnable(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, gTexID);
 
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-    glPixelStorei(GL_UNPACK_ROW_LENGTH, gWidth);
-    glBindTexture(GL_TEXTURE_2D, gTexID);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1024, 1024, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, gMaxTexWidth, gMaxTexWidth, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
     
     glClearColor(.66, .66, .66, 1.0);
     glClear(GL_COLOR_BUFFER_BIT);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject* mod_termglcontext(PyObject *self, PyObject *args)
+{
+    if (tgl_context && gBitMap)
+    {
+        GLADestroyContextBitMap(tgl_context);
+        gBitMap = NULL;
+    }
+
+    if (gTexID != -1)
+    {
+        glDeleteTextures(1, &gTexID);
+        gTexID = -1;
+    }
 
     Py_RETURN_NONE;
 }
@@ -127,15 +149,16 @@ static PyObject* mod_blit_pixbuf(PyObject *self, PyObject *args)
         return NULL;
     }
     
-    glRotatef(2.0, 0, 0, 1);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, gWidth);
     glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, width, height, GL_RGBA, GL_UNSIGNED_BYTE, data + y*gWidth*4 + x*4);
-    draw_rect_tex(gTexID, 0, 0, gWidth, gHeight, 0.0, 0.0, gWidth/1024.0, gHeight/1024.0);
+    draw_rect_tex(gTexID, 0, 0, gWidth/2, gHeight/2, 0.0, 0.0, gWidth/(float)gMaxTexWidth, gHeight/(float)gMaxTexWidth);
 
     Py_RETURN_NONE;
 }
 
 static PyMethodDef methods[] = {
     {"init_gl_context", (PyCFunction)mod_initglcontext, METH_VARARGS, NULL},
+    {"term_gl_context", (PyCFunction)mod_termglcontext, METH_NOARGS, NULL},
     {"blit_pixbuf", (PyCFunction)mod_blit_pixbuf, METH_VARARGS, NULL},
     {NULL} /* sentinel */
 };

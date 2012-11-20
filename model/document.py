@@ -424,7 +424,7 @@ class Document(list):
         
         # Blit layer's tiles using over ope mode on the render surface
         def blit(tile):
-            tile.blit(pb, tile.x, tile.y)
+            tile.blit(pb, tile.x - x, tile.y - y)
                       
         layer.surface.rasterize(model_area, blit)
         

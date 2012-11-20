@@ -49,6 +49,7 @@ from utils import resolve_path, _T
 
 from .eventparser import MUIEventParser
 from .widgets import Ruler
+from .render import DocumentOpenGLRender
 from .const import *
 
 
@@ -64,9 +65,6 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
 
     _MCC_ = True
     width = height = None
-    _docrp = None
-    _toolsrp = None
-    _currp = None
     _clip = None
     _cur_area = None
     _cur_area2 = None
@@ -98,13 +96,15 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         self._km.use_map("Viewport")
         self._ev = pymui.EventHandler()
 
-        # Viewports
-        self._docvp = view.DocumentViewPort()
-        self._toolsvp = view.ToolsViewPort()
+        # Viewports and Renders
+        if self.opengl:
+            self._docre = DocumentOpenGLRender()
+        else:
+            self._docre = view.DocumentCairoRender()
+        self._docvp = view.ViewPort(self._docre)
+        self._toolsre = view.ToolsCairoRender()
+        self._toolsvp = view.ViewPort(self._toolsre)
         self._curvp = tools.Cursor()
-        
-        # Rendering
-        
 
         # Tools
         self.line_guide = tools.LineGuide(300, 200)
@@ -112,8 +112,8 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
 
         # Aliases
         self.get_view_area = self._docvp.get_view_area
-        self.enable_fast_filter = self._docvp.enable_fast_filter
-        self.get_handler_at_pos = self._toolsvp.get_handler_at_pos
+        self.enable_fast_filter = self._docre.enable_fast_filter
+        self.get_handler_at_pos = self._toolsre.get_handler_at_pos
 
         self.set_background(resolve_path(main.Gribouillis.TRANSPARENT_BACKGROUND))
 
@@ -141,6 +141,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
     @pymui.muimethod(pymui.MUIM_Cleanup)
     def MCC_Cleanup(self, msg):
         self._ev.uninstall()
+        gl.term_gl_context()
         del self._docrp, self._toolsrp, self._currp
         return msg.DoSuper()
 
@@ -249,7 +250,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
             self.docproxy.release()
         docproxy.obtain()
         self.docproxy = docproxy
-        self._docvp.docproxy = docproxy
+        self._docre.docproxy = docproxy
         fill = docproxy.document.fill or resolve_path(main.Gribouillis.TRANSPARENT_BACKGROUND)
         self.set_background(fill)
         self.width = self.height = None
@@ -365,14 +366,14 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         return x, y, w, h
 
     def _blit_doc(self, x, y, w, h):
-        buf = self._docvp.pixbuf
+        buf = self._docre.pixbuf
         if self.opengl:
             gl.blit_pixbuf(buf, x, y, w, h)
         else:
             self._docrp.Blit8(buf, buf.stride, x, y, w, h, x, y)
         
     def _blit_tools(self, x, y, w, h):
-        buf = self._toolsvp.pixbuf
+        buf = self._toolsre.pixbuf
         self._toolsrp.Blit8(buf, buf.stride, x, y, w, h, x, y)
         
     def _blit_cursor(self):
@@ -488,6 +489,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
     def reset_transforms(self):
         self._swap_x = self._swap_y = None
         self._docvp.reset_view()
+        self._docvp.update_matrix()
         self._curvp.set_scale(self._docvp.scale)
         self._render_cursor()
         self.repaint_doc()
@@ -564,7 +566,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         clip = utils.join_area(clip, self.get_view_area(*self.docproxy.document.area))
 
         # Scroll the internal docvp buffer
-        self._docvp.pixbuf.scroll(*delta)
+        self._docre.pixbuf.scroll(*delta)
 
         ## Compute the damaged rectangles list...
         # 4 damaged rectangles possible, but only two per delta:
@@ -603,7 +605,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
 
         # Re-render only damaged parts
         for area in drects:
-            self._docvp.repaint(area)
+            self._docre.repaint(area)
 
         # Rasterize to the minimal viewable area
         self._clip = clip = self._check_clip(*clip)
@@ -619,7 +621,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         self._docvp.rotate(angle)
         self._docvp.update_matrix()
 
-        buf = self._docvp.pixbuf
+        buf = self._docre.pixbuf
         w = buf.width
         h = buf.height
         cx = w/2.
@@ -672,13 +674,13 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
 
     def get_exact_color(self, *pos):
         try:
-            return self._docvp.pixbuf.get_pixel(*pos)[:-1] # alpha last
+            return self._docre.pixbuf.get_pixel(*pos)[:-1] # alpha last
         except:
             return
 
     def get_average_color(self, *pos):
         try:
-            return self._docvp.pixbuf.get_average_pixel(self._curvp.radius, *pos)[:-1] # alpha last
+            return self._docre.pixbuf.get_average_pixel(self._curvp.radius, *pos)[:-1] # alpha last
         except:
             return
 

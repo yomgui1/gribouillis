@@ -23,31 +23,15 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-"""ViewPort is a view component to render a model component
-and gives the result to the user.
-
-A ViewPort is connected to only one model component, and a model component may
-be connected to many ViewPorts.
-
-As view components, ViewPorts are reactive to model changes and user inputs.
-
-ViewPort is the base class used to construct real used classes:
-
-DocumentViewPort: model is document (composite of layers)
-SurfaceViewPort: model is only a single surface.
-"""
-
 import cairo
 import random
 
-from math import floor, ceil, pi, atan, log
+from math import floor, ceil
 
 import main
 
 from model import _pixbuf, prefs
 from utils import virtualmethod, resolve_path
-
-pi2 = 2 * pi
 
 
 def get_imat(m):
@@ -56,20 +40,25 @@ def get_imat(m):
     return m
 
 
-class ViewPortBase(object):
-    _debug = 0
-
+class ViewPort(object):
     SCALES = [0.05, 0.1, 0.2, 0.25, 0.33333, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 10., 20.]
     MAX_SCALE = len(SCALES) - 1
 
-    width = height = stride = 0
-    _ctx = None
-
-    # View matrix data
+    _debug = 0
+    _ox = _oy = 0.0
+    _sox = _soy = 0.0
+    _facx = _facy = 1.0
     _scale_idx = SCALES.index(1.)
+    _rot_mat = None
 
-    def __init__(self):
+    def __init__(self, render):
+        self._re = render
         self.reset_view()
+        self.update_matrix()
+        render.viewport = self
+        
+        # Alias
+        self.apply_operator = render.apply_operator
 
     def set_view_size(self, width, height):
         width = int(width)
@@ -78,19 +67,16 @@ class ViewPortBase(object):
 
         self.width = width
         self.height = height
+        self.full_area = (0, 0, width, height)
         self.update_matrix()
-
-        # create new cairo surface/context
-        self._buf = _pixbuf.Pixbuf(_pixbuf.FORMAT_RGBA8, width, height)
-        self.stride = self._buf.stride
-        self.__surf = cairo.ImageSurface.create_for_data(self._buf, cairo.FORMAT_ARGB32, width, height)
-        self._ctx = cairo.Context(self.__surf)
         
-        return (0, 0, width, height)
+        self._re.set_view_size(width, height)
+        
+        return self.full_area
 
     def update_matrix(self):
         # View affine transformations
-        s = ViewPortBase.SCALES[self._scale_idx]
+        s = ViewPort.SCALES[self._scale_idx]
         view_mat = cairo.Matrix(s, 0, 0, s, self._ox, self._oy)
 
         if self._rot_mat:
@@ -120,18 +106,12 @@ class ViewPortBase(object):
         self.get_model_distance = self._mat_view2model.transform_distance
         self.get_view_point = view_mat.transform_point
         self.get_view_distance = view_mat.transform_distance
+        self._re.matrix_changed()
 
-    def reset_view(self):
-        self._ox = self._oy = .0
-        self._sox = self._soy = .0
-        self._facx = self._facy = 1.
-        self._rot_mat = None
-        self._rot_imat = None
-        self._scale_idx = ViewPortBase.SCALES.index(1.)
-        self.update_matrix()
-        
     def like(self, other):
-        assert isinstance(other, ViewPortBase)
+        "Copy viewing properties from an other Viewport instance"
+        
+        assert isinstance(other, ViewPort)
         for name in "_ox _oy _sox _soy _facx _facy _scale_idx".split():
             setattr(self, name, getattr(other, name))
         
@@ -142,16 +122,6 @@ class ViewPortBase(object):
             self._rot_mat = self._rot_imat = None
         
         self.update_matrix()
-
-    def clear_area(self, clip=None):
-        if clip is None:
-            clip = (0, 0, self.width, self.height)
-
-        self._buf.clear_area(*clip)
-        self.__surf.mark_dirty_rectangle(*clip)
-
-    def mark_dirty_rectangle(self, rect):
-        self.__surf.mark_dirty_rectangle(*rect)
 
     def get_view_point_pos(self, pos):
         return self.get_view_point(*pos)
@@ -188,8 +158,35 @@ class ViewPortBase(object):
         # w and h are always positive numbers.
         return x, y, w, h
 
-    # scoll, scale_up, scale_down, set_scale and rotate don't call update_matrix!
-    # This method must be called by user when transformations are done.
+    # scroll, scale_up, scale_down, set_scale, rotate and all reset methods
+    # don't call update_matrix! This method shall be called by user
+    # when all transformations are done to finalize viewing matrices.
+    
+    def reset_view(self):
+        self.reset_translation()
+        self.reset_scale()
+        self.reset_rotation()
+        self.reset_mirror()
+        
+    def reset_translation(self):
+        res = self._ox or self._oy
+        self._ox = self._oy = 0.0
+        return res
+
+    def reset_scale(self):
+        os = self._scale_idx
+        self._scale_idx = ViewPort.SCALES.index(1.)
+        return os != self._scale_idx
+
+    def reset_rotation(self):
+        res = self._rot_mat is not None
+        self._rot_mat = None
+        self._rot_imat = None
+        return res
+
+    def reset_mirror(self):
+        self._sox = self._soy = 0.0
+        self._facx = self._facy = 1.0
 
     def scroll(self, dx, dy):
         # multiplied by axial swaping coeffiscient to get the right direction
@@ -204,7 +201,7 @@ class ViewPortBase(object):
 
     def scale_up(self):
         s = self._scale_idx
-        self._scale_idx = min(self._scale_idx + 1, ViewPortBase.MAX_SCALE)
+        self._scale_idx = min(self._scale_idx + 1, ViewPort.MAX_SCALE)
         return s != self._scale_idx
 
     def scale_down(self):
@@ -213,24 +210,8 @@ class ViewPortBase(object):
         return s != self._scale_idx
 
     def set_scale(self, s=SCALES.index(1.)):
-        self._scale_idx = max(0, min(s + ViewPortBase.SCALES.index(1.), ViewPortBase.MAX_SCALE))
+        self._scale_idx = max(0, min(s + ViewPort.SCALES.index(1.), ViewPort.MAX_SCALE))
         return s != self._scale_idx
-
-    def reset_translation(self):
-        res = self._ox or self._oy
-        self._ox = self._oy = 0.0
-        return res
-
-    def reset_scale(self):
-        os = self._scale_idx
-        self._scale_idx = ViewPortBase.SCALES.index(1.)
-        return os != self._scale_idx
-
-    def reset_rotation(self):
-        res = self._rot_mat is not None
-        self._rot_mat = None
-        self._rot_imat = None
-        return res
 
     def rotate(self, dr):
         "Rotate around the ViewPort center"
@@ -258,31 +239,15 @@ class ViewPortBase(object):
         self._soy = oy
         self._facy = -self._facy
 
-    def apply_ope(self, operator):
-        operator(self._buf, self._buf)
+    # Rendering related methods
 
-    @staticmethod
-    def compute_angle(x, y):
-        # (x,y) in view coordinates
+    def clear_area(self, clip=None):
+        self._re.clear_area(clip or self.full_area)
 
-        if y >= 0:
-            r = 0.
-        else:
-            r = pi
-            y = -y
-            x = -x
-
-        if x > 0:
-            r += atan(float(y) / x)
-        elif x < 0:
-            r += pi - atan(float(y) / -x)
-        else:
-            r += pi / 2.
-
-        return r
+    def repaint(self, clip=None):
+        self._re.repaint(clip or self.full_area)
 
     # Properties
-    #
 
     def get_offset(self):
         return self._ox, self._oy
@@ -290,22 +255,153 @@ class ViewPortBase(object):
     def set_offset(self, offset):
         self._ox, self._oy = offset
 
-    offset = property(get_offset, set_offset)
-
     @property
     def scale(self):
-        return ViewPortBase.SCALES[self._scale_idx]
+        return ViewPort.SCALES[self._scale_idx]
+
+    @property
+    def scale_idx(self):
+        return self._scale_idx
+
+    offset = property(get_offset, set_offset)
+    matrix = property(fget=get_matrix, fset=set_matrix)
+
+
+class Render(object):
+    viewport = None
+    
+    def matrix_changed(self): pass
+    
+    def apply_operator(self):
+        raise NotImplemented()
+    
+    def set_view_size(self, width, height):
+        raise NotImplemented()
+        
+    def clear_area(self, clip):
+        raise NotImplemented()
+
+    def repaint(self, clip):
+        raise NotImplemented()
 
     @property
     def pixbuf(self):
-        "Obtain the raw pixels buffer (ARGB8)"
-        return self._buf
+        raise NotImplemented()
+
+
+class CairoRenderBase(Render):
+    # Render class implemtation
+    
+    def set_view_size(self, width, height):
+        # create new cairo surface/context
+        self.buf = _pixbuf.Pixbuf(_pixbuf.FORMAT_RGBA8, width, height)
+        self.surf = cairo.ImageSurface.create_for_data(self.buf, cairo.FORMAT_ARGB32, width, height)
+        self.ctx = cairo.Context(self.surf)
+    
+    def clear_area(self, clip):
+        self.buf.clear_area(*clip)
+        self.surf.mark_dirty_rectangle(*clip)
 
     @property
-    def cairo_surface(self):
-        return self.__surf
+    def pixbuf(self):
+        return self.buf
 
-    matrix = property(fget=get_matrix, fset=set_matrix)
+
+class DocumentCairoRender(CairoRenderBase):
+    filter = cairo.FILTER_FAST
+    passepartout = False
+    docproxy = None # need to be set before repaint() call
+    
+    def enable_fast_filter(self, state=True):
+        self.filter = cairo.FILTER_FAST if state else None
+
+    def render_passepartout(self):
+        cr = self._ctx
+        cr.save()
+
+        # Add a Passe-Partout on request
+        if self.passepartout:
+            area = self.docproxy.document.metadata['dimensions']
+            if area:
+                x, y, w, h = area
+                if w and h:
+                    buf = self._buf
+                    cr.set_source_rgba(*prefs['view-color-passepartout'])
+                    cr.rectangle(0, 0, buf.width, buf.height)
+                    cr.set_matrix(self.viewport.matrix)
+                    cr.new_sub_path()
+                    cr.rectangle(x, y, w, h)
+                    cr.set_fill_rule(cairo.FILL_RULE_EVEN_ODD)
+                    cr.fill()
+
+        cr.restore()
+
+    def repaint(self, clip):
+        # Start with a fully transparent region
+        self.clear_area(clip)
+
+        # Cairo rendering pipeline start here
+        cr = self.ctx
+        cr.save()
+
+        # Clip again on requested area
+        cr.rectangle(*clip)
+        cr.clip()
+
+        # Setup our cairo context using document viewing matrix
+        cr.set_matrix(self.viewport.matrix)
+
+        # Paint the document, pixelize using FILTER_FAST filter if zoom level is high
+        if self.filter is None:
+            flt = cairo.FILTER_FAST if self.viewport.scale_idx > prefs['view-filter-threshold'] else cairo.FILTER_BILINEAR
+        else:
+            flt = self.filter
+
+        self.docproxy.document.rasterize(cr, self.buf, filter=flt)
+        cr.restore()
+
+
+class ToolsCairoRender(CairoRenderBase):
+    def __init__(self):
+        CairoRenderBase.__init__(self)
+        self.tools = []
+
+    def add_tool(self, tool):
+        self.tools.append(tool)
+        self.repaint(tool.area)
+
+    def rem_tool(self, tool):
+        area = tool.area
+        self.tools.remove(tool)
+        tool.reset()
+        self.repaint(area)
+
+    def is_tool_hit(self, tool, *pos):
+        return tool.hit(self.ctx, *pos)
+
+    def get_handler_at_pos(self, *pos):
+        for tool in self.tools:
+            handler = tool.hit_handler(self.ctx, *pos)
+            if handler:
+                return handler
+
+    def repaint(self, clip):
+        cr = self.ctx
+        cr.save()
+
+        # Clip on the requested area
+        cr.rectangle(*clip)
+        cr.clip()
+
+        # Clear the repaint region
+        self.clear_area(clip)
+
+        for tool in self.tools:
+            cr.save()
+            tool.repaint(self, cr, self.width, self.height)
+            cr.restore()
+
+        cr.restore()
 
 
 class BackgroundMixin:
@@ -337,120 +433,5 @@ class BackgroundMixin:
             pass
 
 
-class DocumentViewPort(ViewPortBase):
-    DEFAULT_FILTER_THRESHOLD = 7
-
-    _backcolor = None  # background as solid color
-    _backsurf = None  # background as pattern
-    _filter = None
-    passepartout = False
-    docproxy = None # need to be set before repaint() call
-    
-    def enable_fast_filter(self, state=True):
-        self._filter = cairo.FILTER_FAST if state else None
-
-    def repaint(self, clip=None):
-        if clip is None:
-            clip = (0, 0, self.width, self.height)
-
-        # Start with a fully transparent region
-        self.clear_area(clip)
-
-        # Cairo rendering pipeline start here
-        cr = self._ctx
-        cr.save()
-
-        # Clip again on requested area
-        cr.rectangle(*clip)
-        cr.clip()
-
-        # Setup our cairo context using document viewing matrix
-        cr.set_matrix(self._mat_model2view)
-
-        # Paint the document, pixelize using FILTER_FAST filter if zoom level is high
-        if self._filter is not None:
-            flt = self._filter
-        else:
-            flt = cairo.FILTER_FAST if self._scale_idx > prefs['view-filter-threshold'] else cairo.FILTER_BILINEAR
-
-        self.docproxy.document.rasterize(cr, self._buf, filter=flt)
-        cr.restore()
-
-    def render_passepartout(self):
-        cr = self._ctx
-        cr.save()
-
-        # Add a Passe-Partout on request
-        if self.passepartout:
-            area = self.docproxy.document.metadata['dimensions']
-            if area:
-                x, y, w, h = area
-                if w and h:
-                    buf = self._buf
-                    cr.set_source_rgba(*prefs['view-color-passepartout'])
-                    cr.rectangle(0, 0, buf.width, buf.height)
-                    cr.set_matrix(self._mat_model2view)
-                    cr.new_sub_path()
-                    cr.rectangle(x, y, w, h)
-                    cr.set_fill_rule(cairo.FILL_RULE_EVEN_ODD)
-                    cr.fill()
-
-        cr.restore()
-
-
-class ToolsViewPort(ViewPortBase):
-    """ToolsViewPort class
-
-    Transparent viewport without transformations except pixel alignment correction.
-    """
-
-    def __init__(self, *a, **k):
-        super(ToolsViewPort, self).__init__(*a, **k)
-        self._tools = []
-
-    def add_tool(self, tool):
-        self._tools.append(tool)
-        self.repaint(tool.area)
-
-    def rem_tool(self, tool):
-        area = tool.area
-        self._tools.remove(tool)
-        tool.reset()
-        self.repaint(area)
-
-    def is_tool_hit(self, tool, *pos):
-        return tool.hit(self._ctx, *pos)
-
-    def get_handler_at_pos(self, *pos):
-        for tool in self._tools:
-            handler = tool.hit_handler(self._ctx, *pos)
-            if handler:
-                return handler
-
-    def repaint(self, clip=None):
-        if clip is None:
-            clip = (0, 0, self.width, self.height)
-
-        cr = self._ctx
-        cr.save()
-
-        # Clip on the requested area
-        cr.rectangle(*clip)
-        cr.clip()
-
-        # Clear the repaint region
-        self.clear_area(clip)
-
-        for tool in self._tools:
-            cr.save()
-            tool.repaint(self, cr, self.width, self.height)
-            cr.restore()
-
-        cr.restore()
-
-    @property
-    def tools(self):
-        return self._tools
-
-prefs.add_default('view-filter-threshold', DocumentViewPort.DEFAULT_FILTER_THRESHOLD)
+prefs.add_default('view-filter-threshold', 7)
 prefs.add_default('view-color-passepartout', (0.33, 0.33, 0.33, 1.0))

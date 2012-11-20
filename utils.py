@@ -33,6 +33,7 @@ import puremvc.patterns.command
 from functools import wraps, partial
 from time import time
 from string import Template
+from math import atan, pi
 
 __all__ = [ 'VirtualCalledError', 'virtualmethod',
             'Mediator',  'mvcHandler',
@@ -158,6 +159,7 @@ def join_area(a1, a2):
 class _MyTemplate(Template):
     idpattern = '[_a-z][_a-z0-9\-]*'
 
+
 def resolve_path(path):
     from model import prefs
     path = path.replace('/', os.path.sep)
@@ -166,6 +168,26 @@ def resolve_path(path):
         old_path = path
         path = _MyTemplate(path).safe_substitute(prefs)
     return path
+
+
+def compute_angle(x, y):
+    # (x,y) in view coordinates
+
+    if y >= 0:
+        r = 0.
+    else:
+        r = pi
+        y = -y
+        x = -x
+
+    if x > 0:
+        r += atan(float(y) / x)
+    elif x < 0:
+        r += pi - atan(float(y) / -x)
+    else:
+        r += pi / 2.
+
+    return r
 
 ##
 ## PureMVC extention implemented from "PureMVC AS3 Utility - Undo"

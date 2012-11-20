@@ -30,32 +30,10 @@ from math import floor, ceil, radians, pi, atan, hypot, cos, sin, exp, degrees
 import utils
 
 from model import _pixbuf, prefs
-from view.viewport import ViewPortBase
-
-compute_angle = ViewPortBase.compute_angle
-del ViewPortBase
 
 pi2 = pi*2
 IECODE_LBUTTON = 0x68
 
-def compute_angle(x, y):
-    # (x,y) in view coordinates
-
-    if y >= 0:
-        r = 0.
-    else:
-        r = pi
-        y = -y
-        x = -x
-
-    if x > 0:
-        r += atan(float(y)/x)
-    elif x < 0:
-        r += pi - atan(float(y)/-x)
-    else:
-        r += pi/2.
-
-    return r
 
 def rotate(xo, yo, cs, sn):
     x = self.x - xo
@@ -206,8 +184,8 @@ class Rotate(Tool):
     def set_cursor_pos(self, pos):
         if self._ox and self._pos:
             x, y = self._pos
-            a = compute_angle(x-self._ox, y-self._oy)
-            self.dr = a-compute_angle(pos[0]-self._ox, pos[1]-self._oy)
+            a = utils.compute_angle(x-self._ox, y-self._oy)
+            self.dr = a-utils.compute_angle(pos[0]-self._ox, pos[1]-self._oy)
         self._pos = pos
 
     def repaint(self, vp, cr, width, height):
@@ -964,7 +942,7 @@ class EllipseGuide(Tool):
             mhx = self._move.x
             mhy = self._move.y
             a = self._angle
-            self._angle = compute_angle(hl.x+delta[0]-mhx, hl.y+delta[1]-mhy)
+            self._angle = utils.compute_angle(hl.x+delta[0]-mhx, hl.y+delta[1]-mhy)
             a = self._angle - a
             cs = cos(a)
             sn = sin(a)

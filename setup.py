@@ -7,6 +7,8 @@ pb_src_root = 'src'
 pb_generic_srcs = [ 'math.c']
 pb_generic_srcs = [ os.path.join(pb_src_root, p) for p in pb_generic_srcs ]
 
+ext_extra = []
+
 if os.name == 'morphos':
     opt = [ '-Wall -Wuninitialized -Wstrict-prototypes' ]
     pb_plat_srcs = [ 'src/platform-morphos.c' ]
@@ -24,14 +26,19 @@ link_opt += ['-lpng']
 pb_srcs = pb_generic_srcs + pb_plat_srcs
 
 ext_savers = Extension('model/_savers', [ 'src/_saversmodule.c' ] + pb_srcs,
-    define_macros=defines,
-    extra_compile_args=opt,
-    extra_link_args=link_opt)
+                       define_macros=defines,
+                       extra_compile_args=opt,
+                       extra_link_args=link_opt)
+
+ext_render_gl = Extension('view/pymui/_glbackend', [ 'src/_glbackend.c' ] + pb_srcs,
+                          define_macros=defines,
+                          extra_compile_args=opt,
+                          extra_link_args=link_opt)
 
 if os.name == 'morphos':
-    exts = [ ext_savers ]
+    ext_extra = [ ext_savers, ext_render_gl ]
 else:
-    exts = [ ]
+    ext_extra = [ ]
 
 setup(name='Gribouillis',
       version='3.0',
@@ -53,8 +60,4 @@ setup(name='Gribouillis',
                                 define_macros=defines,
                                 extra_compile_args=opt,
                                 extra_link_args=link_opt),
-                      Extension('view/pymui/_glbackend', [ 'src/_glbackend.c' ] + pb_srcs,
-                                define_macros=defines,
-                                extra_compile_args=opt,
-                                extra_link_args=link_opt),
-                      ] + exts)
+                      ] + ext_extra)

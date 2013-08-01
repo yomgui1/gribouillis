@@ -290,21 +290,20 @@ class Render(object):
 
 
 class CairoRenderBase(Render):
-    # Render class implemtation
+    # Cairo render implementation
     
     def set_view_size(self, width, height):
-        # create new cairo surface/context
-        self.buf = _pixbuf.Pixbuf(_pixbuf.FORMAT_RGBA8, width, height)
-        self.surf = cairo.ImageSurface.create_for_data(self.buf, cairo.FORMAT_ARGB32, width, height)
-        self.ctx = cairo.Context(self.surf)
+        self._buf = _pixbuf.Pixbuf(_pixbuf.FORMAT_RGBA8, width, height)
+        self.surface = cairo.ImageSurface.create_for_data(self._buf, cairo.FORMAT_ARGB32, width, height)
+        self.ctx = cairo.Context(self.surface)
     
     def clear_area(self, clip):
-        self.buf.clear_area(*clip)
-        self.surf.mark_dirty_rectangle(*clip)
+        self.pixbuf.clear_area(*clip)
+        self.surface.mark_dirty_rectangle(*clip)
 
     @property
     def pixbuf(self):
-        return self.buf
+        return self._buf
 
 
 class DocumentCairoRender(CairoRenderBase):
@@ -316,7 +315,7 @@ class DocumentCairoRender(CairoRenderBase):
         self.filter = cairo.FILTER_FAST if state else None
 
     def render_passepartout(self):
-        cr = self._ctx
+        cr = self.ctx
         cr.save()
 
         # Add a Passe-Partout on request
@@ -357,7 +356,7 @@ class DocumentCairoRender(CairoRenderBase):
         else:
             flt = self.filter
 
-        self.docproxy.document.rasterize(cr, self.buf, filter=flt)
+        self.docproxy.document.rasterize(cr, self.pixbuf, filter=flt)
         cr.restore()
 
 

@@ -28,11 +28,12 @@ import gtk
 import view
 import utils
 import main
-
 import view.context as ctx
 
-from view.operator import execoperator
 from utils import _T
+
+from view.operator import execoperator
+from view.keymap import KeymapManager
 
 from .layermgr import LayerManager
 from .colorwindow import ColorWindow
@@ -49,6 +50,8 @@ class Application(view.mixin.ApplicationMixin):
     _last_filename = None
 
     def __init__(self):
+        self.keymap_mgr = KeymapManager(ctx)
+        self.keymap_mgr.set_default('Application')
         self._open_doc = None # last open document filename
         self.create_ui()
 

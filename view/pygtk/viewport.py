@@ -39,8 +39,8 @@ import utils
 import model.devices
 
 from view.keymap import KeymapManager
-
 from .eventparser import GdkEventParser
+
 
 def _check_key(key, evt):
     if not key:
@@ -69,7 +69,6 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
     _cur_on = False
     _swap_x = _swap_y = None
     _debug = 0
-    storage = {}
     selpath = None
     docproxy = None
 
@@ -80,8 +79,8 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
         self._ctx = ctx
         self.device = model.devices.InputDevice()
 
-        self._km = KeymapManager()
-        self._km.use_map("Viewport")
+        self.keymap_mgr = KeymapManager(ctx, win.keymap_mgr)
+        self.keymap_mgr.set_default('Viewport')
 
         # Viewport's
         self._docre = view.DocumentCairoRender()
@@ -108,14 +107,14 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
         self.set_sensitive(True)
 
         self.connect("expose-event"        , self._on_expose)
-        self.connect("motion-notify-event" , self._on_motion_notify)
-        self.connect("button-press-event"  , self._on_button_press)
-        self.connect("button-release-event", self._on_button_release)
-        self.connect("scroll-event"        , self._on_scroll)
+        self.connect("motion-notify-event" , self._on_vp_event)
+        self.connect("button-press-event"  , self._on_vp_event)
+        self.connect("button-release-event", self._on_vp_event)
+        self.connect("scroll-event"        , self._on_vp_event)
         self.connect("enter-notify-event"  , self._on_enter)
         self.connect("leave-notify-event"  , self._on_leave)
-        self.connect("key-press-event"     , self._on_key_press)
-        self.connect("key-release-event"   , self._on_key_release)
+        self.connect("key-press-event"     , self._on_vp_event)
+        self.connect("key-release-event"   , self._on_vp_event)
 
         if docproxy is not None:
             self.set_docproxy(docproxy)
@@ -188,60 +187,20 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
 
     # Events dispatchers
 
-    def _on_motion_notify(self, widget, evt):
-        mods = evt.state.value_nicks
-        if 'mod2-mask' in mods:
-            mods.remove('mod2-mask')
-        return self._km.process(evt, 'cursor-motion', mods, viewport=self)
-
-
     def _on_enter(self, widget, evt):
         self.grab_focus()
         self._ctx.active_viewport = self
-        return self._km.process(evt, 'cursor-enter', viewport=self)
+        return self.keymap_mgr.process(evt)
 
     def _on_leave(self, widget, evt):
-        return self._km.process(evt, 'cursor-leave', viewport=self)
+        # I don't set active_viewport to None as leaving a viewport
+        # is not necessary followed by entering another VP.
+        # So we let a valid VP in the context.
+        return self.keymap_mgr.process(evt)
 
-    def _on_button_press(self, widget, evt):
-        if evt.type == gdk.BUTTON_PRESS:
-            mods = evt.state.value_nicks
-            if 'mod2-mask' in mods:
-                mods.remove('mod2-mask')
-            return self._km.process(evt, 'button-press-%u' % evt.button,
-                                    mods, viewport=self)
-
-    def _on_button_release(self, widget, evt):
-        if evt.type == gdk.BUTTON_RELEASE:
-            mods = evt.state.value_nicks
-            if 'mod2-mask' in mods:
-                mods.remove('mod2-mask')
-            return self._km.process(evt, 'button-release-%u' % evt.button,
-                                    mods, viewport=self)
-
-    def _on_scroll(self, widget, evt):
-        mods = evt.state.value_nicks
-        if 'mod2-mask' in mods:
-            mods.remove('mod2-mask')
-        return self._km.process(evt, 'scroll-%s' % evt.direction.value_nick,
-                                mods, viewport=self)
-
-    def _on_key_press(self, widget, evt):
-        mods = evt.state.value_nicks
-        if 'mod2-mask' in mods:
-            mods.remove('mod2-mask')
-        return self._km.process(evt, 'key-press-%s' % gdk.keyval_name(evt.keyval),
-                                mods, viewport=self)
-
-    def _on_key_release(self, widget, evt):
-        mods = evt.state.value_nicks
-        if 'mod2-mask' in mods:
-            mods.remove('mod2-mask')
-        if evt.type == gdk.SCROLL:
-            name = 'scroll-release-%s' % evt.direction.value_nick,
-        else:
-            name = 'key-release-%s' % gdk.keyval_name(evt.keyval)
-        return self._km.process(evt, name, mods, viewport=self)
+    def _on_vp_event(self, widget, evt):
+        assert self._ctx.active_viewport is self
+        return self.keymap_mgr.process(evt)
 
     # Public API
 
@@ -370,14 +329,15 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
             self.redraw()
 
     def scroll(self, *delta):
+        # Scroll the view model
         dvp = self._docvp
         dvp.scroll(*delta)
         dvp.update_matrix()
 
         dx, dy = delta
 
-        # Scroll the internal docvp buffer
-        dvp.pixbuf.scroll(dx, dy)
+        # Scroll internal render cache
+        self._docre.pixbuf.scroll(dx, dy)
 
         ## Compute and render only damaged area
         #

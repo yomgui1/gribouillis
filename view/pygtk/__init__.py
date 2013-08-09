@@ -234,7 +234,7 @@ class DocumentMediator(GenericMediator):
         "Register and associate a document proxy to a new document window"
 
         win = DocWindow(docproxy, self.register_viewport,
-                        self.unregister_viewport)
+                        self.unregister_viewport, ctx.application.keymap_mgr)
 
         # associate Window's events to callbacks
         win.connect("delete-event", self._on_delete_event)

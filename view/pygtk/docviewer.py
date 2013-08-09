@@ -27,10 +27,11 @@ import gtk
 import gtk.gdk as gdk
 import gobject
 
-import view.context as ctx
-import view.operator as operator
-
 from utils import _T
+from view import context as ctx
+from view import operator
+from view.keymap import KeymapManager
+
 from .viewport import DocViewport
 
 
@@ -110,9 +111,11 @@ class DocWindow(gtk.Window):
         </ui>
         """
     
-    def __init__(self, docproxy, register_viewport_cb, unregister_viewport_cp):
+    def __init__(self, docproxy, register_viewport_cb, unregister_viewport_cp, parent_kmgr):
         super(DocWindow, self).__init__()
 
+        self.keymap_mgr = KeymapManager(ctx, parent_kmgr)
+        self.keymap_mgr.set_default('DocWindow')
         self.docproxy = docproxy
         self._reg_vp_cb = register_viewport_cb
         self._unreg_vp_cp = unregister_viewport_cp
@@ -168,15 +171,15 @@ class DocWindow(gtk.Window):
 
                 ('cmd-undo', gtk.STOCK_UNDO, _T('Undo last command'),
                  '<Control>z', None,
-                 lambda *a: operator.execute("doc_hist_undo")),
+                 lambda *a: operator.execute('hist_undo')),
 
                 ('cmd-redo', gtk.STOCK_REDO, _T('Redo last command'),
                  '<Control><Shift>z', None,
-                 lambda *a: operator.execute("doc_hist_redo")),
+                 lambda *a: operator.execute('hist_redo')),
 
                 ('cmd-flush', gtk.STOCK_APPLY, _T('Flush commands historic'),
                  '<Control><Alt>z', None,
-                 lambda *a: operator.execute("doc_hist_flush")),
+                 lambda *a: operator.execute('hist_flush')),
 
                 ('cmd-win', gtk.STOCK_PROPERTIES, _T('Open commands historic'),
                  '<Alt>h', None,

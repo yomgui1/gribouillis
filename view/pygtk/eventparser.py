@@ -30,9 +30,10 @@ This object is used jointly with view.Context as mapping keys.
 
 from gtk import gdk
 
+
 class GdkEventParser:
     __bad_devices = []
-    
+
     @staticmethod
     def get_time(evt):
         # GDK timestamp in milliseconds

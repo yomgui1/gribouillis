@@ -23,27 +23,68 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-from view.keymap import KeymapManager
+from view.keymap import Keymap
 
 
 RALT_MASK = 'mod5-mask'
 LALT_MASK = 'mod1-mask'
 
+AND = lambda *a: "(%s) and (%s)" % a
+OR = lambda *a: "(%s) or (%s)" % a
+KEY_PRESS_VAL = lambda k: "(evt.type.value_nick=='key-press') and (evt.keyval==%u)" % k
+KEY_RELEASE_VAL = lambda k: "(evt.type.value_nick=='key-release') and (evt.keyval==%u)" % k
+cursor_enter = "evt.type.value_nick=='enter-notify'"
+cursor_leave = "evt.type.value_nick=='leave-notify'"
+cursor_motion = "evt.type.value_nick=='motion-notify'"
+scroll_up = "(evt.type.value_nick=='scroll') and (evt.direction.value_nick=='up')"
+scroll_down = "(evt.type.value_nick=='scroll') and (evt.direction.value_nick=='down')"
+button_press = "evt.type.value_nick=='button-press'"
+button_release = "evt.type.value_nick=='button-release'"
+button1 = "evt.button==1"
+button2 = "evt.button==2"
+button3 = "evt.button==3"
+button1_mod = "'button1-mask' in evt.state.value_nicks"
+button2_mod = "'button2-mask' in evt.state.value_nicks"
+button3_mod = "'button3-mask' in evt.state.value_nicks"
+button1_mod_ex = "['button1-mask'] == evt.state.value_nicks"
+button2_mod_ex = "['button2-mask'] == evt.state.value_nicks"
+button3_mod_ex = "['button3-mask'] == evt.state.value_nicks"
+ctrl_mod = "'control-mask' in evt.state.value_nicks"
 
-KeymapManager.register_keymap("Viewport", {
-        # Brush related
-        "cursor-enter": "vp_enter",
-        "cursor-leave": "vp_leave",
-        "cursor-motion": "vp_move_cursor",
+
+Keymap('DocWindow', {
+        AND(KEY_RELEASE_VAL(ord('z')), ctrl_mod): 'hist_undo', # ctrl-z
+        })
+
+Keymap('Viewport', {
+        # View motions
+        AND(button_press, button2): 'vp_scroll_start',
+        scroll_down: 'vp_scale_down',
+        scroll_up: 'vp_scale_up',
+
+        # Cursor related
+        cursor_enter: 'vp_enter',
+        cursor_leave: 'vp_leave',
+        cursor_motion: 'vp_move_cursor',
 
         # Drawing
-        "button-press-1": "vp_stroke_start",
-        "key-press-BackSpace": "vp_clear_layer",
+        AND(button_press, button1): 'vp_stroke_start',
+        KEY_RELEASE_VAL(ord(' ')): 'vp_clear_layer', # space
+        })
 
+Keymap('Brush-Stroke', {
+        AND(cursor_motion, button1_mod): 'vp_stroke_append',
+        AND(button_release, button1): 'vp_stroke_confirm',
+       })
+
+Keymap('Viewport-Scroll', {
+        AND(cursor_motion, button2_mod): 'vp_scroll_delta',
+        AND(button_release, button2): 'vp_scroll_confirm',
+       })
+
+'''
+KeymapManager.register_keymap("Viewport", {
         # View motions
-        "button-press-2": "vp_scroll_start",
-        "scroll-down": "vp_scale_down",
-        "scroll-up": "vp_scale_up",
         "key-press-bracketright": ("vp_rotate_right", None),
         "key-press-bracketleft": ("vp_rotate_left", None),
         "key-press-x": "vp_swap_x",
@@ -59,15 +100,6 @@ KeymapManager.register_keymap("Viewport", {
         # Layer operators
         "key-press-plus": ("vp_insert_layer", ["shift-mask", "control-mask"])
         })
-
-KeymapManager.register_keymap("Stroke", {
-        "cursor-motion": ("vp_stroke_append", ['button1-mask']),
-        "button-release-1": ("vp_stroke_confirm", None),
-        })
-
-KeymapManager.register_keymap("Scroll", {
-        "cursor-motion": ("vp_scroll_delta", ['button2-mask']),
-        "button-release-2": ("vp_scroll_confirm", None),
-        })
+'''
 
 

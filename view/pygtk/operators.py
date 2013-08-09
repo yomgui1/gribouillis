@@ -95,125 +95,127 @@ def quit_request(ctx):
 ##
 
 @eventoperator(_T("vp-enter"))
-def vp_enter(ctx, event, viewport):
-    KeymapManager.use_map("Viewport")
-    viewport.show_brush_cursor(True)
+def vp_enter(ctx, event):
+    ctx.keymap.use('Viewport')
+    ctx.active_viewport.show_brush_cursor(True)
 
 @eventoperator(_T("vp-leave"))
-def vp_leave(ctx, event, viewport):
-    viewport.show_brush_cursor(False)
+def vp_leave(ctx, event):
+    ctx.active_viewport.show_brush_cursor(False)
 
 @eventoperator(_T("vp-move-cursor"))
-def vp_move_cursor(ctx, event, viewport):
-    viewport.repaint_cursor(*GdkEventParser.get_cursor_position(event))
+def vp_move_cursor(ctx, event):
+    ctx.active_viewport.repaint_cursor(*GdkEventParser.get_cursor_position(event))
 
 @eventoperator(_T("vp-stroke-start"))
-def vp_stroke_start(ctx, event, viewport):
-    viewport.update_dev_state(event)
-    viewport.show_brush_cursor(False)
-    viewport.docproxy.draw_start(viewport.device)
-    KeymapManager.save_map()
-    KeymapManager.use_map("Stroke")
+def vp_stroke_start(ctx, event):
+    vp = ctx.active_viewport
+    vp.update_dev_state(event)
+    vp.show_brush_cursor(False)
+    vp.docproxy.draw_start(vp.device)
+    ctx.keymap.push('Brush-Stroke')
 
 @eventoperator(_T("vp-stroke-confirm"))
-def vp_stroke_confirm(ctx, event, viewport):
-    state = viewport.update_dev_state(event)
-    viewport.docproxy.draw_end()
-    viewport.repaint_cursor(*state.cpos)
-    viewport.show_brush_cursor(True)
-    KeymapManager.restore_map()
+def vp_stroke_confirm(ctx, event):
+    ctx.keymap.pop()
+    vp = ctx.active_viewport
+    state = vp.update_dev_state(event)
+    vp.docproxy.draw_end()
+    vp.repaint_cursor(*state.cpos)
+    vp.show_brush_cursor(True)
 
 @eventoperator(_T("vp-stroke-append"))
-def vp_stroke_append(ctx, event, viewport):
-    viewport.update_dev_state(event)
-    viewport.docproxy.record()
+def vp_stroke_append(ctx, event):
+    vp = ctx.active_viewport
+    vp.update_dev_state(event)
+    vp.docproxy.record()
 
 @eventoperator(_T("vp-scroll-start"))
-def vp_scroll_start(ctx, event, viewport):
-    state = viewport.update_dev_state(event)
-    viewport.show_brush_cursor(False)
+def vp_scroll_start(ctx, event):
+    vp = ctx.active_viewport
+    state = vp.update_dev_state(event)
+    vp.show_brush_cursor(False)
     x, y = state.cpos
-    viewport.storage['x0'] = x
-    viewport.storage['y0'] = y
-    viewport.storage['x'] = x
-    viewport.storage['y'] = y
-    viewport.storage['offset'] = viewport.offset
-    KeymapManager.save_map()
-    KeymapManager.use_map("Scroll")
+    ctx._scroll = dict(x0=x, y0=y, x=x, y=y, offset=vp.offset)
+    ctx.keymap.push('Viewport-Scroll')
 
 @eventoperator(_T("vp-scroll-confirm"))
-def vp_scroll_confirm(ctx, event, viewport):
-    state = viewport.update_dev_state(event)
-    viewport.show_brush_cursor(True)
-    viewport.storage.clear()
-    KeymapManager.restore_map()
+def vp_scroll_confirm(ctx, event):
+    ctx.keymap.pop()
+    vp = ctx.active_viewport
+    state = vp.update_dev_state(event)
+    vp.show_brush_cursor(True)
+    del ctx._scroll
 
 @eventoperator(_T("vp-scroll-delta"))
-def vp_scroll_delta(ctx, event, viewport):
-    state = viewport.update_dev_state(event)
+def vp_scroll_delta(ctx, event):
+    vp = ctx.active_viewport
+    state = vp.update_dev_state(event)
     x, y = state.cpos
-    st = viewport.storage
-    viewport.scroll(x - st['x'], y - st['y'])
-    st['x'] = x
-    st['y'] = y
+    d = ctx._scroll
+    vp.scroll(x - d['x'], y - d['y'])
+    d['x'] = x
+    d['y'] = y
 
 @eventoperator(_T("vp-scroll-left"))
-def vp_scroll_left(ctx, event, viewport):
-    viewport.scroll(-NORMAL_DIST, 0)
+def vp_scroll_left(ctx, event):
+    ctx.active_viewport.scroll(-NORMAL_DIST, 0)
 
 @eventoperator(_T("vp-scroll-right"))
-def vp_scroll_right(ctx, event, viewport):
-    viewport.scroll(NORMAL_DIST, 0)
+def vp_scroll_right(ctx, event):
+    ctx.active_viewport.scroll(NORMAL_DIST, 0)
 
 @eventoperator(_T("vp-scroll-up"))
-def vp_scroll_up(ctx, event, viewport):
-    viewport.scroll(0, -NORMAL_DIST)
+def vp_scroll_up(ctx, event):
+    ctx.active_viewport.scroll(0, -NORMAL_DIST)
 
 @eventoperator(_T("vp-scroll-down"))
-def vp_scroll_down(ctx, event, viewport):
-    viewport.scroll(0, NORMAL_DIST)
+def vp_scroll_down(ctx, event):
+    ctx.active_viewport.scroll(0, NORMAL_DIST)
 
 @eventoperator(_T("vp-scale-up"))
-def vp_scale_up(ctx, event, viewport):
-    viewport.scale_up(*GdkEventParser.get_cursor_position(event))
+def vp_scale_up(ctx, event,):
+    ctx.active_viewport.scale_up(*GdkEventParser.get_cursor_position(event))
 
 @eventoperator(_T("vp-scale-down"))
-def vp_scale_down(ctx, event, viewport):
-    viewport.scale_down(*GdkEventParser.get_cursor_position(event))
+def vp_scale_down(ctx, event):
+    ctx.active_viewport.scale_down(*GdkEventParser.get_cursor_position(event))
 
 @eventoperator(_T("vp-rotate-right"))
-def vp_rotate_right(ctx, event, viewport, angle=DEFAULT_ROT_ANGLE):
-    viewport.rotate(angle)
+def vp_rotate_right(ctx, event, angle=DEFAULT_ROT_ANGLE):
+    ctx.active_viewport.rotate(angle)
 
 @eventoperator(_T("vp-rotate-left"))
-def vp_rotate_left(ctx, event, viewport, angle=DEFAULT_ROT_ANGLE):
-    viewport.rotate(-angle)
+def vp_rotate_left(ctx, event, angle=DEFAULT_ROT_ANGLE):
+    ctx.active_viewport.rotate(-angle)
 
 @eventoperator(_T("vp-swap-x"))
-def vp_swap_x(ctx, event, viewport):
-    pos = viewport._cur_pos
-    viewport.swap_x(pos[0])
+def vp_swap_x(ctx, event):
+    vp = ctx.active_viewport
+    pos = vp._cur_pos
+    vp.swap_x(pos[0])
 
 @eventoperator(_T("vp-swap-y"))
-def vp_swap_y(ctx, event, viewport):
-    pos = viewport._cur_pos
-    viewport.swap_y(pos[1])
+def vp_swap_y(ctx, event):
+    vp = ctx.active_viewport
+    pos = vp._cur_pos
+    vp.swap_y(pos[1])
 
 @eventoperator(_T("vp-reset-all"))
-def vp_reset_all(ctx, event, viewport):
-    viewport.reset()
+def vp_reset_all(ctx, event):
+    ctx.active_viewport.reset()
 
 @eventoperator(_T("vp-reset-rotation"))
-def vp_reset_rotation(ctx, event, viewport):
-    viewport.reset_rotation()
+def vp_reset_rotation(ctx, event):
+    ctx.active_viewport.reset_rotation()
 
 @eventoperator(_T("vp-clear-layer"))
-def vp_clear_layer(ctx, event, viewport):
-    viewport.docproxy.clear_layer()
+def vp_clear_layer(ctx, event):
+    ctx.active_viewport.docproxy.clear_layer()
 
 @eventoperator(_T("vp-insert-layer"))
-def vp_insert_layer(ctx, event, viewport):
-    dp = viewport.docproxy
+def vp_insert_layer(ctx, event):
+    dp = ctx.active_viewport.docproxy
     doc = dp.document
     vo = model.vo.GenericVO(docproxy=dp,
                             pos=doc.index(doc.active)+1,

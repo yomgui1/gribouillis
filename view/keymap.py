@@ -30,60 +30,76 @@ from operator import Operator
 
 
 class KeymapManager():
+    """KeymapManager
+
+    Instance of this class helps to map OS specific events
+    to application methods.
+    Application actions (aka Operators) are mapped on events,
+    using a function as key. This function is used to match events.
+    Another feature is the multi maps handling: at any moments
+    the KeymapManager instance can uses another map,
+    that permit to implement modal handling.
+
+    Requiers 2.7
+    """
+
     __metaclass__ = utils.MetaSingleton
-    __maps = {}
-    __map = {}
-    __saved = None
+    __maps = {} # all registered maps
     
-    dump_key = 0
+    def __init__(self, context, parent=None):
+        self.context = context
+        self._parent_process = (parent.process if parent else lambda *a: True)
+        self._mapstack = []
+        self._map = None # active map
+        self._keys = None # current map keys view
+        self._default = None # default keymap if use method used without argument
 
-    @staticmethod
-    def _parse_map(kmap):
-        dct = {}
-        for k, v in kmap.iteritems():
-            if isinstance(v, tuple):
-                dct[k] = (Operator.get_event_op(v[0]), v[1])
-            else:
-                dct[k] = Operator.get_event_op(v)
-        return dct
+    def process(self, evt):
+        assert self._map is not None
+        # Each key is a function that return True if the given event fits
+        keys = [ k for k in self._keys if k(evt) ]
+        if keys:
+            self.context.keymap = self
+            for k in keys:
+                if self._map[k](self.context, evt):
+                    return True
+        else:
+            return self._parent_process(evt)
 
+    def set_default(self, name):
+        self._default = name
+        self.use(name)
 
-    def _process(self, action, evt, mods, kwds, ctx=context):
-        if isinstance(action, tuple):
-            action, m = action
-            if m is not None and m != mods:
-                return
-        elif mods:
-            return
-        return action(ctx, evt, **kwds)
+    def use(self, name):
+        m = KeymapManager.__maps.get(name, self._map)
+        if m is not self._map:
+            self._map = m
+            self._keys = self._map.viewkeys()
 
-    def process(self, evt, key, mods=[], **kwds):
-        actions = self.__map.get(key)
-        if actions:
-            if isinstance(actions, list):
-                for op in actions:
-                    self._process(op, evt, mods, kwds)
-            else:
-                return self._process(actions, evt, mods, kwds)
-        elif self.dump_key:
-            print key, mods
+    def use_default(self):
+        assert self._default is not None
+        self.use(self._default)
 
-    @classmethod
-    def use_map(cls, mapname):
-        kmap = cls.__maps.get(mapname)
-        if kmap:
-            cls.__map = kmap
+    def push(self, name):
+        self._mapstack.append(self._map.NAME)
+        self.use(name)
 
-    @classmethod
-    def save_map(cls):
-        if not cls.__saved:
-            cls.__saved = cls.__map
+    def pop(self):
+        if self._mapstack:
+            self.use(self._mapstack.pop())
 
     @classmethod
-    def restore_map(cls):
-        cls.__map = cls.__saved
-        cls.__saved = None
+    def register_keymap(cls, kmap):
+        """Transform each key string of keymap dictionnary
+        as a callable returning a boolean.
+        """
+        for k in kmap.keys():
+            kmap[eval("lambda evt:" + k)] = Operator.get_event_op(kmap.pop(k))
+        cls.__maps[kmap.NAME] = kmap
 
-    @classmethod
-    def register_keymap(cls, name, kmap):
-        cls.__maps[name] = cls._parse_map(kmap)
+
+class Keymap(dict):
+    def __init__(self, name, *a, **k):
+        dict.__init__(self, *a, **k)
+        self.NAME = name
+        KeymapManager.register_keymap(self)

@@ -29,12 +29,14 @@ from __future__ import with_statement
 
 import pymui, os, sys, string, gc, glob, random
 
-import main, view
+import main
+import view
+import view.context as ctx
 
-from view.contexts import new_context
 from utils import _T
 from model.document import LASTS_FILENAME
 from model import prefs
+from view.keymap import KeymapManager
 
 from .layermgr import LayerMgr
 from .cmdhistoric import *
@@ -104,8 +106,9 @@ class Application(pymui.Application, view.mixin.ApplicationMixin):
             Base        = BASE,
             Menustrip   = self._create_menustrip())
 
-        self.ctx = new_context('Application', app=self, docproxy=None, viewport=None)
- 
+        self.keymap_mgr = KeymapManager(ctx)
+        self.keymap_mgr.set_default('Application')
+
         self.fullscreen_win = FullscreenDocWindow()
         self.AddChild(self.fullscreen_win)
  

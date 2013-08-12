@@ -37,7 +37,7 @@ from utils import _T
 from .eventparser import GdkEventParser
 
 
-NORMAL_DIST = 16
+SCROLL_DIST = 16
 DEFAULT_ROT_ANGLE = radians(22.5)
 del radians
 
@@ -159,19 +159,19 @@ def vp_scroll_delta(ctx, event):
 
 @eventoperator(_T("vp-scroll-left"))
 def vp_scroll_left(ctx, event):
-    ctx.active_viewport.scroll(-NORMAL_DIST, 0)
+    ctx.active_viewport.scroll(-SCROLL_DIST, 0)
 
 @eventoperator(_T("vp-scroll-right"))
 def vp_scroll_right(ctx, event):
-    ctx.active_viewport.scroll(NORMAL_DIST, 0)
+    ctx.active_viewport.scroll(SCROLL_DIST, 0)
 
 @eventoperator(_T("vp-scroll-up"))
 def vp_scroll_up(ctx, event):
-    ctx.active_viewport.scroll(0, -NORMAL_DIST)
+    ctx.active_viewport.scroll(0, -SCROLL_DIST)
 
 @eventoperator(_T("vp-scroll-down"))
 def vp_scroll_down(ctx, event):
-    ctx.active_viewport.scroll(0, NORMAL_DIST)
+    ctx.active_viewport.scroll(0, SCROLL_DIST)
 
 @eventoperator(_T("vp-scale-up"))
 def vp_scale_up(ctx, event,):

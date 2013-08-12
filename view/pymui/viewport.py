@@ -92,8 +92,8 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         self.device = InputDevice()
         self.root = root
         
-        self._km = KeymapManager()
-        self._km.use_map("Viewport")
+        self.keymap_mgr = KeymapManager(ctx, root.keymap_mgr)
+        self.keymap_mgr.set_default("Viewport")
         self._ev = pymui.EventHandler()
 
         # Viewports and Renders
@@ -150,44 +150,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         try:
             ev = self._ev
             ev.readmsg(msg)
-            cl = ev.Class
-
-            if cl == pymui.IDCMP_MOUSEMOVE:
-                if self.focus:
-                    self._update_rulers(ev)
-                    name = "cursor-motion"
-                else:
-                    return
-
-            elif cl == pymui.IDCMP_MOUSEOBJECTMUI:
-                if ev.InObject:
-                    self.focus = True
-                    if self.focus:
-                        name = "cursor-enter"
-                    else:
-                        return
-                else:
-                    self.focus = False
-                    if not self.focus:
-                        name = "cursor-leave"
-                    else:
-                        return
-
-            elif cl == pymui.IDCMP_MOUSEBUTTONS or cl == pymui.IDCMP_RAWKEY:
-                if ev.Up:
-                    name = "%s-release"
-                elif ev.InObject:
-                    name = "%s-press"
-                else:
-                    return
-
-                name = name % MUIEventParser.get_key(ev)
-
-            else:
-                return
-
-            mods = MUIEventParser.get_modificators(ev)
-            eat = self._km.process(ev, name, mods, viewport=self)
+            eat = not self.keymap_mgr.process(ev)
             return eat and pymui.MUI_EventHandlerRC_Eat
 
         except:

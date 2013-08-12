@@ -23,6 +23,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
+from gtk.gdk import keyval_from_name
 from view.keymap import Keymap
 
 
@@ -33,6 +34,9 @@ AND = lambda *a: "(%s) and (%s)" % a
 OR = lambda *a: "(%s) or (%s)" % a
 KEY_PRESS_VAL = lambda k: "(evt.type.value_nick=='key-press') and (evt.keyval==%u)" % k
 KEY_RELEASE_VAL = lambda k: "(evt.type.value_nick=='key-release') and (evt.keyval==%u)" % k
+KEY_PRESS_NAME = lambda s: KEY_PRESS_VAL(keyval_from_name(s))
+KEY_RELEASE_NAME = lambda s: KEY_RELEASE_VAL(keyval_from_name(s))
+
 cursor_enter = "evt.type.value_nick=='enter-notify'"
 cursor_leave = "evt.type.value_nick=='leave-notify'"
 cursor_motion = "evt.type.value_nick=='motion-notify'"
@@ -50,10 +54,12 @@ button1_mod_ex = "['button1-mask'] == evt.state.value_nicks"
 button2_mod_ex = "['button2-mask'] == evt.state.value_nicks"
 button3_mod_ex = "['button3-mask'] == evt.state.value_nicks"
 ctrl_mod = "'control-mask' in evt.state.value_nicks"
+shift_mod = "'shift-mask' in evt.state.value_nicks"
 
 
 Keymap('DocWindow', {
         AND(KEY_RELEASE_VAL(ord('z')), ctrl_mod): 'hist_undo', # ctrl-z
+        AND(KEY_RELEASE_VAL(ord('y')), AND(ctrl_mod, shift_mod)): 'hist_redo', # ctrl-shift-z
         })
 
 Keymap('Viewport', {
@@ -61,6 +67,10 @@ Keymap('Viewport', {
         AND(button_press, button2): 'vp_scroll_start',
         scroll_down: 'vp_scale_down',
         scroll_up: 'vp_scale_up',
+        KEY_PRESS_NAME('Left'): "vp_scroll_left",
+        KEY_PRESS_NAME('Right'): "vp_scroll_right",
+        KEY_PRESS_NAME('Up'): "vp_scroll_up",
+        KEY_PRESS_NAME('Down'): "vp_scroll_down",
 
         # Cursor related
         cursor_enter: 'vp_enter',

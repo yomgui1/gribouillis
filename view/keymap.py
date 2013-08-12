@@ -91,7 +91,7 @@ class KeymapManager():
     @classmethod
     def register_keymap(cls, kmap):
         """Transform each key string of keymap dictionnary
-        as a callable returning a boolean.
+        into a callable returning a boolean.
         """
         for k in kmap.keys():
             kmap[eval("lambda evt:" + k)] = Operator.get_event_op(kmap.pop(k))

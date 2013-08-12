@@ -23,7 +23,14 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import pymui
+import sys
+
+try:
+    import pymui
+except ImportError:
+    print("PyMUI not installed on this platform")
+    sys.exit(-1)
+
 import math
 import os
 

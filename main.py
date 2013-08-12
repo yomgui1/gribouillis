@@ -26,7 +26,7 @@
 import os
 import puremvc.patterns.facade
 
-__all__ = ['Gribouillis', 'VERSION', 'DATE']
+__all__ = ['Gribouillis', 'VERSION', 'DATE', 'app_args']
 
 # Defaults - must be changed by the caller
 VERSION = 3.0
@@ -75,6 +75,7 @@ LAYER_CLEAR = 'layer-clear' # clear layer contents (undoable, data: LayerCmdVO)
 
 USE_BRUSH = 'use-brush'
 
+app_args = None # set by Gribouilly.py
 
 class Gribouillis(puremvc.patterns.facade.Facade):
     __instance = None

@@ -27,12 +27,23 @@
 if __name__ == '__main__':
     import sys
     import os
-    import shutil
+    import argparse
 
     sys.setrecursionlimit(100)
     sys.path.append('libs')
 
+    backends = ['auto'] 
+    for root, dirs, files in os.walk('view'):
+        backends += dirs
+
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-v', '--view', default="auto", dest='view',
+                        metavar='NAME', choices=backends,
+                        help="Select view backend")
+    
     import main
+    main.app_args = parser.parse_args()
 
     # XXX: change me before any public release
     main.version_str = "$VER: Gribouillis 3.0.0 (dd.mm.yyyy) Guillaume Roguez"

@@ -23,7 +23,14 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import pygtk
+import sys
+
+try:
+    import pygtk
+except ImportError:
+    print("PyGTK not installed on this platform")
+    sys.exit(-1)
+
 pygtk.require('2.0')
 
 import gtk

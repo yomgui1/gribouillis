@@ -27,14 +27,19 @@ import os
 
 import mixin
 import viewport
+
+from main import app_args
 from viewport import *
 
-if os.name == 'morphos':
-    backend_name = 'pymui'
-elif os.name == 'posix':
-    backend_name = 'pygtk'
+if app_args.view == 'auto':
+    if os.name == 'morphos':
+        backend_name = 'pymui'
+    elif os.name == 'posix':
+        backend_name = 'pygtk'
+    else:
+        raise ImportError('Your platform/os is not supported')
 else:
-    raise ImportError('Your platform/os is not supported')
+    backend_name = app_args.view
 
 _backend = __import__('view.' + backend_name,
                       globals(), locals(),

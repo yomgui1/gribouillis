@@ -65,6 +65,7 @@ Application = app.Application
 ctx.app_mediator = None # ApplicationMediator
 ctx.application = None # ApplicationMediator
 ctx.viewports = set() # DocViewportMediator
+ctx.brush = None # BrushHouseWindowMediator
 
 
 class GenericMediator(utils.Mediator):
@@ -339,22 +340,24 @@ class BrushHouseWindowMediator(GenericMediator):
         super(BrushHouseWindowMediator, self).__init__(viewComponent=component)
         component.set_current_cb(self._on_brush_selected)
 
-        # Add brushes
+        # load and add brushes from model database
         l = model.brush.Brush.load_brushes()
         for brush in l:
             component.add_brush(brush, brush.group)
+
+        # default brush
+        # FIXME: first one, must be also given by model
         component.active_brush = l[0]
 
     # UI events handlers
     def _on_brush_selected(self, brush):
-        ctx.brush = brush
         self.sendNotification(main.USE_BRUSH, brush)
 
     # notification handlers
     @mvcHandler(main.USE_BRUSH)
     def _on_use_brush(self, brush):
-        if ctx.brush != brush:
-            self.viewComponent.brush = brush
+        self.viewComponent.active_brush = brush
+        ctx.brush = brush
 
 
 class CommandsHistoryListMediator(GenericMediator):

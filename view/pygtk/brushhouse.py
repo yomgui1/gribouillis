@@ -44,9 +44,9 @@ class BrushHouseWindow(SubWindow):
 
         self.set_title('Brushes House')
 
-        self._brushes = set()
+        self._brushes = {}
         self._all = None
-        self._current = None
+        self._selected = None # selected button
         self._drawbrush = DrawableBrush() # used for preview
 
         # UI
@@ -141,10 +141,10 @@ class BrushHouseWindow(SubWindow):
     def add_brush(self, brush, pagename=None):
         # Make 2 buttons: one for the "All brushes" page, and another for the current page
         # If current page is the All, only one button is created.
+        assert brush not in self._brushes
         bt = self._mkbrushbt(self._all, brush)
         bt.allbt = bt
-        brush.bt = bt
-        self._brushes.add(brush)
+        self._brushes[brush] = bt
 
         page = None
         if pagename:
@@ -187,18 +187,6 @@ class BrushHouseWindow(SubWindow):
             bt.bt2.set_size_request(width+15, height+5)
         bt.show_all()
 
-    def _on_add_page(self, evt):
-        self.add_page('New page')
-
-    def _on_del_page(self, evt):
-        self._nb.remove_page(self._nb.get_current_page())
-
-    def _on_switch_page(self, evt, page, n):
-        if self._all == self._nb.get_nth_page(n):
-            self._del_page_bt.set_sensitive(False)
-        else:
-            self._del_page_bt.set_sensitive(True)
-
     def _mkbrushbt(self, frame, brush):
         if brush.icon:
             icon_image = gtk.image_new_from_file(brush.icon)
@@ -232,11 +220,26 @@ class BrushHouseWindow(SubWindow):
 
         return bt
 
+    def _get_bt(self, brush):
+        return self._brushes.get(brush)
+
+    def _on_add_page(self, evt):
+        self.add_page('New page')
+
+    def _on_del_page(self, evt):
+        self._nb.remove_page(self._nb.get_current_page())
+
+    def _on_switch_page(self, evt, page, n):
+        if self._all == self._nb.get_nth_page(n):
+            self._del_page_bt.set_sensitive(False)
+        else:
+            self._del_page_bt.set_sensitive(True)
+
     def _on_new_brush(self, evt):
         self.add_brush(Brush())
 
     def _on_save_all(self, evt):
-        Brush.save_brushes(self._brushes)
+        Brush.save_brushes(self._brushes.iterkeys())
 
     def _on_brush_bt_released(self, bt, evt):
         if evt.button == 3:
@@ -246,24 +249,36 @@ class BrushHouseWindow(SubWindow):
 
     def _on_brush_bt_clicked(self, bt):
         if bt.get_active():
+            # make sure that the brush is active in
+            # the "all" page and in the brush's page
             if bt is bt.allbt:
                 if bt.bt2 and not bt.bt2.get_active():
                     bt.bt2.set_active(True)
             elif not bt.allbt.get_active():
                 bt.allbt.set_active(True)
 
-            old = self._current
-            self._current = bt.allbt
+            old = self._selected
+            self._selected = bt.allbt
 
+            # deactivate the previous brush
             if old and old is not bt.allbt:
                 old.set_active(False)
                 if old.bt2:
                     old.bt2.set_active(False)
 
-            self._current_cb(self._current.brush)
-        elif self._current is bt.allbt:
-            bt.set_active(True)
-            #pymui.GetApp().open_brush_editor()
+            self._current_cb(self._selected.brush)
 
-    active_brush = property(fget=lambda self: self._current.brush,
-                            fset=lambda self, brush: brush.bt.set_active(True))
+        elif self._selected is bt.allbt:
+            # XXX: doc needed
+            bt.set_active(True)
+
+    # active_brush
+    @property
+    def active_brush(self):
+        return self._selected.brush
+
+    @active_brush.setter
+    def active_brush(self, brush):
+        bt = self._get_bt(brush)
+        assert bt
+        bt.set_active(True)

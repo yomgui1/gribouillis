@@ -119,8 +119,7 @@ def vp_stroke_confirm(ctx, event):
     vp = ctx.active_viewport
     state = vp.update_dev_state(event)
     vp.docproxy.draw_end()
-    vp.repaint_cursor(*state.cpos)
-    vp.show_brush_cursor(True)
+    vp.show_brush_cursor(True, state.cpos)
     ctx.keymgr.pop()
 
 @operator(_T("vp-stroke-append"))
@@ -142,7 +141,7 @@ def vp_scroll_start(ctx, event):
 def vp_scroll_confirm(ctx, event):
     vp = ctx.active_viewport
     state = vp.update_dev_state(event)
-    vp.show_brush_cursor(True)
+    vp.show_brush_cursor(True, state.cpos)
     del ctx._scroll
     ctx.keymgr.pop()
 

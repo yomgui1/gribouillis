@@ -148,19 +148,19 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
         width = self.allocation.width
         height = self.allocation.height
 
-        # surface resized?
+        # full repaint on surface size change
         if self.width != width or self.height != height:
-            # full repaint
             self.width = width
             self.height = height
 
+            # reconstruct viewports
             self._docvp.set_view_size(width, height)
             self._toolsvp.set_view_size(width, height)
 
             self._docvp.repaint()
             self._toolsvp.repaint()
 
-        # display doc + tools surfaces (Cairo)
+        # Cairo compositing (doc + tools)
         cr = self.window.cairo_create()
         cr.set_operator(cairo.OPERATOR_OVER)
         self._paint_composite(cr, area)
@@ -235,7 +235,7 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
         self.window.invalidate_rect(clip, False)
         self.window.process_updates(False)
 
-    def repaint(self, clip=None, redraw=True):
+    def repaint_doc(self, clip=None, redraw=True):
         self._docvp.repaint(clip)
         if redraw:
             self.redraw(clip)
@@ -246,13 +246,13 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
             self.redraw(clip)
 
     def repaint_cursor(self, *pos):
-        if self._cur_on:
-            # remove previous blit
-            self.redraw(self._cur_area)
-            self._cur_area = None
+        # remove previous blit
+        self.redraw(self._cur_area)
 
-            # draw at the new position
-            self._cur_pos = pos
+        # draw at the new position
+        self._cur_pos = pos
+        if self._cur_on:
+            self._cur_area = None
             self.redraw(self._get_cursor_clip(*pos))
 
     # Cursor related
@@ -269,17 +269,9 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
         self._curvp.repaint()
         self.repaint_cursor(*self._cur_pos)
 
-    def show_brush_cursor(self, state=False):
+    def show_brush_cursor(self, state=False, pos=None):
         self._cur_on = state
-
-        if state:
-            self.repaint_cursor(*self._cur_pos)
-
-        # Remove the cursor if was blit and not needed
-        elif self._cur_area:
-            self.redraw(self._cur_area)
-            self._cur_area = None
-
+        self.repaint_cursor(*(pos or self._cur_pos))
         return self._cur_pos
 
 
@@ -290,11 +282,11 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
         self._docvp.reset_view()
         self._curvp.set_scale(self._docvp.scale)
         self._curvp.repaint()
-        self.repaint()
+        self.repaint_doc()
 
     def reset_rotation(self):
         self._docvp.reset_rotation()
-        self.repaint()
+        self.repaint_doc()
 
     def scale_up(self, cx=.0, cy=.0):
         x, y = self._docvp.get_model_point(cx, cy)
@@ -317,6 +309,7 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
             # Scale cursor display as well
             self._curvp.set_scale(self._docvp.scale)
             self._curvp.repaint()
+            self._cur_area = None # force cursor display
 
             # Refresh display
             self.redraw()
@@ -331,6 +324,7 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
             self._docvp.repaint()
             self._curvp.set_scale(self._docvp.scale)
             self._curvp.repaint()
+            self._cur_area = None
             self.redraw()
 
     def scroll(self, *delta):
@@ -386,7 +380,7 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
     def rotate(self, angle):
         self._docvp.rotate(angle)
         self._docvp.update_matrix()
-        self.repaint()
+        self.repaint_doc()
 
     def swap_x(self, x):
         if self._swap_x is None:
@@ -396,7 +390,7 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
             self._docvp.swap_x(self._swap_x)
             self._swap_x = None
         self._docvp.update_matrix()
-        self.repaint()
+        self.repaint_doc()
 
     def swap_y(self, y):
         if self._swap_y is None:
@@ -406,7 +400,7 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
             self._docvp.swap_y(self._swap_y)
             self._swap_y = None
         self._docvp.update_matrix()
-        self.repaint()
+        self.repaint_doc()
 
 
     # Device state handling

@@ -23,65 +23,29 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import utils
-import context
-
-__all__ = ["Operator", "eventoperator",
-           "execoperator", "get_translation",
-           "execute"]
+import functools
+import view.context as view_ctx
 
 
-class Operator:
-    __exec_op = {}
-    __event_op = {}
-
-    get_exec_op = __exec_op.get
-    get_event_op = __event_op.get
-
-    @classmethod
-    def execoperator(cls, name):
-        """operator(name): add a new exec operator.
-    
-        Add decorated func to the global list of exec operators.
-        Function arguments are optional and purpose dependent.
-        """
-
-        def decorator(func):
-            assert func.__name__ not in cls.__exec_op
-            cls.__exec_op[func.__name__] = func
-            func.__trans = name
-            return func
-
-        return decorator
-
-    @classmethod
-    def eventoperator(cls, name):
-        """eventoperator(name): add a new event operator.
-    
-        Add decorated func to the global list of event operators.
-        Decorated function must accept an event objet as first argument.
-        Others arguments are optional and purpose dependent.
-        """
-
-        def decorator(func):
-            assert func.__name__ not in cls.__event_op
-            cls.__event_op[func.__name__] = func
-            func.__trans = name
-            return func
-
-        return decorator
-
-    @staticmethod
-    def get_translation(func):
-        return func.__trans
-
-    @classmethod
-    def execute(cls, name, *args, **kwds):
-        assert name in cls.__exec_op, NameError("unknown operator: %s" % name)
-        cls.__exec_op[name](context, *args, **kwds)
+OPERATORS = {}
 
 
-execoperator = Operator.execoperator
-eventoperator = Operator.eventoperator
-get_translation = Operator.get_translation
-execute = Operator.execute
+def decorate(func, text=None):
+    func.__translation = text or func.__name__
+    OPERATORS[func.__name__] = func
+    return functools.partial(func, view_ctx)
+
+
+def operator(translation):
+    return functools.partial(decorate, text=translation)
+
+
+def get_translation(func):
+    return func.__translation
+
+
+def get_operators():
+    return sorted(OPERATORS.keys())
+
+def get_event_op(name):
+    return OPERATORS[name]

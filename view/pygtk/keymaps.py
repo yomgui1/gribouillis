@@ -26,24 +26,23 @@
 from gtk.gdk import keyval_from_name
 from view.keymap import Keymap
 
-
 RALT_MASK = 'mod5-mask'
 LALT_MASK = 'mod1-mask'
 
 AND = lambda *a: "(%s) and (%s)" % a
 OR = lambda *a: "(%s) or (%s)" % a
-KEY_PRESS_VAL = lambda k: "(evt.type.value_nick=='key-press') and (evt.keyval==%u)" % k
-KEY_RELEASE_VAL = lambda k: "(evt.type.value_nick=='key-release') and (evt.keyval==%u)" % k
+KEY_PRESS_VAL = lambda k: "(evt_type=='key-press') and (evt.keyval==%u)" % k
+KEY_RELEASE_VAL = lambda k: "(evt_type=='key-release') and (evt.keyval==%u)" % k
 KEY_PRESS_NAME = lambda s: KEY_PRESS_VAL(keyval_from_name(s))
 KEY_RELEASE_NAME = lambda s: KEY_RELEASE_VAL(keyval_from_name(s))
 
-cursor_enter = "evt.type.value_nick=='enter-notify'"
-cursor_leave = "evt.type.value_nick=='leave-notify'"
-cursor_motion = "evt.type.value_nick=='motion-notify'"
-scroll_up = "(evt.type.value_nick=='scroll') and (evt.direction.value_nick=='up')"
-scroll_down = "(evt.type.value_nick=='scroll') and (evt.direction.value_nick=='down')"
-button_press = "evt.type.value_nick=='button-press'"
-button_release = "evt.type.value_nick=='button-release'"
+cursor_enter = "evt_type=='enter-notify'"
+cursor_leave = "evt_type=='leave-notify'"
+cursor_motion = "evt_type=='motion-notify'"
+scroll_up = "(evt_type=='scroll') and (evt.direction.value_nick=='up')"
+scroll_down = "(evt_type=='scroll') and (evt.direction.value_nick=='down')"
+button_press = "evt_type=='button-press'"
+button_release = "evt_type=='button-release'"
 button1 = "evt.button==1"
 button2 = "evt.button==2"
 button3 = "evt.button==3"
@@ -57,39 +56,39 @@ ctrl_mod = "'control-mask' in evt.state.value_nicks"
 shift_mod = "'shift-mask' in evt.state.value_nicks"
 
 
-Keymap('DocWindow', {
-        AND(KEY_RELEASE_VAL(ord('z')), ctrl_mod): 'hist_undo', # ctrl-z
-        AND(KEY_RELEASE_VAL(ord('y')), AND(ctrl_mod, shift_mod)): 'hist_redo', # ctrl-shift-z
+Keymap('Application', {
+        AND(KEY_RELEASE_VAL(ord('z')), ctrl_mod): 'hist_undo(ctx, event)', # ctrl-z
+        AND(KEY_RELEASE_VAL(ord('y')), AND(ctrl_mod, shift_mod)): 'hist_redo(ctx, event)', # ctrl-shift-z
         })
 
 Keymap('Viewport', {
         # View motions
-        AND(button_press, button2): 'vp_scroll_start',
-        scroll_down: 'vp_scale_down',
-        scroll_up: 'vp_scale_up',
-        KEY_PRESS_NAME('Left'): "vp_scroll_left",
-        KEY_PRESS_NAME('Right'): "vp_scroll_right",
-        KEY_PRESS_NAME('Up'): "vp_scroll_up",
-        KEY_PRESS_NAME('Down'): "vp_scroll_down",
+        AND(button_press, button2): 'vp_scroll_start(ctx, event)',
+        scroll_down: 'vp_scale_down(ctx, event)',
+        scroll_up: 'vp_scale_up(ctx, event)',
+        KEY_PRESS_NAME('Left'): 'vp_scroll_left(ctx, event)',
+        KEY_PRESS_NAME('Right'): 'vp_scroll_right(ctx, event)',
+        KEY_PRESS_NAME('Up'): 'vp_scroll_up(ctx, event)',
+        KEY_PRESS_NAME('Down'): 'vp_scroll_down(ctx, event)',
 
         # Cursor related
-        cursor_enter: 'vp_enter',
-        cursor_leave: 'vp_leave',
-        cursor_motion: 'vp_move_cursor',
+        cursor_enter: 'vp_enter(ctx, event)',
+        cursor_leave: 'vp_leave(ctx, event)',
+        cursor_motion: 'vp_move_cursor(ctx, event)',
 
         # Drawing
-        AND(button_press, button1): 'vp_stroke_start',
-        KEY_RELEASE_VAL(ord(' ')): 'vp_clear_layer', # space
+        AND(button_press, button1): 'vp_stroke_start(ctx, event)',
+        KEY_RELEASE_VAL(ord(' ')): 'vp_clear_layer(ctx, event)', # space
         })
 
 Keymap('Brush-Stroke', {
-        AND(cursor_motion, button1_mod): 'vp_stroke_append',
-        AND(button_release, button1): 'vp_stroke_confirm',
+        AND(cursor_motion, button1_mod): 'vp_stroke_append(ctx, event)',
+        AND(button_release, button1): 'vp_stroke_confirm(ctx, event)',
        })
 
 Keymap('Viewport-Scroll', {
-        AND(cursor_motion, button2_mod): 'vp_scroll_delta',
-        AND(button_release, button2): 'vp_scroll_confirm',
+        AND(cursor_motion, button2_mod): 'vp_scroll_delta(ctx, event)',
+        AND(button_release, button2): 'vp_scroll_confirm(ctx, event)',
        })
 
 '''
@@ -101,10 +100,6 @@ KeymapManager.register_keymap("Viewport", {
         "key-press-y": "vp_swap_y",
         "key-press-equal": "vp_reset_all",
         "key-press-plus": ("vp_reset_rotation", None),
-        "key-press-Left": "vp_scroll_left",
-        "key-press-Right": "vp_scroll_right",
-        "key-press-Up": "vp_scroll_up",
-        "key-press-Down": "vp_scroll_down",
         "key-press-b": ("open_brush_editor", None),
 
         # Layer operators

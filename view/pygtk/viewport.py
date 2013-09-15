@@ -38,7 +38,6 @@ import main
 import utils
 import model.devices
 
-from view.keymap import KeymapManager
 from .eventparser import GdkEventParser
 
 
@@ -76,11 +75,7 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
         super(DocViewport, self).__init__()
 
         self._win = win
-        self._ctx = ctx
         self.device = model.devices.InputDevice()
-
-        self.keymap_mgr = KeymapManager(ctx, win.keymap_mgr)
-        self.keymap_mgr.set_default('Viewport')
 
         # Viewport's
         self._docre = view.DocumentCairoRender()
@@ -88,7 +83,7 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
         self._toolsre = view.ToolsCairoRender()
         self._toolsvp = view.ViewPort(self._toolsre)
         self._curvp = tools.Cursor()
-        self._curvp.render()
+        self._curvp.repaint()
 
         # Aliases
         self.get_view_area = self._docvp.get_view_area
@@ -118,7 +113,7 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
 
         if docproxy is not None:
             self.set_docproxy(docproxy)
-    
+
     # Paint function
 
     def _paint_composite(self, cr, clip):
@@ -150,7 +145,6 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
         #
 
         area = evt.area
-        
         width = self.allocation.width
         height = self.allocation.height
 
@@ -189,18 +183,20 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
 
     def _on_enter(self, widget, evt):
         self.grab_focus()
-        self._ctx.active_viewport = self
-        return self.keymap_mgr.process(evt)
+        ctx.active_viewport = self
+        ctx.keymgr.push('Viewport')
+        ctx.keymgr.process(evt.type.value_nick, evt)
 
     def _on_leave(self, widget, evt):
         # I don't set active_viewport to None as leaving a viewport
         # is not necessary followed by entering another VP.
         # So we let a valid VP in the context.
-        return self.keymap_mgr.process(evt)
+        ctx.keymgr.process(evt.type.value_nick, evt)
+        ctx.keymgr.pop()
 
     def _on_vp_event(self, widget, evt):
-        assert self._ctx.active_viewport is self
-        return self.keymap_mgr.process(evt)
+        assert ctx.active_viewport is self
+        ctx.keymgr.process(evt.type.value_nick, evt)
 
     # Public API
 
@@ -231,17 +227,13 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
 
     # Rendering
 
-    @utils.delayedmethod(0.5)
-    def _force_redraw(self):
-        self.window.process_updates(False)
-
     def redraw(self, clip=None):
         if clip:
             clip = tuple(clip)
         else:
             clip = (0, 0, self.allocation.width, self.allocation.height)
         self.window.invalidate_rect(clip, False)
-        self._force_redraw()
+        self.window.process_updates(False)
 
     def repaint(self, clip=None, redraw=True):
         self._docvp.repaint(clip)
@@ -274,7 +266,7 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
 
     def set_cursor_radius(self, r):
         self._curvp.set_radius(r)
-        self._curvp.render()
+        self._curvp.repaint()
         self.repaint_cursor(*self._cur_pos)
 
     def show_brush_cursor(self, state=False):
@@ -297,7 +289,7 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
         self._swap_x = self._swap_y = None
         self._docvp.reset_view()
         self._curvp.set_scale(self._docvp.scale)
-        self._curvp.render()
+        self._curvp.repaint()
         self.repaint()
 
     def reset_rotation(self):
@@ -306,26 +298,39 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
 
     def scale_up(self, cx=.0, cy=.0):
         x, y = self._docvp.get_model_point(cx, cy)
+
+        # Update document's viewport scale value and check for changes
         if self._docvp.scale_up():
-            self._curvp.set_scale(self._docvp.scale)
-            self._curvp.render()
+            # Apply zoom to the document's viewport
             self._docvp.update_matrix()
+
+            # Keep the cursor position unchanged
+            # by scrolling the view.
+            # We obtain a cursor position relative zoom.
             x, y = self._docvp.get_view_point(x, y)
             self._docvp.scroll(int(cx-x), int(cy-y))
             self._docvp.update_matrix()
+
+            # Document rendering (full)
             self._docvp.repaint()
+
+            # Scale cursor display as well
+            self._curvp.set_scale(self._docvp.scale)
+            self._curvp.repaint()
+
+            # Refresh display
             self.redraw()
 
     def scale_down(self, cx=.0, cy=.0):
         x, y = self._docvp.get_model_point(cx, cy)
         if self._docvp.scale_down():
-            self._curvp.set_scale(self._docvp.scale)
-            self._curvp.render()
             self._docvp.update_matrix()
             x, y = self._docvp.get_view_point(x, y)
             self.scroll(int(cx-x), int(cy-y))
             self._docvp.update_matrix()
             self._docvp.repaint()
+            self._curvp.set_scale(self._docvp.scale)
+            self._curvp.repaint()
             self.redraw()
 
     def scroll(self, *delta):

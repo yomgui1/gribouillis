@@ -50,6 +50,7 @@ import operators
 import keymaps
 
 from utils import _T, mvcHandler
+from view.keymap import KeymapManager
 
 from .docviewer import DocWindow
 from .viewport import DocViewport
@@ -64,8 +65,10 @@ Application = app.Application
 
 ctx.app_mediator = None # ApplicationMediator
 ctx.application = None # ApplicationMediator
+ctx.active_viewport = None
 ctx.viewports = set() # DocViewportMediator
 ctx.brush = None # BrushHouseWindowMediator
+ctx.keymgr = KeymapManager('Application')
 
 
 class GenericMediator(utils.Mediator):
@@ -241,8 +244,7 @@ class DocumentMediator(GenericMediator):
     def new_window(self, docproxy):
         "Register and associate a document proxy to a new document window"
 
-        win = DocWindow(docproxy, self.register_viewport,
-                        self.unregister_viewport, ctx.application.keymap_mgr)
+        win = DocWindow(docproxy, self.register_viewport, self.unregister_viewport)
 
         # associate Window's events to callbacks
         win.connect("delete-event", self._on_delete_event)
@@ -294,7 +296,7 @@ class DocViewportMediator(GenericMediator):
 
         if area:
             area = self.viewComponent.get_view_area(*area)
-        self.viewComponent.repaint(area)
+        self.viewComponent.repaint_doc(area)
 
     @mvcHandler(model.DocumentProxy.DOC_LAYER_ADDED)
     @mvcHandler(main.DOC_LAYER_STACK_CHANGED)
@@ -306,7 +308,7 @@ class DocViewportMediator(GenericMediator):
         if not layer.empty:
             area = layer.area
             vp = self.viewComponent
-            vp.repaint(vp.get_view_area(*area))
+            vp.repaint_doc(vp.get_view_area(*area))
 
     @mvcHandler(model.BrushProxy.BRUSH_PROP_CHANGED)
     def _on_brush_prop_changed(self, brush, name):

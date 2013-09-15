@@ -47,34 +47,34 @@ class Cursor:
     _scale = 1.0
     _debug = 0
     _cache = None
-    
+
     def __init__(self):
         self.set_radius(10.)
-        
+
     def set_radius(self, r):
         r = max(1., min(r, 20.))
         if r == self._r:
             return
         self._r = r
         self._resize()
-        
+
     def _resize(self):
         # Width must always be an odd number to be center correctly
         w = int(2*ceil((self._r * self._scale) + 1.5)) + 1 + 2 # +2 for the antialiasing, +1.5 for the white circle
         self.width = self.height = w
         self._off = w / 2.
         self._cache = None
-        
+
     def set_scale(self, s):
         s = max(0.001, s)
         if s != self._scale:
             self._scale = s
             self._resize()
-        
-    def render(self):
+
+    def repaint(self):
         if self._debug:
             self._cache = None
-            
+
         if not self._cache:
             r = self._r * self._scale
             self._buf = _pixbuf.Pixbuf(_pixbuf.FORMAT_ARGB8, self.width, self.height)
@@ -83,7 +83,7 @@ class Cursor:
             self.stride = self._cache.get_stride()
             cr = cairo.Context(self._cache)
             cr.translate(self._off, self._off)
-            
+
             if self._debug:
                 cr.set_line_width(1)
                 cr.set_source_rgb(0,0,0)
@@ -95,9 +95,9 @@ class Cursor:
                 cr.move_to(-self.width/2.,0)
                 cr.rel_line_to(self.width,0)
                 cr.stroke()
-            
+
             cr.set_line_width(1.5)
-            
+
             # Drawing 2 concentric circles: one black, one white (but not pure)
             cr.arc(0, 0, r, 0, pi2)
             cr.set_source_rgb(0.03,0.03,0.03)
@@ -109,11 +109,11 @@ class Cursor:
     @property
     def cairo_surface(self):
         return self._cache
-        
+
     @property
     def pixbuf(self):
         return self._buf
-        
+
     @property
     def radius(self):
         return self._off
@@ -124,7 +124,7 @@ class Tool(object):
     _area = None
     _handlers = []
     added = False
-    
+
     def hit(self, cr, *pos): pass
     def repaint(self, vp, cr, w, h): pass
     def reset(self): pass
@@ -141,7 +141,7 @@ class Tool(object):
 
 class Text(Tool):
     _text = ''
-    
+
     def set_text(self, text):
         self._text = text.decode('latin-1')
 
@@ -198,7 +198,7 @@ class Rotate(Tool):
         cr.set_source_rgba(*prefs['view-color-bg'])
         cr.arc(0, 0, 16, 0, pi2)
         cr.fill_preserve()
-        
+
         # Then its outline
         cr.set_source_rgba(*prefs['view-color-ol'])
         cr.stroke()
@@ -211,7 +211,7 @@ class Rotate(Tool):
         cr.move_to(0, -6)
         cr.line_to(0, 6)
         cr.stroke()
-        
+
 class SelectionDisplay(Tool):
     _path = []
     _surf = None
@@ -241,10 +241,10 @@ class SelectionDisplay(Tool):
         self._x = self._y = 0.
         self._path = None
         self._area = None
-        
+
     def repaint(self, vp, cr, width, height):
         if not self._path: return
-        
+
         cr.save()
 
         if self._surf:
@@ -274,13 +274,13 @@ class SelectionDisplay(Tool):
         # Stroke outlines
         cr.stroke()
         cr.set_dash(*dash)
-        
+
         cr.restore()
-        
+
 class DrawFreeSelection(Tool):
     _cpos = []
     _spos = []
-    
+
     def add_pt(self, state):
         pos = state.cpos
         self._cpos.append(pos)
@@ -290,7 +290,7 @@ class DrawFreeSelection(Tool):
         self._cpos = []
         self._spos = []
         self._area = None
-        
+
     def repaint(self, vp, cr, width, height):
         if not self._cpos: return
         cr.new_path()
@@ -302,10 +302,10 @@ class DrawFreeSelection(Tool):
             cr.line_to(*pos)
         cr.close_path()
         x1,y1,x2,y2 = cr.path_extents()
-        
+
         # limit the next redraw
         self._area = int(floor(x1)), int(floor(y1)), int(ceil(x2-x1))+1, int(ceil(y2-y1))+1
-        
+
         cr.stroke()
         cr.set_dash(*dash)
 
@@ -332,10 +332,10 @@ class ToolsWheel(Tool):
     def _draw_background(self):
         if self._bg_img:
             return self._bg_img
-        
+
         self._bg_img = cairo.ImageSurface(cairo.FORMAT_ARGB32, self.SIZE, self.SIZE)
         cr = cairo.Context(self._bg_img)
-        
+
         cr.set_line_width(1)
         cr.translate(self.CENTER, self.CENTER)
 
@@ -344,13 +344,13 @@ class ToolsWheel(Tool):
         cr.set_source_rgba(*prefs['view-color-wheel-bg'])
         cr.arc(0, 0, self.BIG_RADIUS, 0, pi2)
         cr.fill_preserve()
-        
+
         # Outline
         cr.set_line_width(self.LINE_WIDTH)
         cr.set_antialias(cairo.ANTIALIAS_DEFAULT)
         cr.set_source_rgba(*prefs['view-color-wheel-ol'])
         cr.stroke()
-        
+
         # Separators
         cr.set_line_width(self.LINE_WIDTH*.6)
         a = pi / 8
@@ -368,7 +368,7 @@ class ToolsWheel(Tool):
         cr.set_source_rgba(0, 0, 0, 0)
         cr.arc(0, 0, self.LITTLE_RADIUS, 0, pi2)
         cr.fill_preserve()
-        
+
         # Inline
         cr.set_line_width(self.LINE_WIDTH)
         cr.set_antialias(cairo.ANTIALIAS_DEFAULT)
@@ -382,19 +382,19 @@ class ToolsWheel(Tool):
         bg = self._draw_background()
         cr.set_source_surface(bg, 0, 0)
         cr.paint()
-        
+
         cr.translate(self.CENTER, self.CENTER)
-        
+
         # Draw icons
         r = self.LITTLE_RADIUS + (self.BIG_RADIUS - self.LITTLE_RADIUS) / 2.
         self._paths = []
-                
+
         a = 0.0
         b = -pi / 8
         for i in range(0, 8):
             x = round(r * cos(a))
             y = round(r * sin(a))
-            
+
             # Path
             cr.set_antialias(cairo.ANTIALIAS_NONE)
             cr.new_path()
@@ -403,7 +403,7 @@ class ToolsWheel(Tool):
             cr.close_path()
             self._paths.append(cr.copy_path_flat())
             cr.new_path()
-            
+
             # Icons layer (optional)
             cr.save()
             if self.selection == i:
@@ -415,11 +415,11 @@ class ToolsWheel(Tool):
             cr.set_source_surface(im, 0, 0)
             cr.paint()
             cr.restore()
-            
+
             a += pi / 4
             b += pi / 4
             i += 1
-                        
+
     def _hit_path(self, cr, x, y):
         for i, path in enumerate(self._paths):
             cr.new_path()
@@ -429,12 +429,12 @@ class ToolsWheel(Tool):
                 return i
         self.selection = -1
         return -1
-        
+
     def hit(self, cr, x, y):
         x -= self._area[0] + self.CENTER
         y -= self._area[1] + self.CENTER
         return self._hit_path(cr, x, y) >= 0
-        
+
     def set_center(self, pos):
         self.cpos = None
         self.selection = None
@@ -449,13 +449,13 @@ class ToolsWheel(Tool):
     def repaint(self, vp, cr, width, height):
         cr.rectangle(*self._area)
         cr.clip()
-        
+
         ox = self._area[0]
         oy = self._area[1]
         cr.translate(ox, oy)
-        
+
         self._draw(cr)
-        
+
 class ColorWheel(Tool):
     cpos = None
     _bg_img = None
@@ -463,7 +463,7 @@ class ColorWheel(Tool):
     _paths = None
     _icons = []
     selection = -1
-    
+
     ALIASING_PADDING = 3
     SIZE = 174
     CENTER = SIZE / 2.
@@ -476,10 +476,10 @@ class ColorWheel(Tool):
     def _draw_background(self):
         if self._bg_img:
             return self._bg_img
-        
+
         self._bg_img = cairo.ImageSurface(cairo.FORMAT_ARGB32, self.SIZE, self.SIZE)
         cr = cairo.Context(self._bg_img)
-        
+
         cr.set_line_width(1)
         cr.set_antialias(cairo.ANTIALIAS_NONE)
         cr.translate(self.CENTER, self.CENTER)
@@ -496,14 +496,14 @@ class ColorWheel(Tool):
         cr.fill()
 
         return self._bg_img
-        
+
     def _draw_foreground(self):
         if self._fg_img:
             return self._fg_img
-        
+
         self._fg_img = cairo.ImageSurface(cairo.FORMAT_ARGB32, self.SIZE, self.SIZE)
         cr = cairo.Context(self._fg_img)
-        
+
         cr.set_line_width(self.LINE_WIDTH)
         cr.translate(self.CENTER, self.CENTER)
 
@@ -511,7 +511,7 @@ class ColorWheel(Tool):
         cr.set_source_rgba(*prefs['view-color-wheel-ol'])
         cr.arc(0, 0, self.BIG_RADIUS, 0, pi2)
         cr.stroke()
-        
+
         # Separators
         cr.set_line_width(self.LINE_WIDTH*.6)
         a = pi / 8
@@ -522,13 +522,13 @@ class ColorWheel(Tool):
             cr.line_to(-x, -y)
             cr.stroke()
             a += i * pi / 4
-        
+
         # Inner hole
         cr.set_operator(cairo.OPERATOR_SOURCE)
         cr.set_source_rgba(0, 0, 0, 0)
         cr.arc(0, 0, self.LITTLE_RADIUS, 0, pi2)
         cr.fill()
-        
+
         # Inline
         cr.set_line_width(self.LINE_WIDTH)
         cr.set_antialias(cairo.ANTIALIAS_DEFAULT)
@@ -543,15 +543,15 @@ class ColorWheel(Tool):
         bg = self._draw_background()
         cr.set_source_surface(bg, 0, 0)
         cr.paint()
-        
+
         # Draw colors
         cr.save()
         cr.translate(self.CENTER, self.CENTER)
         cr.set_line_width(self.LINE_WIDTH)
-        
+
         r = self.LITTLE_RADIUS + (self.BIG_RADIUS - self.LITTLE_RADIUS) / 2.
         self._paths = []
-                
+
         a = -pi/2 - pi/8
         for i in range(0, 8):
             # Path
@@ -560,29 +560,29 @@ class ColorWheel(Tool):
             cr.arc_negative(0, 0, self.LITTLE_RADIUS, a+pi/4, a)
             cr.close_path()
             self._paths.append(cr.copy_path_flat())
-            
+
             c = self._colors[i]
             if c:
                 cr.set_source_rgb(*c)
                 cr.fill_preserve()
-            
+
             a += pi / 4
             i += 1
-            
+
         cr.restore()
-            
+
         # Foreground
         fg = self._draw_foreground()
         cr.set_source_surface(fg, 0, 0)
         cr.paint()
-        
+
         if self.selection >= 0:
             cr.translate(self.CENTER, self.CENTER)
             cr.new_path()
             cr.append_path(self._paths[self.selection])
             cr.set_source_rgba(*prefs['view-color-wheel-sel'])
             cr.stroke()
-                        
+
     def _hit_path(self, cr, x, y):
         for i, path in enumerate(self._paths):
             if not self._colors[i]:
@@ -594,12 +594,12 @@ class ColorWheel(Tool):
                 return i
         self.selection = -1
         return -1
-        
+
     def hit(self, cr, x, y):
         x -= self._area[0] + self.CENTER
         y -= self._area[1] + self.CENTER
         return self._hit_path(cr, x, y) >= 0
-        
+
     def set_center(self, pos):
         self.cpos = None
         self.selection = None
@@ -614,21 +614,21 @@ class ColorWheel(Tool):
     def repaint(self, vp, cr, width, height):
         cr.rectangle(*self._area)
         cr.clip()
-        
+
         ox = self._area[0]
         oy = self._area[1]
         cr.translate(ox, oy)
-        
+
         self._draw(cr)
-        
+
 class Handler(object):
     # Hook point
     x = None
     y = None
-    
+
     hitpath = None
     kill = False
-    
+
     RADIUS = 12.
 
     def __init__(self, tool, position, shape='circle', content=None, radius=RADIUS, drawdot=False):
@@ -641,7 +641,7 @@ class Handler(object):
             self._draw_base = self._draw_square
         else:
             self._draw_base = self._draw_circle
-            
+
         if content == 'cross':
             draw = self._draw_cross
         elif content == 'dot':
@@ -656,9 +656,9 @@ class Handler(object):
             draw = self._draw_rot
         else:
             draw = self._draw_base
-            
+
         self.draw = draw
-        
+
     def _draw_circle(self, cr, off=(0,0)):
         if self._dot:
             cr.set_line_width(2)
@@ -736,7 +736,7 @@ class Handler(object):
         cr.rel_line_to(r2, r2)
         cr.rel_line_to(r2, -r2)
         cr.stroke()
-        
+
     def __draw_movex(self, cr):
         r = self.radius * .7
         r2 = self.radius * .2
@@ -751,7 +751,7 @@ class Handler(object):
         cr.rel_line_to(r2, r2)
         cr.rel_line_to(-r2, r2)
         cr.stroke()
-        
+
     def _draw_movey(self, cr, **kwds):
         # Shape + 2 arrows inside
         hp = self._draw_base(cr, **kwds)
@@ -763,7 +763,7 @@ class Handler(object):
         hp = self._draw_base(cr, **kwds)
         self.__draw_movex(cr)
         return hp
-        
+
     def _draw_move(self, cr, **kwds):
         # Shape + 4 arrows inside
         hp = self._draw_base(cr, **kwds)
@@ -789,7 +789,7 @@ class Handler(object):
         cr.rel_line_to(r2, r2)
         cr.stroke()
         return hp
-            
+
     def move_to(self, x, y):
         self.x = float(x)
         self.y = float(y)
@@ -814,7 +814,7 @@ class LineGuide(Tool):
         self._cross = Handler(self, (x-200, y+110), content='cross', radius=8)
         self._cross.kill = True
         self._handlers = (self._dot, self._move, self._cross)
-        
+
     def repaint(self, vp, cr, width, height):
         # The guide line
         cr.set_line_width(1.5)
@@ -828,7 +828,7 @@ class LineGuide(Tool):
         cr.set_source_rgba(1, 1, 1, .66)
         cr.stroke()
         cr.set_dash(*dash)
-        
+
         # Handlers
         self._cross.draw(cr)
         self._move.draw(cr, off=(16, 16))
@@ -849,20 +849,20 @@ class LineGuide(Tool):
     def filter(self, state):
         h0 = self._move
         h1 = self._dot
-        
+
         xa = state.vpos[0] - h0.x
         ya = state.vpos[1] - h0.y
 
         xb = h1.x - h0.x
         yb = h1.y - h0.y
-        
+
         g = (xa*xb+ya*yb) / hypot(xb, yb)**2
-        
+
         state.vpos = int(h0.x + xb*g), int(h0.y + yb*g)
 
 class EllipseGuide(Tool):
     _angle = 0.0
-    
+
     def __init__(self, x, y):
         self._move = Handler(self, (x, y), shape='square', content='move', radius=8)
         self._movey = Handler(self, (x, y-100), content='movey', drawdot=True)
@@ -872,20 +872,20 @@ class EllipseGuide(Tool):
         self._cross.kill = True
         self._handlers = (self._rot, self._movex, self._movey, self._move, self._cross)
         self._compute_data()
-        
+
     def hit_handler(self, cr, x, y):
         for hl in self._handlers:
             cr.new_path()
             cr.append_path(hl.hitpath)
             if cr.in_fill(x, y):
                 return hl
-        
+
     def _compute_data(self):
         self._xradius = hypot(self._movex.x - self._move.x, self._movex.y - self._move.y)
         self._yradius = hypot(self._movey.x - self._move.x, self._movey.y - self._move.y)
         self._cs = cos(self._angle)
         self._sn = sin(self._angle)
-        
+
     def repaint(self, vp, cr, width, height):
         # The guide ellipse
         cr.set_line_width(1.5)
@@ -960,10 +960,10 @@ class EllipseGuide(Tool):
 
         cs = self._cs
         sn = self._sn
-        
+
         x2 = x*cs + y*sn
         y2 = y*cs - x*sn
-        
+
         n = self._xradius*self._yradius
         n /= hypot(self._yradius*x2, self._xradius*y2)
 
@@ -974,4 +974,4 @@ class EllipseGuide(Tool):
         y = y2*cs + x2*sn
 
         state.vpos = int(self._move.x + x), int(self._move.y + y)
-        
+

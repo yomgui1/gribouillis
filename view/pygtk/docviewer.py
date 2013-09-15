@@ -110,12 +110,10 @@ class DocWindow(gtk.Window):
         </menubar>
         </ui>
         """
-    
-    def __init__(self, docproxy, register_viewport_cb, unregister_viewport_cp, parent_kmgr):
+
+    def __init__(self, docproxy, register_viewport_cb, unregister_viewport_cp):
         super(DocWindow, self).__init__()
 
-        self.keymap_mgr = KeymapManager(ctx, parent_kmgr)
-        self.keymap_mgr.set_default('DocWindow')
         self.docproxy = docproxy
         self._reg_vp_cb = register_viewport_cb
         self._unreg_vp_cp = unregister_viewport_cp
@@ -212,7 +210,7 @@ class DocWindow(gtk.Window):
                 ('brush-win', gtk.STOCK_PROPERTIES, _T('Edit brush properties'),
                  '<Control>b', None,
                  lambda *a: operator.execute('open_BrushEditor')),
-                
+
                 ('brush-radius-inc', gtk.STOCK_ADD, _T('Increase brush size'),
                  'plus', None,
                  lambda *a: operator.execute('increase_brush_radius')),
@@ -275,7 +273,6 @@ class DocWindow(gtk.Window):
     def _on_window_state(self, widget, event):
         if not event.changed_mask & gdk.WINDOW_STATE_FULLSCREEN:
             return
-
         self.__fullscreen = event.new_window_state & gdk.WINDOW_STATE_FULLSCREEN
 
     def _add_vp(self, vp):

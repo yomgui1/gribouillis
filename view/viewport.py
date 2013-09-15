@@ -56,7 +56,7 @@ class ViewPort(object):
         self.reset_view()
         self.update_matrix()
         render.viewport = self
-        
+
         # Alias
         self.apply_operator = render.apply_operator
 
@@ -69,9 +69,9 @@ class ViewPort(object):
         self.height = height
         self.full_area = (0, 0, width, height)
         self.update_matrix()
-        
+
         self._re.set_view_size(width, height)
-        
+
         return self.full_area
 
     def update_matrix(self):
@@ -110,17 +110,17 @@ class ViewPort(object):
 
     def like(self, other):
         "Copy viewing properties from an other Viewport instance"
-        
+
         assert isinstance(other, ViewPort)
         for name in "_ox _oy _sox _soy _facx _facy _scale_idx".split():
             setattr(self, name, getattr(other, name))
-        
+
         if other._rot_mat:
             self._rot_mat = cairo.Matrix(*other._rot_mat)
             self._rot_imat = get_imat(self._rot_mat)
         else:
             self._rot_mat = self._rot_imat = None
-        
+
         self.update_matrix()
 
     def get_view_point_pos(self, pos):
@@ -161,13 +161,13 @@ class ViewPort(object):
     # scroll, scale_up, scale_down, set_scale, rotate and all reset methods
     # don't call update_matrix! This method shall be called by user
     # when all transformations are done to finalize viewing matrices.
-    
+
     def reset_view(self):
         self.reset_translation()
         self.reset_scale()
         self.reset_rotation()
         self.reset_mirror()
-        
+
     def reset_translation(self):
         res = self._ox or self._oy
         self._ox = self._oy = 0.0
@@ -269,15 +269,15 @@ class ViewPort(object):
 
 class Render(object):
     viewport = None
-    
+
     def matrix_changed(self): pass
-    
+
     def apply_operator(self):
         raise NotImplemented()
-    
+
     def set_view_size(self, width, height):
         raise NotImplemented()
-        
+
     def clear_area(self, clip):
         raise NotImplemented()
 
@@ -291,12 +291,12 @@ class Render(object):
 
 class CairoRenderBase(Render):
     # Cairo render implementation
-    
+
     def set_view_size(self, width, height):
         self._buf = _pixbuf.Pixbuf(_pixbuf.FORMAT_RGBA8, width, height)
         self.surface = cairo.ImageSurface.create_for_data(self._buf, cairo.FORMAT_ARGB32, width, height)
         self.ctx = cairo.Context(self.surface)
-    
+
     def clear_area(self, clip):
         self.pixbuf.clear_area(*clip)
         self.surface.mark_dirty_rectangle(*clip)
@@ -310,7 +310,7 @@ class DocumentCairoRender(CairoRenderBase):
     filter = cairo.FILTER_FAST
     passepartout = False
     docproxy = None # need to be set before repaint() call
-    
+
     def enable_fast_filter(self, state=True):
         self.filter = cairo.FILTER_FAST if state else None
 

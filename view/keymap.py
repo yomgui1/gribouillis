@@ -25,8 +25,15 @@
 
 import utils
 import context
+import operator
+import view.context as ctx
 
-from operator import Operator
+
+class Keymap(dict):
+    def __init__(self, name, *a, **k):
+        dict.__init__(self, *a, **k)
+        self.NAME = name
+        KeymapManager.register_keymap(self)
 
 
 class KeymapManager():
@@ -44,44 +51,37 @@ class KeymapManager():
     """
 
     __metaclass__ = utils.MetaSingleton
-    __maps = {} # all registered maps
-    
-    def __init__(self, context, parent=None):
-        self.context = context
-        self._parent_process = (parent.process if parent else lambda *a: True)
+    __kmd = {} # all registered keymaps
+
+    def __init__(self, default):
+        self._km = None # active keymap
+        self._filters = None # current keymap's keys view used as filters
         self._mapstack = []
-        self._map = None # active map
-        self._keys = None # current map keys view
-        self._default = None # default keymap if use method used without argument
+        self.use(default)
+        self._locals = dict(ctx=ctx, event=None)
+        self._locals.update(operator.OPERATORS)
 
-    def process(self, evt):
-        assert self._map is not None
-        # Each key is a function that return True if the given event fits
-        keys = [ k for k in self._keys if k(evt) ]
-        if keys:
-            self.context.keymap = self
-            for k in keys:
-                if self._map[k](self.context, evt):
-                    return True
-        else:
-            return self._parent_process(evt)
+    def process(self, *fargs):
+        assert self._km is not None # need a valid keymap
 
-    def set_default(self, name):
-        self._default = name
-        self.use(name)
+        self._locals['event'] = fargs[1]
+        for f in self._filters:
+            if f(*fargs):
+                eval(self._km[f], None, self._locals)
 
     def use(self, name):
-        m = KeymapManager.__maps.get(name, self._map)
-        if m is not self._map:
-            self._map = m
-            self._keys = self._map.viewkeys()
+        m = KeymapManager.__kmd.get(name, self._km)
+        if m is not self._km:
+            ctx.keymap = self
+            self._km = m
+            self._filters = m.viewkeys()
 
     def use_default(self):
         assert self._default is not None
         self.use(self._default)
 
     def push(self, name):
-        self._mapstack.append(self._map.NAME)
+        self._mapstack.append(self._km.NAME)
         self.use(name)
 
     def pop(self):
@@ -89,17 +89,17 @@ class KeymapManager():
             self.use(self._mapstack.pop())
 
     @classmethod
-    def register_keymap(cls, kmap):
-        """Transform each key string of keymap dictionnary
-        into a callable returning a boolean.
+    def register_keymap(cls, km):
+        """Transform each keymap dictionnary key (string)
+        into a callable with following prototype:
+
+        "lambda evt_type, evt: bool"
+
+        Note: this operation destroy original contents of the keymap.
         """
-        for k in kmap.keys():
-            kmap[eval("lambda evt:" + k)] = Operator.get_event_op(kmap.pop(k))
-        cls.__maps[kmap.NAME] = kmap
+
+        for k in km.keys():
+            km[eval("lambda evt_type, evt:" + k)] = compile(km.pop(k), 'keymap', 'exec')
+        cls.__kmd[km.NAME] = km
 
 
-class Keymap(dict):
-    def __init__(self, name, *a, **k):
-        dict.__init__(self, *a, **k)
-        self.NAME = name
-        KeymapManager.register_keymap(self)

@@ -280,8 +280,10 @@ class DocViewport(gtk.DrawingArea, view.viewport.BackgroundMixin):
     def reset(self):
         self._swap_x = self._swap_y = None
         self._docvp.reset_view()
+        self._docvp.update_matrix()
         self._curvp.set_scale(self._docvp.scale)
         self._curvp.repaint()
+        self._cur_area = None
         self.repaint_doc()
 
     def reset_rotation(self):

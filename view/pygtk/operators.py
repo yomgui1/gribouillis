@@ -95,11 +95,11 @@ def quit_request(ctx):
 ##
 
 @operator(_T("vp-enter"))
-def vp_enter(ctx, event):
+def vp_enter(ctx):
     ctx.active_viewport.show_brush_cursor(True)
 
 @operator(_T("vp-leave"))
-def vp_leave(ctx, event):
+def vp_leave(ctx):
     ctx.active_viewport.show_brush_cursor(False)
 
 @operator(_T("vp-move-cursor"))
@@ -156,23 +156,23 @@ def vp_scroll_delta(ctx, event):
     d['y'] = y
 
 @operator(_T("vp-scroll-left"))
-def vp_scroll_left(ctx, event):
+def vp_scroll_left(ctx):
     ctx.active_viewport.scroll(-SCROLL_DIST, 0)
 
 @operator(_T("vp-scroll-right"))
-def vp_scroll_right(ctx, event):
+def vp_scroll_right(ctx):
     ctx.active_viewport.scroll(SCROLL_DIST, 0)
 
 @operator(_T("vp-scroll-up"))
-def vp_scroll_up(ctx, event):
+def vp_scroll_up(ctx):
     ctx.active_viewport.scroll(0, -SCROLL_DIST)
 
 @operator(_T("vp-scroll-down"))
-def vp_scroll_down(ctx, event):
+def vp_scroll_down(ctx):
     ctx.active_viewport.scroll(0, SCROLL_DIST)
 
 @operator(_T("vp-scale-up"))
-def vp_scale_up(ctx, event,):
+def vp_scale_up(ctx, event):
     ctx.active_viewport.scale_up(*GdkEventParser.get_cursor_position(event))
 
 @operator(_T("vp-scale-down"))
@@ -180,39 +180,39 @@ def vp_scale_down(ctx, event):
     ctx.active_viewport.scale_down(*GdkEventParser.get_cursor_position(event))
 
 @operator(_T("vp-rotate-right"))
-def vp_rotate_right(ctx, event, angle=DEFAULT_ROT_ANGLE):
+def vp_rotate_right(ctx, angle=DEFAULT_ROT_ANGLE):
     ctx.active_viewport.rotate(angle)
 
 @operator(_T("vp-rotate-left"))
-def vp_rotate_left(ctx, event, angle=DEFAULT_ROT_ANGLE):
+def vp_rotate_left(ctx, angle=DEFAULT_ROT_ANGLE):
     ctx.active_viewport.rotate(-angle)
 
 @operator(_T("vp-swap-x"))
-def vp_swap_x(ctx, event):
+def vp_swap_x(ctx):
     vp = ctx.active_viewport
     pos = vp._cur_pos
     vp.swap_x(pos[0])
 
 @operator(_T("vp-swap-y"))
-def vp_swap_y(ctx, event):
+def vp_swap_y(ctx):
     vp = ctx.active_viewport
     pos = vp._cur_pos
     vp.swap_y(pos[1])
 
 @operator(_T("vp-reset-all"))
-def vp_reset_all(ctx, event):
+def vp_reset_all(ctx):
     ctx.active_viewport.reset()
 
 @operator(_T("vp-reset-rotation"))
-def vp_reset_rotation(ctx, event):
+def vp_reset_rotation(ctx):
     ctx.active_viewport.reset_rotation()
 
 @operator(_T("vp-clear-layer"))
-def vp_clear_layer(ctx, event):
+def vp_clear_layer(ctx):
     ctx.active_viewport.docproxy.clear_layer()
 
 @operator(_T("vp-insert-layer"))
-def vp_insert_layer(ctx, event):
+def vp_insert_layer(ctx):
     dp = ctx.active_viewport.docproxy
     doc = dp.document
     vo = model.vo.GenericVO(docproxy=dp,

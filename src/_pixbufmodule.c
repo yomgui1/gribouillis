@@ -112,7 +112,7 @@ rgb8_writepixel(void *data, float opacity, float erase, uint16_t *color)
     uint32_t alpha, one_minus_alpha;
 
     opacity += delta;
-    
+
     /* Adding delta to round values */
     alpha = (uint32_t)(opacity * erase * 255);
     one_minus_alpha = 255 - (uint32_t)(opacity * 255);
@@ -130,7 +130,7 @@ rgba8_writepixel(void *data, float opacity, float erase, uint16_t *color)
     uint32_t alpha, one_minus_alpha;
 
     opacity += delta;
-    
+
     /* Adding delta to round values */
     alpha = (uint32_t)(opacity * erase * 255);
     one_minus_alpha = 255 - (uint32_t)(opacity * 255);
@@ -149,7 +149,7 @@ argb8_writepixel(void *data, float opacity, float erase, uint16_t *color)
     uint32_t alpha, one_minus_alpha;
 
     opacity += delta;
-    
+
     /* Adding delta to round values */
     alpha = (uint32_t)(opacity * erase * 255);
     one_minus_alpha = 255 - (uint32_t)(opacity * 255);
@@ -168,7 +168,7 @@ argb8noa_writepixel(void *data, float opacity, float erase, uint16_t *color)
     uint32_t alpha, one_minus_alpha;
 
     opacity += delta;
-    
+
     /* Adding delta to round values */
     alpha = (uint32_t)(opacity * erase * 255);
     one_minus_alpha = 255 - (uint32_t)(opacity * 255);
@@ -187,7 +187,7 @@ rgba8noa_writepixel(void *data, float opacity, float erase, uint16_t *color)
     uint32_t alpha, one_minus_alpha;
 
     opacity += delta;
-    
+
     /* Adding delta to round values */
     alpha = (uint32_t)(opacity * erase * 255);
     one_minus_alpha = 255 - (uint32_t)(opacity * 255);
@@ -206,7 +206,7 @@ cmyk8_writepixel(void *data, float opacity, float erase, uint16_t *color)
     uint32_t alpha, one_minus_alpha;
 
     opacity += delta;
-    
+
     /* Adding delta to round values */
     alpha = (uint32_t)(opacity * erase * 255);
     one_minus_alpha = 255 - (uint32_t)(opacity * 255);
@@ -223,13 +223,13 @@ rgba15x_writepixel(void *data, float opacity, float erase, uint16_t *color)
     static const float delta = 1.f / (1<<16);
     uint16_t *pixel = data;
     uint32_t alpha, one_minus_alpha;
-    
+
     opacity += delta;
-    
+
     /* Adding delta to round values */
     alpha = (uint32_t)(opacity * erase * (1<<15));
     one_minus_alpha = (1<<15) - (uint32_t)(opacity * (1<<15));
-    
+
     /* R */ pixel[0] = (alpha*color[0] + one_minus_alpha*pixel[0]) / (1<<15);
     /* G */ pixel[1] = (alpha*color[1] + one_minus_alpha*pixel[1]) / (1<<15);
     /* B */ pixel[2] = (alpha*color[2] + one_minus_alpha*pixel[2]) / (1<<15);
@@ -242,9 +242,9 @@ argb15x_writepixel(void *data, float opacity, float erase, uint16_t *color)
     static const float delta = 1.f / (1<<16);
     uint16_t *pixel = data;
     uint32_t alpha, one_minus_alpha;
-    
+
     opacity += delta;
-    
+
     /* Adding delta to round values */
     alpha = (uint32_t)(opacity * erase * (1<<15));
     one_minus_alpha = (1<<15) - (uint32_t)(opacity * (1<<15));
@@ -261,9 +261,9 @@ argb15x_writepixel_alpha_locked(void *data, float opacity, float erase, uint16_t
     static const float delta = 1.f / (1<<16);
     uint16_t *pixel = data;
     uint32_t alpha, one_minus_alpha;
-    
+
     opacity += delta;
-    
+
     /* Adding delta to round values */
     alpha = (uint32_t)(opacity * erase * (1<<15));
     one_minus_alpha = (1<<15) - (uint32_t)(opacity * (1<<15));
@@ -280,9 +280,9 @@ cmyka15x_writepixel(void *data, float opacity, float erase, uint16_t *color)
     static const float delta = 1.f / (1<<16);
     uint16_t *pixel = data;
     uint32_t alpha, one_minus_alpha;
-    
+
     opacity += delta;
-    
+
     /* Adding delta to round values */
     alpha = (uint32_t)(opacity * erase * (1<<15));
     one_minus_alpha = (1<<15) - (uint32_t)(opacity * (1<<15));
@@ -304,7 +304,7 @@ static void
 argb15x_write2pixel(void *data, uint16_t *color)
 {
     uint16_t *pixel = data;
-    
+
     /* A */ pixel[0] = color[3];
     /* R */ pixel[1] = color[0];
     /* G */ pixel[2] = color[1];
@@ -315,7 +315,7 @@ static void
 argb8_write2pixel(void *data, uint16_t *color)
 {
     uint8_t *pixel = data;
-    
+
     /* A */ pixel[0] = color[3];
     /* R */ pixel[1] = color[0];
     /* G */ pixel[2] = color[1];
@@ -424,7 +424,7 @@ static inline void
 argb15x_to_argb8_row(uint16_t *src, uint8_t *dst, unsigned int w)
 {
     unsigned int x;
-    
+
     for (x=0; x < w; x++)
     {
         uint32_t alpha = src[0];
@@ -460,22 +460,22 @@ argb15x_to_argb8(uint16_t *src1, uint8_t *dst1,
                  Py_ssize_t src_stride, Py_ssize_t dst_stride)
 {
     unsigned int y;
-    
+
 #ifdef WITH_ALTIVEC
     const vector unsigned short v255 = (vector unsigned short){255,255,255,255,255,255,255,255};
     const vector unsigned int vshift15 = vec_splat_u32(15);
     const vector unsigned char vperm_h = (vector unsigned char) {3,19,7,23,11,27,15,31,0,0,0,0,0,0,0,0};
     const vector unsigned char vperm_l = (vector unsigned char) {0,0,0,0,0,0,0,0,3,19,7,23,11,27,15,31};
 #endif
-    
+
     src_stride /= sizeof(*src1);
     dst_stride /= sizeof(*dst1);
-        
+
     for (y=0; y < h; y++, src1 += src_stride, dst1 += dst_stride)
     {
         uint16_t *src = src1;
         uint8_t *dst = dst1;
-        
+
 #ifdef WITH_ALTIVEC
         if ((w < 4) || ((unsigned int)src & 15) || ((unsigned int)dst & 15))
         {
@@ -485,25 +485,25 @@ argb15x_to_argb8(uint16_t *src1, uint8_t *dst1,
         {
             unsigned int x;
             int remains = w & 3; /* one ARGB15X pixel = 8 bytes, we compute on 4 pixels per loop */
-            
+
             /* 4 ARGB pixels loop */
             for (x=0; x < (w-remains); x += 4, src += 4*4, dst += 4*4)
             {
                 /* Load 4 ARGB15X pixels in 2 vectors */
                 const vector signed short vpixels15x_0 = vec_ld(0, (signed short *)src);
                 const vector signed short vpixels15x_1 = vec_ld(16, (signed short *)src);
-                
+
                 /* Convert them to ARGB8 alpha-premul pixels */
                 const vector unsigned int vagag_h = vec_sr(vec_mule((vector unsigned short)vpixels15x_0, v255), vshift15);
                 const vector unsigned int vrbrb_h = vec_sr(vec_mulo((vector unsigned short)vpixels15x_0, v255), vshift15);
                 const vector unsigned int vagag_l = vec_sr(vec_mule((vector unsigned short)vpixels15x_1, v255), vshift15);
                 const vector unsigned int vrbrb_l = vec_sr(vec_mulo((vector unsigned short)vpixels15x_1, v255), vshift15);
-                
+
                 const vector unsigned char vpx8_h = vec_perm((vector unsigned char)vagag_h, (vector unsigned char)vrbrb_h, vperm_h);
                 const vector unsigned char vpx8_l = vec_perm((vector unsigned char)vagag_l, (vector unsigned char)vrbrb_l, vperm_l);
 
                 const vector unsigned char vpixels8 = vec_add(vpx8_h, vpx8_l);
-                
+
                 /* Save result as 4 ARGB8 pixels */
                 vec_st(vpixels8, 0, (unsigned char *)dst);
             }
@@ -1147,7 +1147,7 @@ compose_argb8_noa_to_argb8_noa(uint8_t *src1, uint8_t *dst1,
                 dst[1] = (one_minus_alpha * dst[1] + alpha * src[1]) / 255;
                 dst[2] = (one_minus_alpha * dst[2] + alpha * src[2]) / 255;
                 dst[3] = (one_minus_alpha * dst[3] + alpha * src[3]) / 255;
-                
+
             } /* else unchange the destination */
 
             /* Next ARGB pixel */
@@ -1192,7 +1192,7 @@ compose_argb8_to_argb8_noa(uint8_t *src1, uint8_t *dst1,
                 dst[1] = (one_minus_alpha * dst[1] + r + ROUND_ERROR_8BITS) / 255;
                 dst[2] = (one_minus_alpha * dst[2] + g + ROUND_ERROR_8BITS) / 255;
                 dst[3] = (one_minus_alpha * dst[3] + b + ROUND_ERROR_8BITS) / 255;
-                
+
             } /* else unchange the destination */
 
             /* Next ARGB pixel */
@@ -1230,7 +1230,7 @@ compose_argb15x_to_argb15x(uint16_t *src1, uint16_t *dst1,
                 dst[1] = (one_minus_alpha * dst[1] / (1<<15) + src[1]);
                 dst[2] = (one_minus_alpha * dst[2] / (1<<15) + src[2]);
                 dst[3] = (one_minus_alpha * dst[3] / (1<<15) + src[3]);
-                
+
             } /* else unchange the destination */
 
             /* Next ARGB pixel */
@@ -1362,7 +1362,7 @@ get_compose_function(int src_fmt, int dst_fmt, int endian_care)
         {
             switch (dst_fmt)
             {
-                
+
             }
         }
 #endif
@@ -1380,7 +1380,7 @@ get_compose_function(int src_fmt, int dst_fmt, int endian_care)
         {
             switch (dst_fmt)
             {
-                
+
             }
         }
 #endif
@@ -1419,12 +1419,12 @@ clip_area(PyPixbuf *self,
         return 1;
     else if ((*sxoff+*width) > self->width)
         *width = self->width - *sxoff;
-        
+
     if (*syoff >= self->height)
         return 1;
     else if ((*syoff+*height) > self->height)
         *height = self->height - *syoff;
-        
+
     /* Clip the write area on destination */
     if (*dxoff < 0)
     {
@@ -1434,7 +1434,7 @@ clip_area(PyPixbuf *self,
         *sxoff -= *dxoff;
         *width += *dxoff;
         *dxoff = 0;
-        
+
         if (*width > dst_pixbuf->width)
             *width = dst_pixbuf->width;
     }
@@ -1451,7 +1451,7 @@ clip_area(PyPixbuf *self,
         *syoff  -= *dyoff;
         *height += *dyoff;
         *dyoff = 0;
-        
+
         if (*height > dst_pixbuf->height)
             *height = dst_pixbuf->height;
     }
@@ -1459,9 +1459,9 @@ clip_area(PyPixbuf *self,
         return 1;
     else if ((*dyoff+*height) > dst_pixbuf->height)
         *height = dst_pixbuf->height - *dyoff;
-        
+
     //printf("dxoff=%d, dyoff=%d, w=%u, h=%u, sxoff=%d, syoff=%d\n", *dxoff, *dyoff, *width, *height, *sxoff, *syoff);
-    
+
     return 0;
 }
 
@@ -1471,7 +1471,7 @@ static int
 _get_color(PyObject *get_tile_cb, int x, int y, int pix_size, uint16_t *color)
 {
     PyPixbuf *tile;
-    
+
     if (g_last &&
         (x >= g_last->x) && (x < (g_last->x + g_last->width)) &&
         (y >= g_last->y) && (y < (g_last->y + g_last->height)))
@@ -1483,10 +1483,10 @@ _get_color(PyObject *get_tile_cb, int x, int y, int pix_size, uint16_t *color)
         tile = (PyPixbuf *)PyObject_CallFunction(get_tile_cb, "iii", x, y, 0); /* NR */
         if (tile == NULL)
             return 1;
-            
+
         Py_DECREF(tile); /* the owner dict keep refcount > 0, so we don't track it here */
     }
-        
+
     if ((PyObject *)tile != Py_None)
     {
         void *src_data = tile->data + (y - tile->y) * tile->bpr + (x - tile->x) * pix_size;
@@ -1513,7 +1513,7 @@ initialize_pixbuf(PyPixbuf *self, int width, int height, int pixfmt, PyPixbuf *s
         PyErr_SetString(PyExc_ValueError, "Null dimensions");
         return 1;
     }
-        
+
     if (NULL == init_values)
     {
         PyErr_Format(PyExc_ValueError, "Invalid pixel format (0x%x)", pixfmt);
@@ -1533,7 +1533,7 @@ initialize_pixbuf(PyPixbuf *self, int width, int height, int pixfmt, PyPixbuf *s
 
     /* 16-bytes alignment */
     self->data = (void*)((((unsigned long)self->data_alloc)+15) & ~15);
-    
+
     if (NULL != src)
         memcpy(self->data, src->data, self->bpr * height);
 
@@ -1671,7 +1671,7 @@ pixbuf_get_pixel(PyPixbuf *self, PyObject *args)
 
     pix = self->data + y*self->bpr + x*get_pixel_size(self->pixfmt);
     self->readpixel(pix, color);
-    
+
     py_color = PyTuple_New(self->nc);
     if (NULL != py_color)
     {
@@ -1710,9 +1710,9 @@ pixbuf_get_average_pixel(PyPixbuf *self, PyObject *args)
         PyErr_SetString(PyExc_ValueError, "Out of bound coordinates");
         return NULL;
     }
-    
+
     radius = CLAMP(radius, 0.0, 300.);
-    
+
     /* Compute dab bounding box (XXX: yratio?) */
     float rad_box = radius + .5;
     minx = floorf(sx - rad_box);
@@ -1732,21 +1732,21 @@ pixbuf_get_average_pixel(PyPixbuf *self, PyObject *args)
     const float yy0 = (float)(miny - sy) + .5;
     float rxy = xx0*rd;
     float ryy = yy0*rd;
-    
+
     int chan_count = self->nc;
     uint8_t *buf = self->data + miny*self->bpr;
-    
+
     /* Loop on all pixels inside a bbox centered on (x, y) */
     for (y=miny; y <= maxy; y++, ryy += rd, buf += self->bpr)
     {
         uint8_t *pixel = buf + minx*bpp;
         float rx = rxy;
         float ry = ryy;
-        
+
         for (x=minx; x <= maxx; x++, rx += rd, pixel += bpp)
         {
             float rr = rx*rx + ry*ry;
-            
+
             if (rr <= 1.0)
             {
                 uint16_t tmp_color[MAX_CHANNELS];
@@ -1762,15 +1762,15 @@ pixbuf_get_average_pixel(PyPixbuf *self, PyObject *args)
             }
         }
     }
-    
+
     //printf("sums: %f %f %f %f, w=%u\n", sums[0], sums[1], sums[2], sums[3], sum_weight);
-    
+
     if (!sum_weight)
         Py_RETURN_NONE;
 
     /* Average alpha (always the last item) */
     float alpha, alpha_sum = sums[chan_count-1];
-    
+
     alpha = CLAMP(alpha_sum / sum_weight, 0.0, 1.0);
     if (alpha >= (1.0 / (1 << 15)))
     {
@@ -1781,7 +1781,7 @@ pixbuf_get_average_pixel(PyPixbuf *self, PyObject *args)
             /* OPTIM: no need to divide color by weight sum as alpha sum is also weighted */
             color[i] = CLAMP(sums[i] / alpha_sum, 0.0, 1.0); /* fix rounding errors */
         }
-        
+
         color[chan_count-1] = alpha;
         //printf("colors: %f %f %f %f\n", color[0], color[1], color[2], color[3]);
     }
@@ -1790,12 +1790,12 @@ pixbuf_get_average_pixel(PyPixbuf *self, PyObject *args)
         bzero(color, sizeof(color));
         color[0] = 1.0; /* for debugging */
     }
-    
+
     py_color = PyTuple_New(self->nc);
     if (NULL != py_color)
     {
         int i;
-        
+
         for (i=0; i<self->nc; i++)
         {
             PyObject *o = PyFloat_FromDouble(color[i]); /* NR */
@@ -1861,21 +1861,21 @@ pixbuf_blit(PyPixbuf *self, PyObject *args)
 
     dst_pix_size = get_pixel_size(dst_pixbuf->pixfmt);
     src_pix_size = get_pixel_size(self->pixfmt);
-    
+
     src_data = self->data + syoff * self->bpr + sxoff * src_pix_size;
     if (src_data < (void *)self->data || src_data >= (void *)(self->data + self->height * self->bpr))
     {
         printf("PixBuf buf: buffer overflow on src_data, off = (%d, %d)\n", sxoff, syoff);
         Py_RETURN_NONE;
     }
-    
+
     dst_data = dst_pixbuf->data + dyoff * dst_pixbuf->bpr + dxoff * dst_pix_size;
     if (dst_data < (void *)dst_pixbuf->data || dst_data >= (void *)(dst_pixbuf->data + dst_pixbuf->height * dst_pixbuf->bpr))
     {
         printf("PixBuf buf: buffer overflow on dst_data, off = (%d, %d)\n", dxoff, dyoff);
         Py_RETURN_NONE;
     }
-    
+
     /* Rasterize pixels to the given buffer */
     blit(src_data, dst_data, width, height, self->bpr, dst_pixbuf->bpr);
 
@@ -1906,24 +1906,24 @@ pixbuf_compose(PyPixbuf *self, PyObject *args)
 
     if (clip_area(self, dst_pixbuf, &dxoff, &dyoff, &sxoff, &syoff, &width, &height))
         Py_RETURN_NONE;
-        
+
     dst_pix_size = get_pixel_size(dst_pixbuf->pixfmt);
     src_pix_size = get_pixel_size(self->pixfmt);
-    
+
     src_data = self->data + syoff * self->bpr + sxoff * src_pix_size;
     if (src_data < (void *)self->data || src_data >= (void *)(self->data + self->height * self->bpr))
     {
         printf("PixBuf buf: buffer overflow on src_data, off = (%d, %d)\n", sxoff, syoff);
         Py_RETURN_NONE;
     }
-    
+
     dst_data = dst_pixbuf->data + dyoff * dst_pixbuf->bpr + dxoff * dst_pix_size;
     if (dst_data < (void *)dst_pixbuf->data || dst_data >= (void *)(dst_pixbuf->data + dst_pixbuf->height * dst_pixbuf->bpr))
     {
         printf("PixBuf buf: buffer overflow on dst_data, off = (%d, %d)\n", dxoff, dyoff);
         Py_RETURN_NONE;
     }
-    
+
     /* Rasterize pixels to the given buffer */
     compose(src_data, dst_data, width, height, self->bpr, dst_pixbuf->bpr);
 
@@ -1958,7 +1958,7 @@ pixbuf_from_buffer(PyPixbuf *self, PyObject *args)
     { /* pixbuf at right */
         if (-dyoff >= sw)
             Py_RETURN_NONE;
-            
+
         sxoff = -dxoff;
         dxoff = 0;
         dw = MIN(self->width, sw - sxoff);
@@ -1976,7 +1976,7 @@ pixbuf_from_buffer(PyPixbuf *self, PyObject *args)
     { /* pixbuf at bottom */
         if (-dyoff >= sh)
             Py_RETURN_NONE;
-            
+
         syoff = -dyoff;
         dyoff = 0;
         dh = MIN(self->height, sh - syoff);
@@ -1988,7 +1988,7 @@ pixbuf_from_buffer(PyPixbuf *self, PyObject *args)
         syoff = 0;
         dh = MIN(sh, self->height - dyoff);
     }
-        
+
     dst_pix_size = get_pixel_size(self->pixfmt);
 
     /* Rasterize pixels to the given buffer */
@@ -2012,7 +2012,7 @@ pixbuf_clear_area(PyPixbuf *self, PyObject *args)
     int x1, y1, x2, y2, w, h;
     unsigned int y, pixel_size;
     unsigned char *ptr = self->data;
-    
+
     if (!PyArg_ParseTuple(args, "iiII", &x1, &y1, &w, &h))
         return NULL;
 
@@ -2021,7 +2021,7 @@ pixbuf_clear_area(PyPixbuf *self, PyObject *args)
 
     x2 = x1+w-1;
     y2 = y1+h-1;
-    
+
     /* Clipping */
 
     if (x1 < 0) x1 = 0;
@@ -2035,7 +2035,7 @@ pixbuf_clear_area(PyPixbuf *self, PyObject *args)
 
     if (y2 < 0) y2 = 0;
     else if (y2 >= self->height) y2 = self->height - 1;
-    
+
     w = x2-x1+1;
     h = y2-y1+1;
 
@@ -2044,7 +2044,7 @@ pixbuf_clear_area(PyPixbuf *self, PyObject *args)
     ptr += y1*self->bpr + x1*pixel_size;
     for (y=0; y < h; y++, ptr += self->bpr)
         bzero(ptr, w*pixel_size);
-        
+
 bye:
     Py_RETURN_NONE;
 }
@@ -2056,7 +2056,7 @@ pixbuf_clear_white(PyPixbuf *self, PyObject *args)
     void *pix = self->data;
     int pixoff = (self->bpc * self->nc) / 8;
     static uint16_t white[] = {0x7fff, 0x7fff, 0x7fff};
-   
+
     for (y=0; y < self->height; y++)
     {
         for (x=0; x < self->width; x++)
@@ -2065,7 +2065,7 @@ pixbuf_clear_white(PyPixbuf *self, PyObject *args)
             pix += pixoff;
         }
     }
-        
+
     Py_RETURN_NONE;
 }
 
@@ -2077,14 +2077,14 @@ pixbuf_clear_value(PyPixbuf *self, PyObject *args)
     int pixoff = (self->bpc * self->nc) / 8;
     float value;
     static uint16_t color[MAX_CHANNELS];
-   
+
     if (!PyArg_ParseTuple(args, "f", &value))
         return NULL;
-        
+
     value = CLAMP(value, 0., 1.);
     for (i=0; i < self->nc; i++)
         self->cfromfloat(value, &color[i]);
-   
+
     for (y=0; y < self->height; y++)
     {
         for (x=0; x < self->width; x++)
@@ -2093,7 +2093,7 @@ pixbuf_clear_value(PyPixbuf *self, PyObject *args)
             pix += pixoff;
         }
     }
-        
+
     Py_RETURN_NONE;
 }
 
@@ -2105,10 +2105,10 @@ pixbuf_clear_alpha(PyPixbuf *self, PyObject *args)
     int pixoff = (self->bpc * self->nc) / 8;
     float value;
     static uint16_t color[MAX_CHANNELS] = {0};
-   
+
     if (!PyArg_ParseTuple(args, "f", &value))
         return NULL;
-   
+
     for (y=0; y < self->height; y++)
     {
         for (x=0; x < self->width; x++)
@@ -2117,7 +2117,7 @@ pixbuf_clear_alpha(PyPixbuf *self, PyObject *args)
             pix += pixoff;
         }
     }
-        
+
     Py_RETURN_NONE;
 }
 
@@ -2128,24 +2128,24 @@ pixbuf_empty(PyPixbuf *self, PyObject *args)
     void *pix = self->data;
     int na, pixsize = (self->bpc * self->nc) / 8;
     uint16_t color[MAX_CHANNELS];
-    
+
     /* No alpha? => non sense here */
     if (!(self->pixfmt & PyPixbuf_FLAG_HAS_ALPHA))
         Py_RETURN_FALSE;
-   
+
     na = self->nc-1;
     for (y=0; y < self->height; y++)
     {
         for (x=0; x < self->width; x++, pix += pixsize)
         {
             self->readpixel(pix, color);
-            
+
             /* not full transparent? */
             if (color[na])
                 Py_RETURN_FALSE;
         }
     }
-        
+
     Py_RETURN_TRUE;
 }
 
@@ -2178,24 +2178,24 @@ pixbuf_scroll(PyPixbuf *self, PyObject *args)
     register int y;
     register uint8_t *ptr_src = self->data;
     register uint8_t *ptr_dst = self->data;
-    
+
     if (!PyArg_ParseTuple(args, "ii", &dx, &dy))
         return NULL;
 
     /* No size? */
     if (!dx && !dy)
         Py_RETURN_NONE;
-    
+
     /* Clipping */
     if ((dx >= self->width) || (-dx >= self->width))
         return pixbuf_clear(self);
-        
+
     if ((dy >= self->height) || (-dy >= self->height))
         return pixbuf_clear(self);
 
     pixel_size = get_pixel_size(self->pixfmt);
-    
-    
+
+
     if (dx >= 0)
     {
         ptr_dst += dx * pixel_size;
@@ -2205,16 +2205,16 @@ pixbuf_scroll(PyPixbuf *self, PyObject *args)
         dx = -dx;
         ptr_src += dx * pixel_size;
     }
-    
+
     size = pixel_size*(self->width - dx);
-    
+
     Forbid();
     if (dy > 0)
     {
         y = self->height - 1;
         ptr_src += (y-dy)*self->bpr;
         ptr_dst += y*self->bpr;
-        
+
         for (; y; y--, ptr_src -= self->bpr, ptr_dst -= self->bpr)
             memcpy(ptr_dst, ptr_src, size);
     }
@@ -2246,75 +2246,75 @@ pixbuf_slow_transform_affine(PyPixbuf *self, PyObject *args)
     int ix, iy, bilinear=0;
     int dst_pix_size, src_pix_size;
     void *dst_row_ptr;
-    
+
     if (!PyArg_ParseTuple(args, "OO!dddddd|i", &get_tile_cb, &PyPixbuf_Type, &pb_dst, &fa, &fb, &fc, &fd, &fe, &ff, &bilinear))
         return NULL;
-    
+
     src_pix_size = get_pixel_size(self->pixfmt);
     dst_pix_size = get_pixel_size(pb_dst->pixfmt);
-    
+
     dst_row_ptr = pb_dst->data;
     g_last = NULL;
-    
+
     /* destination row-col scanline */
     for (iy=pb_dst->y; iy < (pb_dst->y + pb_dst->height); iy++, dst_row_ptr += pb_dst->bpr)
     {
         char *dst_data = dst_row_ptr;
-        
+
         for (ix=pb_dst->x; ix < (pb_dst->x + pb_dst->width); ix++, dst_data += dst_pix_size)
         {
             double ox, oy;
 
             uint16_t color[MAX_CHANNELS];
-            
+
             if (bilinear)
             {
                 uint16_t c0[MAX_CHANNELS];
                 uint16_t c1[MAX_CHANNELS];
                 uint16_t c2[MAX_CHANNELS];
                 uint16_t c3[MAX_CHANNELS];
-                
+
                 int x_lo, x_hi;
                 int y_lo, y_hi;
-                
+
                 double ixf = ix + 0.5;
                 double iyf = iy + 0.5;
-                
+
                 /* Transform destination point into original coordinates
                  * (using pixbuf relative coordinates)
                  */
                 ox = ixf * fa + iyf * fc + fe;
                 oy = ixf * fb + iyf * fd + ff;
-                
+
                 x_lo = trunc(ox);
                 x_hi = ceil(ox);
                 y_lo = trunc(oy);
                 y_hi = ceil(oy);
-                
+
                 /* Read four pixels for interpolations */
                 if (_get_color(get_tile_cb, x_lo, y_lo, src_pix_size, c0))
                     return NULL;
-                    
+
                 if (_get_color(get_tile_cb, x_hi, y_lo, src_pix_size, c1))
                     return NULL;
-                    
+
                 if (_get_color(get_tile_cb, x_hi, y_hi, src_pix_size, c2))
                     return NULL;
-                    
+
                 if (_get_color(get_tile_cb, x_lo, y_hi, src_pix_size, c3))
                     return NULL;
 
                 /* Compute interpolation factors */
                 double fx, fy, f0, f1, f2, f3;
-                
+
                 fx = ox - floor(ox);
                 fy = oy - floor(oy);
-                
+
                 f0 = (1. - fx) * (1. - fy);
                 f1 =       fx  * (1. - fy);
                 f2 =       fx  *       fy ;
                 f3 = (1. - fx) *       fy ;
-                
+
                 /* Bilinear interpolation on each channel */
                 int i;
                 for (i=0; i < pb_dst->nc; i++)
@@ -2324,24 +2324,24 @@ pixbuf_slow_transform_affine(PyPixbuf *self, PyObject *args)
             {
                 int x_lo;
                 int y_lo;
-                
+
                 /* Transform destination point into original coordinates
                  * (using pixbuf relative coordinates)
                  */
                 ox = ix * fa + iy * fc + fe;
                 oy = ix * fb + iy * fd + ff;
-                
+
                 x_lo = trunc(ox);
                 y_lo = trunc(oy);
-                
+
                 if (_get_color(get_tile_cb, x_lo, y_lo, src_pix_size, color))
                     return NULL;
             }
-            
+
             pb_dst->write2pixel(dst_data, color);
         }
     }
-    
+
     Py_RETURN_NONE;
 }
 

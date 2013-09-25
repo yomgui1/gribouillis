@@ -113,10 +113,10 @@ class Document(list):
     @staticmethod
     def load_image(filename, mode='RGBA'):
         """load_image(filename) -> 4-tuple
-        
+
         Load given image by filename using PIL.Image.open method.
         Convert it to given mode colorspace (default to RGBA).
-        
+
         Returns 4-tuple: (image data as an array, width, height, row stride)
         """
         im = PIL.Image.open(filename)
@@ -135,7 +135,7 @@ class Document(list):
             os.mkdir(os.path.dirname(LASTS_FILENAME))
         except:
             pass
-            
+
         try:
             data = [ path + '\n' ]
             with open(LASTS_FILENAME) as fd:
@@ -206,7 +206,7 @@ class Document(list):
         # First be sure to have a clean document
         for layer in self.layers:
             layer.surface.cleanup()
-            
+
         filename = os.path.abspath(filename or self.name)
         ext = os.path.splitext(filename)[1].lower()
         if ext:
@@ -238,17 +238,17 @@ class Document(list):
             'dimensions': None,
             'densities': [300, 300],
             }
-        
+
     def clear(self):
         self._clear()
 
         # Empty document = one background layer
         self.new_layer(name='background')
         self._dirty = False
-    
+
     def get_fill(self):
         return self.__fill
-        
+
     def set_fill(self, fill):
         if isinstance(fill, basestring):
             if self.isBackgroundFile(fill):
@@ -256,12 +256,12 @@ class Document(list):
                 self.__fill = cairo.SurfacePattern(surface)
                 self.__fill.set_extend(cairo.EXTEND_REPEAT)
                 self.__fill.set_filter(cairo.FILTER_FAST)
-            else: 
+            else:
                 self.__fill = self._colorspace.get_color(fill)
         else:
             self.__fill = fill
         self._dirty = True
-       
+
     def get_pixel(self, *pt):
         brush = self.brush
         # search for a valid color from top to bottom layer
@@ -270,7 +270,7 @@ class Document(list):
             if color is not None:
                 return color
         return (0.0,)*3
-        
+
     ### Document's layer methods ###
     # Layers are ordered using a list using BG-to-FG convention
     # Last item is the foreground layer
@@ -304,7 +304,7 @@ class Document(list):
         i = self.index(layer)
         self.remove(layer)
         self._dirty = True
-        
+
         if self.active is layer:
             # Activate the layer just before this one
             self.active = self[min(i, len(self)-1)]
@@ -337,7 +337,7 @@ class Document(list):
                     if ymax < y2: ymax = y2
         if empty: return
         return xmin,ymin,xmax,ymax
-        
+
     def get_size(self):
         area = self.get_bbox()
         if not area: return 0,0
@@ -354,7 +354,7 @@ class Document(list):
 
     def rasterize(self, cr, dst, filter=cairo.FILTER_BEST, layers=None, all=False, back=True):
         """Rasterize document on given cairo context.
-        
+
         The context must have its matrix and clip set before calling this function.
         Note: the clip must be set before setting the viewing matrix.
         """
@@ -390,26 +390,26 @@ class Document(list):
     def rasterize_layer(self, layer, cr, dst, filter, ope=cairo.OPERATOR_OVER,
             fmt=_pixbuf.FORMAT_ARGB8, new_surface = cairo.ImageSurface.create_for_data):
         # FORMAT_ARGB8 => cairo uses alpha-premul pixels buffers
-        
+
         clip = layer.area
         if clip is None:
             return
-        
+
         cr.save()
-        
+
         # XXX: pycairo < 1.8.8 has inverted matrix multiply operation
         # when done using '*' operator.
         # So I use the multiply method here.
         cr.transform(layer.matrix)
-        
+
         # Reduce again the clipping area to the layer area
         cr.rectangle(*clip)
         cr.clip()
-        
+
         x,y,w,h = cr.clip_extents()
         #if x == w or y == h:
         #    return
-        
+
         # Convert to integer and add an extra border pixel
         # due to the cairo filtering.
         x = int(floor(x)-1)
@@ -417,31 +417,31 @@ class Document(list):
         w = int(ceil(w)+1) - x + 1
         h = int(ceil(h)+1) - y + 1
         model_area = x,y,w,h
-        
+
         # render temporary buffer (sized by the model redraw area)
         pb = _pixbuf.Pixbuf(fmt, w, h)
         pb.clear()
-        
+
         # Blit layer's tiles using over ope mode on the render surface
         def blit(tile):
             tile.blit(pb, tile.x - x, tile.y - y)
-                      
+
         layer.surface.rasterize(model_area, blit)
-        
+
         rsurf = new_surface(pb, cairo.FORMAT_ARGB32, w, h)
-        
+
         # Now paint the render surface on the model surface
         cr.set_source_surface(rsurf, x, y)
         cr.get_source().set_filter(filter)
         cr.set_operator(ope)
         cr.paint_with_alpha(layer.opacity)
-        
+
         cr.restore()
 
     def as_cairo_surface(self, layers=None, all=False, **kwds):
         rect = self.get_bbox(layers, all)
         if not rect: return
-        
+
         dx, dy, dw, dh = rect
         dw -= dx - 1
         dh -= dy - 1
@@ -451,20 +451,20 @@ class Document(list):
         cr = cairo.Context(surface)
         cr.translate(-dx, -dy)
         self.rasterize(cr, filter=cairo.FILTER_FAST, layers=layers, all=all, **kwds)
-        
+
         return surface
 
     def as_png_buffer(self, comp=4, layers=None, all=False, **kwds):
         rect = self.get_bbox(layers, all)
         if not rect: return
-        
+
         x,y,w,h = rect
         w -= x - 1
         h -= y - 1
-        
+
         # PNG buffer is need RGBA8 format (no alpha-premul)
         pixelbuf = _pixbuf.Pixbuf(_pixbuf.FORMAT_RGBA8_NOA, w, h)
-        
+
         # Rendering
         surface = self.as_cairo_surface(layers, all, **kwds)
         pixelbuf.from_buffer(_pixbuf.FORMAT_ARGB8,
@@ -474,13 +474,13 @@ class Document(list):
                              surface.get_width(), surface.get_height())
 
         # Encode pixels data to PNG
-        
+
         # DEPRECATED
         #pngbuf = StringIO()
         #writer = png.Writer(w, h, alpha=True, bitdepth=8, compression=comp)
         #writer.write_array(pngbuf, _IntegerBuffer(pixelbuf))
         #return pngbuf.getvalue()
-        
+
         return _savers.save_pixbuf_as_png_buffer(pixelbuf);
 
     ### Properties ###

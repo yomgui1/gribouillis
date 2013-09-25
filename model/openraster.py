@@ -48,7 +48,7 @@ _SVG_OP_2_GB = {
     'xor': 'xor',
     'plus': 'add',
     }
-    
+
 _GB_OP_2_SVG = {}
 for k, v in _SVG_OP_2_GB.iteritems():
     _GB_OP_2_SVG[v] = k
@@ -116,7 +116,7 @@ class OpenRasterFileWriter:
             return
 
         image = ET.Element('image')
-        
+
         self.top_stack = ET.SubElement(image, 'stack')
 
         a = image.attrib
@@ -148,7 +148,7 @@ class OpenRasterFileReader:
         xml = self.z.read('stack.xml')
         self.image = ET.fromstring(xml)
         a = self.image.attrib
-        
+
         # Document position and size
         self.ox = int(a.get('x', 0)) # optional
         self.oy = int(a.get('y', 0)) # optional
@@ -166,19 +166,19 @@ class OpenRasterFileReader:
                 continue
 
             a = layer.attrib
-            
+
             if 'visible' in a:
                 visible = bool(int(a['visible'])) # backware compability
             else:
                 visible = a.get('visibility', 'visible') == 'visible'
-                
+
             if 'compositeOp' in a:
                 cpop = a['compositeOp'] # backware compability
             else:
                 cpop = svg_operator_to_gb(a.get('composite-op', 'svg:src-over'))
-            
+
             opacity = float(a.get('opacity', "1.0"))
-            
+
             srcpath = a.get('src')
             if srcpath:
                 if not srcpath.lower().endswith('.png'):
@@ -195,7 +195,7 @@ class OpenRasterFileReader:
                 if w != int(a.get('w', w)) or h != int(a.get('h', h)):
                     print "[*DBG*] Warning: ignoring unwanted size (%lux%lu)" % (w, h)
                     continue
-                    
+
                 yield a['name'], cpop, (x, y, w, h), visible, opacity, im.tostring()
             else:
                 yield a['name'], cpop, (0, 0, 0, 0), visible, opacity, None

@@ -78,7 +78,7 @@ class Layer(object):
     _visible = True
     locked = False
     dirty = False
-    
+
     def __init__(self, surface, name, alpha=1.0, alphamask=None, operator='normal', opacity=1.0, **options):
         self._surface   = surface # drawing surface
         self._alpha     = alpha # global transparency of the layer
@@ -88,7 +88,7 @@ class Layer(object):
         self.opacity    = opacity
         self._matrix     = cairo.Matrix() # display matrix
         self.inv_matrix = cairo.Matrix()
-        
+
     def __repr__(self):
         return "'%s'" % self._name
 
@@ -134,7 +134,7 @@ class Layer(object):
         if bbox:
             x1, y1, x2, y2 = bbox
             ope = self._matrix.transform_point
-            
+
             c = [ ope(x1,y1), ope(x2,y2), ope(x1, y2), ope(x2, y1) ]
             lx = sorted(x for x,y in c)
             ly = sorted(y for x,y in c)
@@ -164,7 +164,7 @@ class Layer(object):
         self.inv_matrix = cairo.Matrix(*matrix)
         self.inv_matrix.invert()
         self._dirty = True
-        
+
     matrix = property(lambda self: self._matrix, fset=set_matrix)
 
     @property
@@ -192,7 +192,7 @@ class Layer(object):
     @property
     def modified(self):
         return self.dirty
-        
+
     name = property(fget=lambda self: self._name, fset=_set_name)
     visible = property(fget=lambda self: self._visible, fset=_set_visible)
 
@@ -212,45 +212,45 @@ class TiledLayer(Layer):
 
     def merge_to(self, dst):
         """Merging the layer on a given layer (dst).
-        
+
         Operation takes care of layers opactity. After the operation
         the destination is marked as modified, but opacity is kept unchanged.
         """
-        
+
         matrix = dst.inv_matrix * self._matrix
         inv_matrix = cairo.Matrix(*matrix)
         inv_matrix.invert()
         ope = matrix.transform_point
         new_surface = cairo.ImageSurface.create_for_data
         operator = self.OPERATORS[self.operator]
-        
+
         src_opa = self.opacity
         dst_opa = dst.opacity
-        
+
         # Pixbuf to do the pixel format convertion GB3 -> cairo
         tmp = _pixbuf.Pixbuf(_pixbuf.FORMAT_ARGB8, TILE_SIZE, TILE_SIZE)
         tmp_surf = cairo.ImageSurface.create_for_data(tmp, cairo.FORMAT_ARGB32, TILE_SIZE, TILE_SIZE)
-        
+
         # rendering surface used during destination blit
         # Created on a Pixbuf surface for clearing speedup and dest copy
         rsurf_pb = _pixbuf.Pixbuf(_pixbuf.FORMAT_ARGB8, TILE_SIZE, TILE_SIZE)
         rsurf = cairo.ImageSurface.create_for_data(rsurf_pb, cairo.FORMAT_ARGB32, TILE_SIZE, TILE_SIZE)
         cr = cairo.Context(rsurf)
-        
+
         if dst_opa != 1.0:
             # Note: if dst tiles are marked as readonly, we'll get new tile
             # => perfect if layer has been snapshot'ed.
             for dst_tile in dst.surface.get_tiles(dst.surface.area):
                 dst_tile.blit(tmp) # format convertion: GB3 -> cairo
-                
+
                 # Blit the destination first using its opacity
                 rsurf_pb.clear()
                 cr.set_source_surface(tmp_surf, 0, 0)
                 cr.paint_with_alpha(dst_opa)
-                
+
                 # Copy the result into destionation tile (+ format convertion)
                 rsurf_pb.blit(dst_tile)
-        
+
         for tile in self.surface:
             # change tile boundary from its layer origin into global origin
             x1 = tile.x
@@ -266,41 +266,41 @@ class TiledLayer(Layer):
             w = int(ceil(lx[-1])) - x1 + 1
             h = int(ceil(ly[-1])) - y1 + 1
             del lx, ly
-            
+
             # Create a cairo surface for the transformed source tile
             pb_trans = _pixbuf.Pixbuf(tile.pixfmt, w, h)
             pb_trans.x = x1
             pb_trans.y = y1
-            
+
             # do the affine transformation
             tile.slow_transform_affine(self.surface.get_row_tile, pb_trans, *inv_matrix)
-            
+
             # convert buffers to cairo buffer and use cairo to do compositing (operators needed!)
             # TODO: replace this code by an internal compositor when operators/opacity are supported!
-            
+
             rpb = _pixbuf.Pixbuf(_pixbuf.FORMAT_ARGB8, w, h)
             rpb.clear()
             pb_trans.blit(rpb)
             del pb_trans
-            
+
             # Surface for cairo compositing
             src_surf = cairo.ImageSurface.create_for_data(rpb, cairo.FORMAT_ARGB32, w, h)
-                        
+
             for dst_tile in dst.surface.get_tiles([ x1, y1, w, h ], True):
                 # Make a copy of destination tile
                 dst_tile.blit(rsurf_pb)
-                
+
                 # Blit the transformed source now with its opacity and layer compositing operation.
                 cr.set_source_surface(src_surf, x1-dst_tile.x, y1-dst_tile.y)
                 cr.set_operator(operator)
                 cr.paint_with_alpha(src_opa)
-                
+
                 # Copyback the result into destination tile
                 rsurf_pb.blit(dst_tile)
-                                
+
             # Finalisation
             dst._dirty = True
-            
+
     def get_pixel(self, brush, *pt):
         brush.surface = self.surface
         return brush.get_pixel(*self.inv_matrix.transform_point(*pt))

@@ -77,7 +77,7 @@ float dot2(const int *g, float x, float y)
 float noise_2d(float x, float y)
 {
     float n0, n1, n2;
-    
+
     float s = (x+y)*F2;
     float xs = x + s;
     float ys = y + s;
@@ -101,7 +101,7 @@ float noise_2d(float x, float y)
 
     int ii = i & 0xff;
     int jj = j & 0xff;
-    
+
     float t0 = 0.5f - x0*x0 - y0*y0;
     if(t0 < 0.0f)
         n0 = 0.0f;
@@ -109,7 +109,7 @@ float noise_2d(float x, float y)
     {
         int gi0 = perm[ii+perm[jj]] % 12;
         t0 *= t0;
-        n0 = t0 * t0 * dot2(grad3[gi0], x0, y0); 
+        n0 = t0 * t0 * dot2(grad3[gi0], x0, y0);
     }
 
     float t1 = 0.5f - x1*x1 - y1*y1;
@@ -186,31 +186,31 @@ rgb_to_hsv(float *rgb, float *hsv)
     float maxc = MAX(MAX(rgb[0], rgb[1]), rgb[2]);
     float minc = MIN(MIN(rgb[0], rgb[1]), rgb[2]);
     float delta, h;
-    
+
     hsv[2] = maxc;
-    
+
     if (minc == maxc)
     {
         hsv[0] = hsv[1] = 0.0;
         return;
     }
-    
+
     delta = maxc - minc;
     hsv[1] = delta / maxc;
-    
+
     rc = (maxc-rgb[0]) / delta + 3.0;
     gc = (maxc-rgb[1]) / delta + 3.0;
     bc = (maxc-rgb[2]) / delta + 3.0;
-    
+
     if (rgb[0] == maxc) h = bc-gc;
     else if (rgb[1] == maxc) h = 2.0+rc-bc;
     else h = 4.0+gc-rc;
-    
+
     h /= 6.0;
-    
+
     if (h < 0) h += 1.0;
     if (h > 1) h -= 1.0;
-    
+
     hsv[0] = h;
 }
 //-
@@ -220,18 +220,18 @@ hsv_to_rgb(float *hsv, float *rgb)
 {
     int i;
     float f,p,q,t,h,s,v;
-    
+
     h = hsv[0];
     h = h - floorf(h);
     s = CLAMP(hsv[1], 0.0, 1.0);
     v = CLAMP(hsv[2], 0.0, 1.0);
-    
+
     if (s == 0.0)
     {
         rgb[0] = rgb[1] = rgb[2] = v;
         return;
     }
-    
+
     f = h * 6.0;
     // Uneeded due to the modf() below: if (f == 6.0) f = 0.0;
     i = floorf(f);
@@ -239,7 +239,7 @@ hsv_to_rgb(float *hsv, float *rgb)
     p = v*(1.0 - s);
     q = v*(1.0 - s*f);
     t = v*(1.0 - s*(1.0-f));
-    
+
     if (i%6 == 0) {rgb[0]=v; rgb[1]=t; rgb[2]=p; return;}
     if (i == 1) {rgb[0]=q; rgb[1]=v; rgb[2]=p; return;}
     if (i == 2) {rgb[0]=p; rgb[1]=v; rgb[2]=t; return;}

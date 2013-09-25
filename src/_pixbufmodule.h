@@ -37,7 +37,7 @@ static PyTypeObject *
 import_pixbuf(void)
 {
     PyObject *_pixbuf = PyImport_ImportModule("model._pixbuf"); /* NR */
-    
+
     if (NULL != _pixbuf)
     {
         PyPixbuf_Type = (PyTypeObject *)PyObject_GetAttrString(_pixbuf, "Pixbuf"); /* NR */

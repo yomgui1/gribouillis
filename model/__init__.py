@@ -43,7 +43,7 @@ from ._prefs import prefs, IPrefHandler
 class PrefsProxy(Proxy):
     NAME = "Preferences"
     PREFS_CHANGED = 'prefs-changed'
-    
+
     def __init__(self, data=None):
         Proxy.__init__(self, self.NAME, _prefs.prefs)
 
@@ -55,7 +55,7 @@ class PrefsProxy(Proxy):
 
     def __getitem__(self, key):
         return self.data[key]
-        
+
     def __setitem__(self, key, value):
         self.data[key] = value
         self.sendNotification(main.PREFS_CHANGED, key)
@@ -81,7 +81,7 @@ class LayerProxy(Proxy):
 
     ###
     ### Notifications
-    
+
     LAYER_DIRTY = 'layer-dirty'
 
     ###
@@ -176,22 +176,22 @@ class DocumentProxy(Proxy):
     #### Public API ####
     def obtain(self):
         self.refcnt += 1
-    
+
     def release(self):
         self.refcnt -= 1
         if self.refcnt < 1:
             self.sendNotification(main.DOC_DELETE, self)
-        
+
     def activate(self):
         DocumentProxy.active = self
         self.sendNotification(main.DOC_ACTIVATED, self)
-    
+
     @classmethod
     def get_unique_name(cls, basename=None):
         """Return a unique document name.
         A base name can be given.
         """
-        
+
         if not basename:
             basename = _T("New Empty Document")
 
@@ -264,7 +264,7 @@ class DocumentProxy(Proxy):
         # New document from file
         vo = _vo.FileDocumentConfigVO(filename)
         doc = self._new_doc(vo)
-        
+
         # Replace
         proxy = DocumentProxy.__instances.pop(self.docname)
         self.data = doc
@@ -322,7 +322,7 @@ class DocumentProxy(Proxy):
             if k in self.data.metadata:
                 self.data.metadata[k] = kwds[k]
                 change = True
-                
+
         if change:
             self.sendNotification(self.DOC_UPDATED, self)
 
@@ -494,7 +494,7 @@ class DocumentProxy(Proxy):
     docname = property(fget=lambda self: self.data.name, fset=set_name)
     brush = property(fget=lambda self: self.data.brush, fset=set_brush)
     active_layer = property(fget=lambda self: self.data.active)
-    
+
 
 class BrushProxy(Proxy):
     NAME = "BrushProxy"

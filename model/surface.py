@@ -60,13 +60,13 @@ TILE_SIZE = 64
 class TileSurfaceSnapshot(dict):
     # These values are set in order to dirty_area returns 0 sized area
     dirty_area = (0, 0, 0, 0)
-    
+
     def __init__(self, tiles, area=None):
         # Fast tiles copy
         dict.__init__(self, tiles)
         self._mod = {} # will contains added tiles after reduce()
         self.area = area
-        
+
         # mark all tiles as readonly:
         # any modifications will replace this tiles by new ones with ro set to False
         for tile in tiles.itervalues():
@@ -74,28 +74,28 @@ class TileSurfaceSnapshot(dict):
 
     def reduce(self, surface):
         "Split modified and unmodified tiles by make a difference with the given surface content"
-                
+
         # Set dirty area to invalid values (but usefull with min/max computations)
         xmin = ymin = sys.maxint
         xmax = ymax = -sys.maxint - 1
-    
+
         # Search for modifications (and additions!)
         for pos, tile in surface.tiles.iteritems():
             if not tile.ro:
                 # Move added tiles into the other dict,
                 # and update the dirty area
-                
+
                 self._mod[pos] = tile
 
                 x = tile.x
                 if xmin > x: xmin = x
-                
+
                 x += tile.width
                 if xmax < x: xmax = x
-                
+
                 y = tile.y
                 if ymin > y: ymin = y
-                
+
                 y += tile.height
                 if ymax < y: ymax = y
             else:
@@ -119,7 +119,7 @@ class TileSurfaceSnapshot(dict):
     def size(self):
         return sum(t.memsize for t in self.itervalues()) + \
                sum(t.memsize for t in self._mod.itervalues())
-        
+
 class Tile(_pixbuf.Pixbuf):
     def __new__(cls, pixfmt, x, y, s, *args):
         return super(Tile, cls).__new__(cls, pixfmt, s, s, *args)
@@ -192,7 +192,7 @@ class Surface(object):
     def copy(self, surface):
         "Copy content from another surface"
         pass
-        
+
     @virtualmethod
     def get_pixbuf(self, x, y):
         "Return the pixel buffer at given location"
@@ -207,7 +207,7 @@ class BoundedPlainSurface(Surface):
     Reserved to create small but fast rendering surfaces as all pixels data
     may reside in the user RAM, like preview or picture thumbnails.
     """
-    
+
     def __init__(self, pixfmt, width, height):
         super(BoundedPlainSurface, self).__init__(pixfmt)
         self.__buf = _pixbuf.Pixbuf(pixfmt, width, height)
@@ -215,10 +215,10 @@ class BoundedPlainSurface(Surface):
         self.clear_white = self.__buf.clear_white
         self.clear_value = self.__buf.clear_value
         self.clear()
-        
+
     def rasterize(self, area, *args):
         args[0](self.__buf, *args[1:])
-        
+
     def get_pixbuf(self, x, y):
         buf = self.__buf
         if x >= buf.x and y >= buf.y and x < buf.width and y < buf.height:
@@ -235,19 +235,19 @@ class BoundedPlainSurface(Surface):
         """
         return self.__buf.size
 
-class UnboundedTiledSurface(Surface): 
+class UnboundedTiledSurface(Surface):
     def __init__(self, pixfmt):
         super(UnboundedTiledSurface, self).__init__(pixfmt)
-            
+
         self.__tilemgr = _tilemgr.UnboundedTileManager(Tile, pixfmt, True)
         self.from_buffer = self.__tilemgr.from_buffer
         self.get_tiles = self.__tilemgr.get_tiles
         self.get_pixbuf = self.get_tile
         self.get_row_tile = self.__tilemgr.get_tile
-        
+
     def clear(self):
         self.__tilemgr.tiles.clear()
-        
+
     @property
     def empty(self):
         return not bool(self.__tilemgr.tiles)
@@ -268,7 +268,7 @@ class UnboundedTiledSurface(Surface):
             t = t.copy()
             self.__tilemgr.set_tile(t, *pos)
         return t
-        
+
     def from_png_buffer(self, *a, **k):
         self.from_buffer(_pixbuf.FORMAT_RGBA8_NOA, *a, **k)
 
@@ -278,11 +278,11 @@ class UnboundedTiledSurface(Surface):
 
         buf = _pixbuf.Pixbuf(pfmt, w, h)
         buf.clear()
-        
+
         def blit(tile):
             tile.blit(buf, tile.x-x, tile.y-y)
         self.rasterize((x,y,w,h), blit)
-        
+
         return buf
 
     def read_pixel(self, x, y):
@@ -296,7 +296,7 @@ class UnboundedTiledSurface(Surface):
         dst.tiles.clear()
         for tile in src.tiles.itervalues():
             dst.set_tile(tile.copy(), tile.x, tile.y)
-            
+
     def cleanup(self):
         for k in tuple(k for k,v in self.__tilemgr.tiles.iteritems() if v.empty()):
             del self.__tilemgr.tiles[k]

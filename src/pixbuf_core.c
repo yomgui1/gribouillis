@@ -25,7 +25,7 @@ int pb_NextAttribute(PBAttribute **attr_array, PBAttribute **attr)
 
         default:;
     }
-    
+
     attr[0] = attr_array[0];
     attr_array[0]++;
 
@@ -35,14 +35,14 @@ int pb_NextAttribute(PBAttribute **attr_array, PBAttribute **attr)
 int pb_FindAttribute(PBAttribute *attr_array, uint32_t id, size_t value_len, void *value)
 {
     PBAttribute *attr;
-    
+
     while (pb_NextAttribute(&attr_array, &attr)) {
         if (attr->id == id) {
             memcpy(value, attr->value_ptr, value_len);
             return 1;
         }
     }
-    
+
     return 0;
 }
 
@@ -56,12 +56,12 @@ static int _pb_GenericSetAttributes(PBObject *obj, PBAttribute *attrs)
 static int _pb_GenericGetAttr(PBObject *obj, uint32_t id, void *value)
 {
     _PBObject *_obj = obj;
-    
+
     switch (id) {
         case PBATTR_CONTEXT: PBDT_SET(void *, value, _obj->ctx); break;
         default: return PBERR_NOTGETATTR;
     }
-    
+
     return PBERR_NONE;
 }
 
@@ -88,12 +88,12 @@ int pb_NewObject(PBObject *ctx, PBObject **obj, int type, PBAttribute *attrs)
         err = _pb_Ctx_InitContext(&dummy_ctx, attrs);
         if (PBERR_NONE != err)
             return err;
-            
+
         ctx = &dummy_ctx; /* use our dummy as temporary context */
-        
+
     } else if (!_PB_OBJCHECK(ctx, PBOT_CONTEXT))
         return PBERR_BADCTX;
-        
+
     switch (type) {
         case PBOT_CONTEXT:
             size = sizeof(_PBContext);
@@ -129,17 +129,17 @@ int pb_NewObject(PBObject *ctx, PBObject **obj, int type, PBAttribute *attrs)
             _pb_RootDestroyObject(&dummy_ctx, _obj);
             return err;
         }
-        
+
         ctx = _obj;
     }
-    
+
     /* Object basic initialisations */
     _obj->ctx = ctx;
     _obj->obsig = (type << 24) | (size & 0x00ffffff);
     _obj->destroy = destroy_func;
     _obj->setattrs = seta_func;
     _obj->getattr = geta_func;
-    
+
     /* User initialisations */
     if (NULL != new_func) {
         err = new_func(_obj, attrs);
@@ -147,7 +147,7 @@ int pb_NewObject(PBObject *ctx, PBObject **obj, int type, PBAttribute *attrs)
             _pb_RootDestroyObject(ctx, _obj);
     } else
         err = PBERR_NONE;
-    
+
     return err;
 }
 
@@ -160,10 +160,10 @@ int pb_DestroyObject(PBObject *obj)
         err = _obj->destroy(obj);
     else
         err = PBERR_NONE;
-    
+
     /* mandatory and never fails (memory deallocation) */
     _pb_RootDestroyObject(_obj->ctx, _obj);
-    
+
     return err;
 }
 
@@ -171,11 +171,11 @@ int pb_GetAttr(PBObject *obj, uint32_t id, void *value_ptr)
 {
     _PBObject *_obj = obj;
     int err;
-    
+
     err = _obj->getattr(obj, id, value_ptr);
     if (PBERR_NOTGETATTR == err)
         return _pb_GenericGetAttr(obj, id, value_ptr);
-        
+
     return err;
 }
 
@@ -183,22 +183,22 @@ int pb_SetAttributes(PBObject *obj, PBAttribute *attrs)
 {
     _PBObject *_obj = obj;
     int err;
-    
+
     err = _obj->setattrs(obj, attrs);
     if (PBERR_NOTSETATTR == err)
         return _pb_GenericSetAttributes(obj, attrs);
-        
+
     return err;
 }
 
 int pb_SetAttr(PBObject *obj, uint32_t id, void *value_ptr)
 {
     PBAttribute attrs[2];
-    
+
     attrs[0].id = id;
     attrs[0].value_ptr = value_ptr;
     attrs[1].id = PBATTR_END;
-    
+
     return pb_SetAttributes(obj, attrs);
 }
 

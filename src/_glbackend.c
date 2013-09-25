@@ -61,30 +61,30 @@ static PyObject* mod_initglcontext(PyObject *self, PyObject *args)
 {
     struct RastPort *rp;
     UWORD width, height;
-    
+
     if (!PyArg_ParseTuple(args, "kHH", &rp, &width, &height))
         return NULL;
-     
+
     if (!GLAInitializeContextBitMap(tgl_context, rp->BitMap))
     {
         PyErr_SetString(PyExc_SystemError, "GLAInitializeContextBitMap() failed");
         return NULL;
     }
-    
+
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gMaxTexWidth);
     dprintf("max tex width=%u\n", gMaxTexWidth);
     //gMaxTexWidth = 1024;
-    
+
     gBitMap = rp->BitMap;
-    
+
     if (gTexID != -1)
         glDeleteTextures(1, &gTexID);
 
     glGenTextures(1, &gTexID);
-    
+
     gWidth = width;
     gHeight = height;
-    
+
     /* 2D setup */
     glViewport(0, 0, width, height);
     glMatrixMode(GL_PROJECTION);
@@ -93,12 +93,12 @@ static PyObject* mod_initglcontext(PyObject *self, PyObject *args)
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     glTranslatef(0.375, 0.375, 0.0);
-    
+
     glDisable(GL_BLEND);
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glShadeModel(GL_FLAT);
-    
+
     glEnable(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, gTexID);
 
@@ -110,7 +110,7 @@ static PyObject* mod_initglcontext(PyObject *self, PyObject *args)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, gMaxTexWidth, gMaxTexWidth, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-    
+
     glClearColor(.66, .66, .66, 1.0);
     glClear(GL_COLOR_BUFFER_BIT);
 
@@ -139,16 +139,16 @@ static PyObject* mod_blit_pixbuf(PyObject *self, PyObject *args)
     GLuint x, y, width, height;
     char *data;
     Py_ssize_t length;
-    
+
     if (!PyArg_ParseTuple(args, "s#IIII", &data, &length, &x, &y, &width, &height))
         return NULL;
-    
+
     if (gTexID == -1)
     {
         PyErr_SetString(PyExc_SystemError, "Texture is not initialized yet");
         return NULL;
     }
-    
+
     glPixelStorei(GL_UNPACK_ROW_LENGTH, gWidth);
     glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, width, height, GL_RGBA, GL_UNSIGNED_BYTE, data + y*gWidth*4 + x*4);
     draw_rect_tex(gTexID, 0, 0, gWidth/2, gHeight/2, 0.0, 0.0, gWidth/(float)gMaxTexWidth, gHeight/(float)gMaxTexWidth);
@@ -180,7 +180,7 @@ PyMorphOS_TermModule(void)
         GLClose(tgl_context);
         tgl_context = __tglContext = NULL;
     }
-    
+
     if (TinyGLBase) {
         CloseLibrary(TinyGLBase);
         TinyGLBase = NULL;
@@ -204,7 +204,7 @@ INITFUNC(void)
                 add_constants(m);
                 return;
             }
-            
+
             GLClose(tgl_context);
         }
 

@@ -109,7 +109,7 @@ get_tile(PyUnboundedTileMgr *self, int tx, int ty, int create, PyObject **tile, 
                     Py_DECREF(*tile);
                     return -1;
                 }
-                
+
                 Py_INCREF(*key); /* PyDict_SetItem stoles the refcount of key! */
             }
             else
@@ -149,7 +149,7 @@ ubtilemgr_new(PyTypeObject *type, PyObject *args)
         self->tile_size = TILE_DEFAULT_SIZE;
         self->pixfmt = pixfmt;
         self->flags = 0;
-        
+
         /* FIXME: not used! */
         if (writable)
             self->flags |= PBF_WRITABLE;
@@ -213,7 +213,7 @@ ubtilemgr_get_tile(PyUnboundedTileMgr *self, PyObject *args)
 
     if (get_tile(self, tx, ty, create, &tile, &key) < 0) /* NR */
         return NULL;
-        
+
     Py_DECREF(key);
 
     if (NULL == tile)
@@ -297,27 +297,27 @@ ubtilemgr_get_tiles(PyUnboundedTileMgr *self, PyObject *args)
                     Py_DECREF(tiles);
                     return NULL;
                 }
-                
+
                 if (NULL != tile)
                 {
                     /* read-only? */
                     if (((PyPixbuf *)tile)->readonly)
-                    {   
+                    {
                         PyObject *new_tile;
-                        
+
                         /* Replace by a fresh new one */
                         new_tile = PyObject_CallMethod(tile, "copy", NULL); /* NR */
-                        
+
                         Py_DECREF(tile);
                         tile = new_tile;
-                        
+
                         if (NULL == tile)
                         {
                             Py_DECREF(key);
                             Py_DECREF(tiles);
                             return NULL;
                         }
-                        
+
                         if (PyDict_SetItem(self->tiles, key, tile))
                         {
                             Py_DECREF(key);
@@ -328,7 +328,7 @@ ubtilemgr_get_tiles(PyUnboundedTileMgr *self, PyObject *args)
                     }
                     else
                         Py_DECREF(key);
-                    
+
                     if (PyList_Append(tiles, tile))
                     {
                         Py_DECREF(tiles);
@@ -375,7 +375,7 @@ ubtilemgr_rasterize(PyUnboundedTileMgr *self, PyObject *args)
 
             if (get_tile(self, tx, ty, FALSE, &tile, &key)) /* NR */
                 goto bye;
-                
+
             Py_DECREF(key);
 
             if (NULL == tile)
@@ -430,7 +430,7 @@ ubtilemgr_from_buffer(PyUnboundedTileMgr *self, PyObject *args)
             /* A tile is created if not exist */
             if (get_tile(self, tx, ty, TRUE, &tile, &key)) /* BR */
                 return NULL;
-                
+
             Py_DECREF(key);
 
             if (NULL == tile)

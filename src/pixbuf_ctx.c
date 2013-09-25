@@ -39,10 +39,10 @@ int _pb_Ctx_InitContext(_PBContext *ctx, PBAttribute *attrs)
         pb_FindAttribute(attrs, PBATTR_CTX_MALLOC, sizeof(user_malloc), (void **)&user_malloc);
         pb_FindAttribute(attrs, PBATTR_CTX_FREE, sizeof(user_free), (void **)&user_free);
     }
-    
+
     if (NULL == user_malloc)
         user_malloc = malloc;
-    
+
     if (NULL == user_free)
         user_free = free;
 

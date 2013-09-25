@@ -52,7 +52,7 @@ class Preferences(dict):
         'view-color-handler-bg': (.9, .9, 1., .8),
         'view-color-handler-ol': (.0, .2, .4, .8),
     }
-    
+
     def __init__(self):
         dict.__init__(self)
         self.handlers = {}
@@ -72,9 +72,9 @@ class Preferences(dict):
     def load(self, filename=None, alternative='data/internal/config_default.xml'):
         if not (filename and os.path.isfile(filename)) and alternative is not None:
             filename = alternative
-        
+
         faulty_elmt = []
-        
+
         with open(filename, 'r') as fd:
             config = ET.fromstring(fd.read())
             self['version'] = float(config.get('version', 0))
@@ -85,14 +85,14 @@ class Preferences(dict):
                         handler.parse(self, element)
                     except:
                         pass # faulty_elmt.append(str(element))
-        
+
         if faulty_elmt:
             raise KeyError(_T("Following elements causes errors:%s)") % '\n'.join(faulty_elmt))
-    
+
     def save_preferences(self, filename):
         with open(filename, 'w') as fd:
             config = ET.Element('config', {}, version=str(main.VERSION))
-            
+
             for tag, handler in self.handlers.iteritems():
                 element = ET.Element(tag)
                 try:
@@ -101,7 +101,7 @@ class Preferences(dict):
                         config.append(element)
                 except:
                     pass  # silent errors
-                
+
             # Write XML tree as file
             xml = ET.tostring(config, encoding='UTF-8')
             fd.write(xml)
@@ -112,15 +112,15 @@ prefs = Preferences()
 class IPrefHandler:
     def parse(self, prefs, element):
         """parse(prefs, element) -> None
-        
+
         This function should parse ElemenTree object 'element' data and modify
         accordingly the preference dictionnary 'prefs'.
         """
         pass
-        
+
     def save(self, prefs, root):
         """save(prefs, root) -> dict
-        
+
         Function should setup and add SubElement to the given root element,
         using data from prefs.
         """

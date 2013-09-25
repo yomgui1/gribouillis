@@ -66,7 +66,7 @@ typedef enum PBObjectType {
     PBOT_CMP_HUE        = 1019,
     PBOT_CMP_SATURATION = 1020,
     PBOT_CMP_LUMINANCE  = 1021,
-    
+
     /* Pre-defined models (2000 <= id < 3000) */
     PBOT_MODEL_RGB      = 2000, /* 3x double */
     PBOT_MODEL_RGB8     = 2001, /* 3x uint8 */

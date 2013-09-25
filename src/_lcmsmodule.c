@@ -78,7 +78,7 @@ profile_new(PyTypeObject *type, PyObject *args)
             Py_CLEAR(self);
         }
     }
-    
+
     return (PyObject *)self;
 }
 //-

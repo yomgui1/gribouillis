@@ -68,11 +68,11 @@ Keymap('Viewport', {
     scroll_up: 'vp_scale_up(ctx, event)',
     KEY_PRESS_NAME('Left'): 'vp_scroll_left(ctx)',
     KEY_PRESS_NAME('Right'): 'vp_scroll_right(ctx)',
-    KEY_PRESS_NAME('Up'): 'vp_scroll_up(ctx, event)',
-    KEY_PRESS_NAME('Down'): 'vp_scroll_down(ctx, event)',
+    KEY_PRESS_NAME('Up'): 'vp_scroll_up(ctx)',
+    KEY_PRESS_NAME('Down'): 'vp_scroll_down(ctx)',
     KEY_PRESS_NAME('x'): 'vp_swap_x(ctx)',
     KEY_PRESS_NAME('y'): 'vp_swap_y(ctx)',
-    KEY_PRESS_VAL(ord('=')): 'vp_reset_all(ctx)',
+    KEY_PRESS_NAME('equal'): 'vp_reset_all(ctx)',
 
     # Cursor related
     cursor_enter: 'vp_enter(ctx)',
@@ -93,17 +93,3 @@ Keymap('Viewport-Scroll', {
     AND(cursor_motion, button2_mod): 'vp_scroll_delta(ctx, event)',
     AND(button_release, button2): 'vp_scroll_confirm(ctx, event)',
 })
-
-'''
-KeymapManager.register_keymap("Viewport", {
-        # View motions
-        "key-press-bracketright": ("vp_rotate_right", None),
-        "key-press-bracketleft": ("vp_rotate_left", None),
-        "key-press-equal": "vp_reset_all",
-        "key-press-plus": ("vp_reset_rotation", None),
-        "key-press-b": ("open_brush_editor", None),
-
-        # Layer operators
-        "key-press-plus": ("vp_insert_layer", ["shift-mask", "control-mask"])
-        })
-'''

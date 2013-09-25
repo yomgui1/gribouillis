@@ -24,28 +24,31 @@
 ###############################################################################
 
 import functools
-import view.context as view_ctx
+import view.context as ctx
 
 
-OPERATORS = {}
+__OPERATORS = {}
+ope_globals = dict(ctx=ctx)
 
 
 def decorate(func, text=None):
-    func.__translation = text or func.__name__
-    OPERATORS[func.__name__] = func
-    return functools.partial(func, view_ctx)
-
+    fname = func.__name__
+    func.__translation = text or fname
+    __OPERATORS[fname] = func
+    ope_globals[fname] = func
+    return functools.partial(func, ctx)
 
 def operator(translation):
     return functools.partial(decorate, text=translation)
 
-
 def get_translation(func):
     return func.__translation
 
-
 def get_operators():
-    return sorted(OPERATORS.keys())
+    return sorted(__OPERATORS.keys())
 
 def get_event_op(name):
-    return OPERATORS[name]
+    return __OPERATORS[name]
+
+def execute(name, *args, **kwds):
+    return eval(name+"(ctx, *a, **k)", ope_globals, dict(a=args, k=kwds))

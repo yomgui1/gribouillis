@@ -58,8 +58,7 @@ class KeymapManager():
         self._filters = None # current keymap's keys view used as filters
         self._mapstack = []
         self.use(default)
-        self._locals = dict(ctx=ctx, event=None)
-        self._locals.update(operator.OPERATORS)
+        self._locals = {}
 
     def process(self, *fargs):
         assert self._km is not None # need a valid keymap
@@ -67,7 +66,7 @@ class KeymapManager():
         self._locals['event'] = fargs[1]
         for f in self._filters:
             if f(*fargs):
-                eval(self._km[f], None, self._locals)
+                eval(self._km[f], operator.ope_globals, self._locals)
 
     def use(self, name):
         m = KeymapManager.__kmd.get(name, self._km)

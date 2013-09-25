@@ -157,19 +157,27 @@ def vp_scroll_delta(ctx, event):
 
 @operator(_T("vp-scroll-left"))
 def vp_scroll_left(ctx):
-    ctx.active_viewport.scroll(-SCROLL_DIST, 0)
+    vp = ctx.active_viewport
+    vp.scroll(-SCROLL_DIST, 0)
+    vp.show_brush_cursor(True)
 
 @operator(_T("vp-scroll-right"))
 def vp_scroll_right(ctx):
-    ctx.active_viewport.scroll(SCROLL_DIST, 0)
+    vp = ctx.active_viewport
+    vp.scroll(SCROLL_DIST, 0)
+    vp.show_brush_cursor(True)
 
 @operator(_T("vp-scroll-up"))
 def vp_scroll_up(ctx):
-    ctx.active_viewport.scroll(0, -SCROLL_DIST)
+    vp = ctx.active_viewport
+    vp.scroll(0, -SCROLL_DIST)
+    vp.show_brush_cursor(True)
 
 @operator(_T("vp-scroll-down"))
 def vp_scroll_down(ctx):
-    ctx.active_viewport.scroll(0, SCROLL_DIST)
+    vp = ctx.active_viewport
+    vp.scroll(0, SCROLL_DIST)
+    vp.show_brush_cursor(True)
 
 @operator(_T("vp-scale-up"))
 def vp_scale_up(ctx, event):
@@ -178,14 +186,6 @@ def vp_scale_up(ctx, event):
 @operator(_T("vp-scale-down"))
 def vp_scale_down(ctx, event):
     ctx.active_viewport.scale_down(*GdkEventParser.get_cursor_position(event))
-
-@operator(_T("vp-rotate-right"))
-def vp_rotate_right(ctx, angle=DEFAULT_ROT_ANGLE):
-    ctx.active_viewport.rotate(angle)
-
-@operator(_T("vp-rotate-left"))
-def vp_rotate_left(ctx, angle=DEFAULT_ROT_ANGLE):
-    ctx.active_viewport.rotate(-angle)
 
 @operator(_T("vp-swap-x"))
 def vp_swap_x(ctx):
@@ -202,10 +202,6 @@ def vp_swap_y(ctx):
 @operator(_T("vp-reset-all"))
 def vp_reset_all(ctx):
     ctx.active_viewport.reset()
-
-@operator(_T("vp-reset-rotation"))
-def vp_reset_rotation(ctx):
-    ctx.active_viewport.reset_rotation()
 
 @operator(_T("vp-clear-layer"))
 def vp_clear_layer(ctx):

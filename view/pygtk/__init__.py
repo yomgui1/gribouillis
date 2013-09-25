@@ -63,7 +63,6 @@ from .brusheditor import BrushEditorWindow
 # Needed by view module
 Application = app.Application
 
-ctx.app_mediator = None # ApplicationMediator
 ctx.application = None # ApplicationMediator
 ctx.active_viewport = None
 ctx.viewports = set() # DocViewportMediator
@@ -107,7 +106,6 @@ class ApplicationMediator(GenericMediator):
     def __init__(self, component):
         assert isinstance(component, Application)
         super(ApplicationMediator, self).__init__(viewComponent=component)
-        ctx.app_mediator = self
         ctx.application = component
 
     def onRegister(self):

@@ -87,7 +87,7 @@ def clear_active_layer(ctx):
 
 @operator(_T('quit'))
 def quit_request(ctx):
-    ctx.app_mediator.quit()
+    ctx.application.quit()
 
 
 ##

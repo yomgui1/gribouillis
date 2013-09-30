@@ -21,12 +21,7 @@ HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
 WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
-******************************************************************************/
-
-#ifndef __MORPHOS__
-  /* must be included before Python.h */
-  #include <png.h>
-#endif
+*******************************************************************************/
 
 #include "common.h"
 #include "_pixbufmodule.h"
@@ -34,6 +29,11 @@ OTHER DEALINGS IN THE SOFTWARE.
 #ifdef __MORPHOS__
   #include <libraries/png.h>
   #include <proto/png.h>
+#endif
+
+#ifndef __MORPHOS__
+  #include <png.h>
+  #include <zlib.h>
 #endif
 
 #include <stdio.h>
@@ -55,7 +55,7 @@ static char *gOutputBuffer = NULL;
 static Py_ssize_t gOutputAllocLength = 0;
 static Py_ssize_t gOutputWriteLength = 0;
 
-/*************************************************************************************************************/
+/******************************************************************************/
 
 static void
 writepng_error_handler(png_structp png_ptr, png_const_charp msg)
@@ -181,9 +181,82 @@ writepng_init(uint32_t width, uint32_t height)
 /*************************************************************************************************************/
 
 static PyObject *
+mod_png_init(PyObject *self, PyObject *args)
+{
+	int width, height;
+
+	if (gOutputBuffer)
+		return PyErr_Format(PyExc_SystemError, "PNG saver is busy");
+
+    if (!PyArg_ParseTuple(args, "II", &width, &height))
+        return NULL;
+
+	gOutputBuffer = calloc(1024, 1);
+    if (gOutputBuffer)
+    {
+        gOutputWriteLength = 0;
+        gOutputAllocLength = 1024;
+
+		if (writepng_init(width, height)) {
+			Py_RETURN_NONE;
+		} else {
+			free(gOutputBuffer);
+			return PyErr_Format(PyExc_SystemError, "PNG init error");
+		}
+	} else
+        return PyErr_Format(PyExc_IOError, "Can't allocate the output string");
+
+	gOutputBuffer = NULL;
+	return NULL;
+}
+
+static PyObject *
+mod_png_fini(PyObject *self)
+{
+	PyObject *output;
+
+	if (!gOutputBuffer)
+		return PyErr_Format(PyExc_SystemError, "PNG saver not initialized yet");
+
+	writepng_encode_finish();
+	writepng_cleanup();
+
+	output = PyString_FromStringAndSize(gOutputBuffer, gOutputWriteLength); /* NR */
+	free(gOutputBuffer);
+	gOutputBuffer = NULL;
+
+	return output;
+}
+
+static PyObject *
+mod_png_write_row(PyObject *self, PyObject *args)
+{
+	void *row_pointer;
+
+	if (!gOutputBuffer)
+		return PyErr_Format(PyExc_SystemError, "PNG saver not initialized yet");
+
+	if (!PyArg_ParseTuple(args, "s!", &row_pointer))
+        return NULL;
+
+	if (setjmp(gPNG_JmpBuf)) {
+		writepng_cleanup();
+		free(gOutputBuffer);
+		gOutputBuffer = NULL;
+		return PyErr_Format(PyExc_SystemError, "PNG saver failed");
+	}
+
+	png_write_row(gPNG_png_ptr, row_pointer);
+	Py_RETURN_NONE;
+}
+
+static PyObject *
 mod_save_pixbuf_as_png_buffer(PyObject *self, PyObject *args)
 {
     PyPixbuf *pixbuf;
+
+	if (gOutputBuffer)
+		return PyErr_Format(PyExc_SystemError, "PNG saver is busy with a pixbuf");
 
     if (!PyArg_ParseTuple(args, "O!", PyPixbuf_Type, &pixbuf))
         return NULL;
@@ -207,6 +280,7 @@ mod_save_pixbuf_as_png_buffer(PyObject *self, PyObject *args)
         else
         {
             free(gOutputBuffer);
+			gOutputBuffer = NULL;
             PyErr_Format(PyExc_SystemError, "PNG init error");
         }
     }
@@ -218,6 +292,7 @@ mod_save_pixbuf_as_png_buffer(PyObject *self, PyObject *args)
         PyObject *output = PyString_FromStringAndSize(gOutputBuffer, gOutputWriteLength); /* NR */
 
         free(gOutputBuffer);
+		gOutputBuffer = NULL;
         return output;
     }
 
@@ -225,6 +300,9 @@ mod_save_pixbuf_as_png_buffer(PyObject *self, PyObject *args)
 }
 
 static PyMethodDef methods[] = {
+	{"png_init", (PyCFunction)mod_png_init, METH_VARARGS, NULL},
+	{"png_fini", (PyCFunction)mod_png_fini, METH_NOARGS, NULL},
+	{"png_write_row", (PyCFunction)mod_png_write_row, METH_VARARGS, NULL},
     {"save_pixbuf_as_png_buffer", (PyCFunction)mod_save_pixbuf_as_png_buffer, METH_VARARGS, NULL},
     {NULL} /* sentinel */
 };

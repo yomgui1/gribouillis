@@ -38,9 +38,11 @@ import main
 import model
 import model.brush
 import utils
+
 import view.context as ctx
 import view.operator as operator
 
+from view.keymap import KeymapManager
 from utils import _T, mvcHandler
 
 from .app import Application
@@ -58,6 +60,7 @@ ctx.eraser = None # BrushHouseWindowMediator
 ctx.brush = None # BrushHouseWindowMediator
 ctx.active_docproxy = None # ApplicationMediator
 ctx.active_docwin = None # DocWindowBase
+ctx.keymgr = KeymapManager('Application')
 
 
 class GenericMediator(utils.Mediator):

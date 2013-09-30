@@ -29,10 +29,8 @@ import math
 import main
 import model
 
-from view.operator import eventoperator, execoperator
-from view.keymap import KeymapManager
+from view.operator import operator
 from utils import _T
-
 from .eventparser import MUIEventParser
 from .const import TABLET_TOOLTYPE_ERASER
 
@@ -41,72 +39,72 @@ from .const import TABLET_TOOLTYPE_ERASER
 # Exec operators
 #
 
-@execoperator(_T('undo'))
+@operator(_T('undo'))
 def hist_undo(ctx):
     ctx.active_docproxy.undo()
 
-@execoperator(_T('redo'))
+@operator(_T('redo'))
 def hist_redo(ctx):
     ctx.active_docproxy.redo()
 
-@execoperator(_T('flush'))
+@operator(_T('flush'))
 def hist_flush(ctx):
     ctx.active_docproxy.flush()
 
-@execoperator(_T('Swap X-axis active viewport'))
+@operator(_T('Swap X-axis active viewport'))
 def actvp_swap_x(ctx):
     vp = ctx.active_viewport
     vp.swap_x(vp.width / 2)
 
-@execoperator(_T('Swap Y-axis active viewport'))
+@operator(_T('Swap Y-axis active viewport'))
 def actvp_swap_y(ctx):
     vp = ctx.active_viewport
     vp.swap_y(vp.height / 2)
 
-@execoperator(_T('Rotate active viewport'))
+@operator(_T('Rotate active viewport'))
 def actvp_rotate(ctx, angle):
     vp = ctx.active_viewport
     vp.rotate(angle)
 
-@execoperator(_T('clear active layer'))
+@operator(_T('clear active layer'))
 def clear_active_layer(ctx):
     ctx.active_docproxy.clear_layer()
 
-@execoperator(_T('reset active viewport'))
+@operator(_T('reset active viewport'))
 def reset_active_viewport(ctx):
     ctx.active_viewport.reset_transforms()
 
 #----
 
-@execoperator(_T('cleanup workspace'))
+@operator(_T('cleanup workspace'))
 def cmd_cleanup_workspace(ctx):
     ctx.app.close_all_non_drawing_windows()
 
-@execoperator(_T('new document'))
+@operator(_T('new document'))
 def cmd_new_doc(ctx):
     ctx.app.mediator.new_document()
     
-@execoperator(_T('load document'))
+@operator(_T('load document'))
 def cmd_load_doc(ctx):
     ctx.app.mediator.load_document()
     
-@execoperator(_T('save document'))
+@operator(_T('save document'))
 def cmd_save_doc(ctx):
     ctx.app.mediator.document_mediator.save_document()
     
-@execoperator(_T('save document as'))
+@operator(_T('save document as'))
 def cmd_save_as_doc(ctx):
     ctx.app.mediator.document_mediator.save_as_document()
     
-@execoperator(_T('new layer'))
+@operator(_T('new layer'))
 def cmd_new_layer(ctx):
     ctx.app.mediator.layermgr_mediator.add_layer()
     
-@execoperator(_T('remove active layer'))
+@operator(_T('remove active layer'))
 def cmd_rem_active_layer(ctx):
     ctx.app.mediator.layermgr_mediator.remove_active_layer()
     
-@execoperator(_T('enter in color pick mode'))
+@operator(_T('enter in color pick mode'))
 def cmd_enter_color_pick_mode(ctx):
     return 'Pick Mode'
 
@@ -115,26 +113,28 @@ def cmd_enter_color_pick_mode(ctx):
 # Event operators
 #
 
-@eventoperator(_T('toggle fullscreen mode'))
-def toggle_fullscreen(ctx, event, viewport):
-    ctx.app.toggle_fullscreen(viewport.WindowObject.object)
+@operator(_T('toggle fullscreen mode'))
+def toggle_fullscreen(ctx, event, viewport=None):
+    vp = viewport or ctx.active_viewport
+    ctx.app.toggle_fullscreen(vp.WindowObject.object)
 
-@eventoperator(_T("viewport enter"))
+
+@operator(_T("viewport enter"))
 def vp_enter(ctx, event, viewport):
     ctx.active_viewport = viewport
-    KeymapManager.use_map("Viewport")
+    ctx.keymap.use("Viewport")
     viewport.enable_motion_events(True)
     viewport._do_rulers()
     viewport.show_brush_cursor(True)
     if ctx.active_docproxy != viewport.docproxy:
         ctx.app.mediator.sendNotification(main.DOC_ACTIVATE, viewport.docproxy)
 
-@eventoperator("vp-leave")
+@operator("vp-leave")
 def vp_leave(ctx, event, viewport):
     viewport.enable_motion_events(False)
     viewport.show_brush_cursor(False)
 
-@eventoperator(_T("Update viewport cursor position"))
+@operator(_T("Update viewport cursor position"))
 def vp_move_cursor(ctx, event, viewport):
     tool = MUIEventParser.get_tooltype(event)
 
@@ -157,7 +157,7 @@ def vp_move_cursor(ctx, event, viewport):
     pos = viewport.get_view_pos(*MUIEventParser.get_screen_position(event))
     viewport.repaint_cursor(*pos)
 
-@eventoperator("vp-stroke-start")
+@operator("vp-stroke-start")
 def vp_stroke_start(ctx, event, viewport):
     viewport.get_device_state(event)
     viewport.show_brush_cursor(False)
@@ -165,29 +165,29 @@ def vp_stroke_start(ctx, event, viewport):
     KeymapManager.save_map()
     KeymapManager.use_map("Stroke")
 
-@eventoperator("vp-stroke-confirm")
+@operator("vp-stroke-confirm")
 def vp_stroke_confirm(ctx, event, viewport):
     state = viewport.get_device_state(event)
     viewport.docproxy.draw_end()
     viewport.show_brush_cursor(True)
     KeymapManager.restore_map()
 
-@eventoperator("vp-stroke-append")
+@operator("vp-stroke-append")
 def vp_stroke_append(ctx, event, viewport):
     viewport.get_device_state(event)
     viewport.docproxy.record()
 
-@eventoperator(_T("Scale-down at cursor position"))
+@operator(_T("Scale-down at cursor position"))
 def scale_down_at_cursor(ctx, event, viewport):
     pos = MUIEventParser.get_screen_position(event)
     viewport.scale_down(*viewport.get_view_pos(*pos))
 
-@eventoperator(_T("Scale-up at cursor position"))
+@operator(_T("Scale-up at cursor position"))
 def scale_up_at_cursor(ctx, event, viewport):
     pos = MUIEventParser.get_screen_position(event)
     viewport.scale_up(*viewport.get_view_pos(*pos))
 
-@eventoperator(_T("Scroll viewport start"))
+@operator(_T("Scroll viewport start"))
 def vp_scroll_start(ctx, event, viewport):
     x, y = viewport.get_device_state(event).cpos
     viewport.show_brush_cursor(False)
@@ -195,7 +195,7 @@ def vp_scroll_start(ctx, event, viewport):
     KeymapManager.use_map("Scroll")
     ctx.storage = dict(x=x, y=y, x0=x, y0=y, offset=viewport.offset)
 
-@eventoperator(_T("Scroll viewport on cursor motion"))
+@operator(_T("Scroll viewport on cursor motion"))
 def vp_scroll_on_motion(ctx, event, viewport):
     x, y = viewport.get_device_state(event).cpos
     d = ctx.storage
@@ -203,7 +203,7 @@ def vp_scroll_on_motion(ctx, event, viewport):
     d['x'] = x
     d['y'] = y
 
-@eventoperator(_T("Scroll viewport confirm"))
+@operator(_T("Scroll viewport confirm"))
 def vp_scroll_confirm(ctx, event, viewport):
     del ctx.storage
     cpos = viewport.get_device_state(event).cpos
@@ -211,7 +211,7 @@ def vp_scroll_confirm(ctx, event, viewport):
     viewport.show_brush_cursor(True)
     KeymapManager.restore_map()
     
-@eventoperator(_T("Scroll viewport cancel"))
+@operator(_T("Scroll viewport cancel"))
 def vp_scroll_cancel(ctx, event, viewport):
     viewport.offset = ctx.storage['offset']
     del ctx.storage

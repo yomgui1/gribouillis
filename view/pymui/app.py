@@ -36,7 +36,6 @@ import view.context as ctx
 from utils import _T
 from model.document import LASTS_FILENAME
 from model import prefs
-from view.keymap import KeymapManager
 
 from .layermgr import LayerMgr
 from .cmdhistoric import *
@@ -105,9 +104,6 @@ class Application(pymui.Application, view.mixin.ApplicationMixin):
             Description = DESCRIPTION,
             Base        = BASE,
             Menustrip   = self._create_menustrip())
-
-        self.keymap_mgr = KeymapManager(ctx)
-        self.keymap_mgr.set_default('Application')
 
         self.fullscreen_win = FullscreenDocWindow()
         self.AddChild(self.fullscreen_win)

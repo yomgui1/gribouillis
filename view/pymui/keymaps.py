@@ -23,16 +23,29 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-from view.keymap import KeymapManager
+from view.keymap import Keymap
 
-KeymapManager.register_keymap("Viewport", {
+
+cursor_enter = "evt_type=='cursor-enter'"
+cursor_leave = "evt_type=='cursor-leave'"
+cursor_motion = "evt_type=='cursor-motion'"
+
+Keymap('Application', {
+        
+    })
+    
+Keymap('Viewport', {
+        
+    })
+"""
+Keymap('Viewport', {
         # UI
         "f-press": "toggle_fullscreen",
         
         # Brush related
-        "cursor-enter": "vp_enter",
-        "cursor-leave": "vp_leave",
-        "cursor-motion": "vp_move_cursor",
+        cursor_enter: "vp_enter",
+        cursor_leave: "vp_leave",
+        cursor_motion: "vp_move_cursor",
 
         # Drawing
         "mouse_left-press": "vp_stroke_start",
@@ -54,12 +67,12 @@ KeymapManager.register_keymap("Viewport", {
         "Down-press": "vp_scroll_down",
         })
 
-KeymapManager.register_keymap("Stroke", {
+Keymap('Brush-Stroke', {
         "cursor-motion": "vp_stroke_append",
         "mouse_left-release": "vp_stroke_confirm",
         })
         
-KeymapManager.register_keymap("Scroll", {
+Keymap('Viewport-Scroll', {
         "cursor-motion": "vp_scroll_on_motion",
         "mouse_middle-release": "vp_scroll_confirm",
         "esc-press": "vp_scroll_cancel",
@@ -67,3 +80,4 @@ KeymapManager.register_keymap("Scroll", {
         "mouse_right-press": "vp_scroll_cancel",
         "space-press": "vp_scroll_cancel",
         })
+"""

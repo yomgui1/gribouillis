@@ -198,11 +198,9 @@ class DrawingRoot(pymui.Group):
     in various layout configurations.
     """
 
-    def __init__(self, docproxy, register_viewport_cb, unregister_viewport_cb, parent_kmgr):
+    def __init__(self, docproxy, register_viewport_cb, unregister_viewport_cb):
         super(DrawingRoot, self).__init__(Horiz=True, PageMode=True)
         
-        self.keymap_mgr = KeymapManager(ctx, parent_kmgr)
-        self.keymap_mgr.set_default('DocWindow')
         self.register_viewport = register_viewport_cb
         self.unregister_viewport = unregister_viewport_cb
 

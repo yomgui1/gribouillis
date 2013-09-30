@@ -41,9 +41,9 @@ import utils
 import view
 import view.viewport
 import view.cairo_tools as tools
+import view.context as ctx
 import _glbackend as gl
 
-from view.keymap import KeymapManager
 from model.devices import *
 from utils import resolve_path, _T
 
@@ -77,7 +77,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
     _hruler = _vruler = None
     selpath = None
     docproxy = None
-    opengl = 1
+    opengl = 0
 
     # Tools
     line_guide = None
@@ -86,14 +86,13 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
     # Class only
     __focus_lock = None
 
+    class Event: pass
+
     def __init__(self, root, docproxy=None, rulers=None):
         super(DocViewport, self).__init__(InnerSpacing=0, FillArea=False, DoubleBuffer=False)
 
         self.device = InputDevice()
         self.root = root
-        
-        self.keymap_mgr = KeymapManager(ctx, root.keymap_mgr)
-        self.keymap_mgr.set_default("Viewport")
         self._ev = pymui.EventHandler()
 
         # Viewports and Renders
@@ -150,8 +149,37 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         try:
             ev = self._ev
             ev.readmsg(msg)
-            eat = not self.keymap_mgr.process(ev)
-            return eat and pymui.MUI_EventHandlerRC_Eat
+            cl = ev.Class
+            evt_type = None
+
+            if cl == pymui.IDCMP_MOUSEMOVE:
+                if self.focus:
+                    evt_type = 'cursor-motion'
+            elif cl == pymui.IDCMP_MOUSEOBJECTMUI:
+                if ev.InObject:
+                    self.focus = True
+                    if self.focus:
+                        evt_type = 'cursor-enter'
+                        ctx.active_viewport = self
+                        ctx.keymgr.push('Viewport')
+                else:
+                    self.focus = False
+                    if not self.focus:
+                        evt_type = 'cursor-leave'
+            elif cl ==  pymui.IDCMP_MOUSEBUTTONS or cl == pymui.IDCMP_RAWKEY:
+                if ev.Up:
+                    name = "%s-release"
+                elif ev.InObject:
+                    name = "%s-press"
+                else:
+                    return
+                evt_type = name % MUIEventParser.get_key(ev)
+
+            if evt_type:
+                result = ctx.keymgr.process(evt_type, ev, self)
+                if evt_type is 'cursor-leave':
+                    ctx.keymgr.pop()
+                return not result and pymui.MUI_EventHandlerRC_Eat
 
         except:
             tb.print_exc(limit=20)
@@ -346,7 +374,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
     
     def _render_cursor(self):
         self._currp.AllocBitMap(self._curvp.width, self._curvp.height, 32, self)
-        self._curvp.render()
+        self._curvp.repaint()
         self._blit_cursor()
         
     def repaint_doc(self, clip=None, redraw=True):

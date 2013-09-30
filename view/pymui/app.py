@@ -1,6 +1,6 @@
 # -*- coding: latin-1 -*-
 ###############################################################################
-# Copyright (c) 2009-2011 Guillaume Roguez
+# Copyright (c) 2009-2013 Guillaume Roguez
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation

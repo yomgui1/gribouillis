@@ -38,7 +38,7 @@ ext_render_gl = Extension('view/pymui/_glbackend', [ 'src/_glbackend.c' ] + pb_s
 if os.name == 'morphos':
     ext_extra = [ ext_savers, ext_render_gl ]
 else:
-    ext_extra = [ ]
+    ext_extra = [ ext_savers ]
 
 setup(name='Gribouillis',
       version='3.0',

@@ -52,43 +52,36 @@ static png_structp gPNG_png_ptr;
 static png_infop gPNG_info_ptr;
 
 static char *gOutputBuffer = NULL;
-static Py_ssize_t gOutputAllocLength = 0;
-static Py_ssize_t gOutputWriteLength = 0;
+static Py_ssize_t gOutputAllocLength;
+static Py_ssize_t gOutputWriteLength;
+static Py_ssize_t gOutputRowIndex;
+static Py_ssize_t gOutputRowIndexMax;
+
 
 /******************************************************************************/
 
 static void
+writepng_cleanup(void)
+{
+	png_destroy_write_struct(&gPNG_png_ptr, &gPNG_info_ptr);
+}
+
+static void
 writepng_error_handler(png_structp png_ptr, png_const_charp msg)
 {
-    fprintf(stderr, "writepng libpng error: %s\n", msg);
-    fflush(stderr);
-
+    PyErr_Format(PyExc_SystemError, "[libpng error] %s\n", msg);
+	writepng_cleanup();
     longjmp(gPNG_JmpBuf, 1);
 }
 
 static int
 writepng_encode_finish(void)
 {
-    if (setjmp(gPNG_JmpBuf)) {
-        png_destroy_write_struct(&gPNG_png_ptr, &gPNG_info_ptr);
-        gPNG_png_ptr = NULL;
-        gPNG_info_ptr = NULL;
+    if (setjmp(gPNG_JmpBuf))
         return 2;
-    }
 
     png_write_end(gPNG_png_ptr, NULL);
-
     return 0;
-}
-
-static void
-writepng_cleanup(void)
-{
-    if ((NULL != gPNG_png_ptr) && (NULL != gPNG_info_ptr)) {
-        png_destroy_write_struct(&gPNG_png_ptr, &gPNG_info_ptr);
-        gPNG_png_ptr = NULL;
-        gPNG_info_ptr = NULL;
-    }
 }
 
 static void
@@ -124,6 +117,7 @@ mypngwrite(png_structp png_ptr, png_bytep data, png_size_t length)
 static void
 mypngflush(png_structp png_ptr)
 {
+	/* nothing */
 }
 
 static int
@@ -139,24 +133,17 @@ writepng_init(uint32_t width, uint32_t height)
     };
     int color_type, interlace_type;
 
-    gPNG_png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, gPNG_JmpBuf, writepng_error_handler, NULL);
-    if (!gPNG_png_ptr)
-        return 4; /* out of memory */
+    gPNG_png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, gPNG_JmpBuf,
+										   writepng_error_handler, NULL);
+    if (!gPNG_png_ptr) {
+		PyErr_Format(PyExc_MemoryError, "can't allocate the png structure");
+        return -1;
+	}
+
+	if (setjmp(gPNG_JmpBuf))
+        return -1;
 
     gPNG_info_ptr = png_create_info_struct(gPNG_png_ptr);
-    if (!gPNG_info_ptr) {
-        png_destroy_write_struct(&gPNG_png_ptr, NULL);
-        gPNG_png_ptr = NULL;
-        gPNG_info_ptr = NULL;
-        return 4; /* out of memory */
-    }
-
-    if (setjmp(gPNG_JmpBuf)) {
-        png_destroy_write_struct(&gPNG_png_ptr, &gPNG_info_ptr);
-        gPNG_png_ptr = NULL;
-        gPNG_info_ptr = NULL;
-        return 2;
-    }
 
     png_set_write_fn(gPNG_png_ptr, NULL, mypngwrite, mypngflush);
     png_set_compression_level(gPNG_png_ptr, Z_DEFAULT_COMPRESSION);
@@ -165,8 +152,8 @@ writepng_init(uint32_t width, uint32_t height)
     interlace_type = PNG_INTERLACE_NONE;
 
     png_set_IHDR(gPNG_png_ptr, gPNG_info_ptr,
-        width, height, 8, color_type, interlace_type,
-        PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+				 width, height, 8, color_type, interlace_type,
+				 PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
 
     png_set_gAMA(gPNG_png_ptr, gPNG_info_ptr, 2.2); /* FIXME: obtain gamma from system */
     png_set_text(gPNG_png_ptr, gPNG_info_ptr, &software, 1);
@@ -196,13 +183,13 @@ mod_png_init(PyObject *self, PyObject *args)
     {
         gOutputWriteLength = 0;
         gOutputAllocLength = 1024;
+		gOutputRowIndex = 0;
+		gOutputRowIndexMax = height;
 
-		if (writepng_init(width, height)) {
+		if (!writepng_init(width, height)) {
 			Py_RETURN_NONE;
-		} else {
+		} else
 			free(gOutputBuffer);
-			return PyErr_Format(PyExc_SystemError, "PNG init error");
-		}
 	} else
         return PyErr_Format(PyExc_IOError, "Can't allocate the output string");
 
@@ -213,15 +200,14 @@ mod_png_init(PyObject *self, PyObject *args)
 static PyObject *
 mod_png_fini(PyObject *self)
 {
-	PyObject *output;
+	PyObject *output = NULL;
 
 	if (!gOutputBuffer)
 		return PyErr_Format(PyExc_SystemError, "PNG saver not initialized yet");
 
-	writepng_encode_finish();
-	writepng_cleanup();
+	if (!writepng_encode_finish())
+		output = PyString_FromStringAndSize(gOutputBuffer, gOutputWriteLength); /* NR */
 
-	output = PyString_FromStringAndSize(gOutputBuffer, gOutputWriteLength); /* NR */
 	free(gOutputBuffer);
 	gOutputBuffer = NULL;
 
@@ -231,29 +217,33 @@ mod_png_fini(PyObject *self)
 static PyObject *
 mod_png_write_row(PyObject *self, PyObject *args)
 {
-	void *row_pointer;
+	char *row_pointer;
+	int length;
 
 	if (!gOutputBuffer)
 		return PyErr_Format(PyExc_SystemError, "PNG saver not initialized yet");
 
-	if (!PyArg_ParseTuple(args, "s!", &row_pointer))
+	if (!gOutputRowIndex >= gOutputRowIndexMax)
+		return PyErr_Format(PyExc_SystemError, "max row count reached, please call png_fini");
+
+	if (!PyArg_ParseTuple(args, "t#", &row_pointer, &length))
         return NULL;
 
 	if (setjmp(gPNG_JmpBuf)) {
-		writepng_cleanup();
 		free(gOutputBuffer);
 		gOutputBuffer = NULL;
-		return PyErr_Format(PyExc_SystemError, "PNG saver failed");
+		return NULL;
 	}
 
 	png_write_row(gPNG_png_ptr, row_pointer);
-	Py_RETURN_NONE;
+	return PyInt_FromLong(gOutputRowIndex++);
 }
 
 static PyObject *
 mod_save_pixbuf_as_png_buffer(PyObject *self, PyObject *args)
 {
     PyPixbuf *pixbuf;
+	PyObject *output = NULL;
 
 	if (gOutputBuffer)
 		return PyErr_Format(PyExc_SystemError, "PNG saver is busy with a pixbuf");
@@ -271,32 +261,26 @@ mod_save_pixbuf_as_png_buffer(PyObject *self, PyObject *args)
         {
             uint32_t y;
 
+			if (setjmp(gPNG_JmpBuf))
+				goto out;
+
             for (y=0; y < pixbuf->height; y++)
                 png_write_row(gPNG_png_ptr, &pixbuf->data[y*pixbuf->bpr]);
 
-            writepng_encode_finish();
+            if (writepng_encode_finish())
+				goto out;
+
             writepng_cleanup();
-        }
-        else
-        {
-            free(gOutputBuffer);
-			gOutputBuffer = NULL;
-            PyErr_Format(PyExc_SystemError, "PNG init error");
+			output = PyString_FromStringAndSize(gOutputBuffer, gOutputWriteLength); /* NR */
         }
     }
     else
-        return PyErr_Format(PyExc_IOError, "Can't allocate the output string");
+        PyErr_Format(PyExc_MemoryError, "Can't allocate the output string");
 
-    if (gOutputBuffer)
-    {
-        PyObject *output = PyString_FromStringAndSize(gOutputBuffer, gOutputWriteLength); /* NR */
-
-        free(gOutputBuffer);
-		gOutputBuffer = NULL;
-        return output;
-    }
-
-    return NULL;
+out:
+	free(gOutputBuffer);
+	gOutputBuffer = NULL;
+	return output;
 }
 
 static PyMethodDef methods[] = {

@@ -28,16 +28,18 @@ The surface module gives API to create different types of surfaces and convert
 pixels data between them.
 
 Surface: composite object representing a 2D pixels array.
-Each pixel are represented by one or more channels, a number (integer or float).
-All these pixels are grouped under a pixel buffer. Surface is a proxy to manipulate
-this buffer because this one may have different access model: plain, tileable, bound
-or not, etc.
+Each pixel are represented by one or more channels,
+a number (integer or float).
+All these pixels are grouped under a pixel buffer. Surface is a proxy
+to manipulate this buffer because this one may have different access model:
+plain, tileable, bound or not, etc.
 
-Surfaces are responsible to know how pixels are stored in memory and manage them.
+Surfaces are responsible to know how pixels are stored in memory
+and manage them.
 Surface class hides this memory mapping to higher levels.
 
-The surface class brings methods to access to one pixel or a rectangular region,
-in order to get/set pixel channel values.
+The surface class brings methods to access to one pixel or a rectangular
+region, in order to get/set pixel channel values.
 It gives also method to manipulate channels as sub-planes of the pixel surface.
 
 Channel: logical view of one component of a 2D pixels array surface.
@@ -53,9 +55,11 @@ import _tilemgr
 
 from utils import virtualmethod
 
-__all__ = [ 'Surface', 'UnboundedTiledSurface', 'BoundedPlainSurface', 'TILE_SIZE' ]
+__all__ = ['Surface', 'UnboundedTiledSurface', 'BoundedPlainSurface',
+           'TILE_SIZE']
 
 TILE_SIZE = 64
+
 
 class TileSurfaceSnapshot(dict):
     # These values are set in order to dirty_area returns 0 sized area
@@ -64,18 +68,21 @@ class TileSurfaceSnapshot(dict):
     def __init__(self, tiles, area=None):
         # Fast tiles copy
         dict.__init__(self, tiles)
-        self._mod = {} # will contains added tiles after reduce()
+        self._mod = {}  # will contains added tiles after reduce()
         self.area = area
 
         # mark all tiles as readonly:
-        # any modifications will replace this tiles by new ones with ro set to False
+        # any modifications will replace this tiles by new ones
+        # with ro set to False
         for tile in tiles.itervalues():
             tile.ro = True
 
     def reduce(self, surface):
-        "Split modified and unmodified tiles by make a difference with the given surface content"
+        "Split modified and unmodified tiles by make a difference with
+        the given surface content"
 
-        # Set dirty area to invalid values (but usefull with min/max computations)
+        # Set dirty area to invalid values
+        # (but usefull with min/max computations)
         xmin = ymin = sys.maxint
         xmax = ymax = -sys.maxint - 1
 
@@ -88,16 +95,20 @@ class TileSurfaceSnapshot(dict):
                 self._mod[pos] = tile
 
                 x = tile.x
-                if xmin > x: xmin = x
+                if xmin > x:
+                    xmin = x
 
                 x += tile.width
-                if xmax < x: xmax = x
+                if xmax < x:
+                    xmax = x
 
                 y = tile.y
-                if ymin > y: ymin = y
+                if ymin > y:
+                    ymin = y
 
                 y += tile.height
-                if ymax < y: ymax = y
+                if ymax < y:
+                    ymax = y
             else:
                 del self[pos]
 
@@ -118,7 +129,8 @@ class TileSurfaceSnapshot(dict):
     @property
     def size(self):
         return sum(t.memsize for t in self.itervalues()) + \
-               sum(t.memsize for t in self._mod.itervalues())
+            sum(t.memsize for t in self._mod.itervalues())
+
 
 class Tile(_pixbuf.Pixbuf):
     def __new__(cls, pixfmt, x, y, s, *args):
@@ -138,12 +150,14 @@ class Tile(_pixbuf.Pixbuf):
     def copy(self):
         return self.__class__(self.pixfmt, self.x, self.y, self.width, self)
 
-    def as_cairo_surface(self, cfmt=cairo.FORMAT_ARGB32, pfmt=_pixbuf.FORMAT_ARGB8):
+    def as_cairo_surface(self, cfmt=cairo.FORMAT_ARGB32,
+                         pfmt=_pixbuf.FORMAT_ARGB8):
         s = cairo.ImageSurface(cfmt, *self.size)
-        assert 0 # need a row blit
+        assert 0  # need a row blit
         #self.blit(pfmt, s.get_data(), s.get_stride(), *self.size)
         s.mark_dirty()
         return s
+
 
 class Surface(object):
     def __init__(self, pixfmt, writeprotect=False):
@@ -198,6 +212,7 @@ class Surface(object):
         "Return the pixel buffer at given location"
         pass
 
+
 class BoundedPlainSurface(Surface):
     """BoundedPlainSurface class.
 
@@ -234,6 +249,7 @@ class BoundedPlainSurface(Surface):
         Values are given in the surface units.
         """
         return self.__buf.size
+
 
 class UnboundedTiledSurface(Surface):
     def __init__(self, pixfmt):
@@ -273,21 +289,23 @@ class UnboundedTiledSurface(Surface):
         self.from_buffer(_pixbuf.FORMAT_RGBA8_NOA, *a, **k)
 
     def as_buffer(self, pfmt=_pixbuf.FORMAT_RGBA8):
-        x,y,w,h = self.area
-        if not (w and h): return
+        x, y, w, h = self.area
+        if not (w and h):
+            return
 
         buf = _pixbuf.Pixbuf(pfmt, w, h)
         buf.clear()
 
         def blit(tile):
             tile.blit(buf, tile.x-x, tile.y-y)
-        self.rasterize((x,y,w,h), blit)
+        self.rasterize((x, y, w, h), blit)
 
         return buf
 
     def read_pixel(self, x, y):
         tile = self.__tilemgr.get_tile(x, y, False)
-        if tile: return tile.get_pixel(int(x)-tile.x, int(y)-tile.y)
+        if tile:
+            return tile.get_pixel(int(x)-tile.x, int(y)-tile.y)
 
     def copy(self, surface):
         assert isinstance(surface, UnboundedTiledSurface)
@@ -298,7 +316,8 @@ class UnboundedTiledSurface(Surface):
             dst.set_tile(tile.copy(), tile.x, tile.y)
 
     def cleanup(self):
-        for k in tuple(k for k,v in self.__tilemgr.tiles.iteritems() if v.empty()):
+        for k in tuple(k for k, v in self.__tilemgr.tiles.iteritems()
+                       if v.empty()):
             del self.__tilemgr.tiles[k]
 
     def __iter__(self):
@@ -312,8 +331,8 @@ class UnboundedTiledSurface(Surface):
     def area(self):
         area = self.__tilemgr.bbox
         if area:
-            x,y,w,h = area
-            return x,y,w-x+1,h-y+1
+            x, y, w, h = area
+            return x, y, w-x+1, h-y+1
 
     @property
     def tiles(self):

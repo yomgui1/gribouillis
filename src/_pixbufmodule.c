@@ -1829,7 +1829,7 @@ static PyObject *
 pixbuf_blit(PyPixbuf *self, PyObject *args)
 {
     /* NOTE: This is the most important function in Gribouillis!
-     * This function is called heavy called during all drawing operations.
+     * This function is heavy called during all drawing operations.
      * So most of optimisation efforts must be here!
      */
 

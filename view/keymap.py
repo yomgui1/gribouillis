@@ -60,13 +60,21 @@ class KeymapManager():
         self.use(default)
         self._locals = {}
 
-    def process(self, *fargs):
+    def process(self, *args):
         assert self._km is not None # need a valid keymap
+        self._locals['event'] = args[1]
+        done = self._process(self._km, self._filters, self._locals, args)
+        if not done and self._mapstack:
+            km = KeymapManager.__kmd.get(self._mapstack[-1])
+            if km:
+                done = self._process(km, km.viewkeys(), self._locals, args)
+        return done
 
-        self._locals['event'] = fargs[1]
-        for f in self._filters:
-            if f(*fargs):
-                eval(self._km[f], operator.ope_globals, self._locals)
+    def _process(self, km, filters, locals, args):
+        opl = [ km[f] for f in filters if f(*args) ]
+        for op in opl:
+            eval(op, operator.ope_globals, locals)
+        return bool(opl)
 
     def use(self, name):
         m = KeymapManager.__kmd.get(name, self._km)

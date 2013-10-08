@@ -24,27 +24,9 @@
 ###############################################################################
 
 """
-The surface module gives API to create different types of surfaces and convert
-pixels data between them.
-
-Surface: composite object representing a 2D pixels array.
-Each pixel are represented by one or more channels,
-a number (integer or float).
-All these pixels are grouped under a pixel buffer. Surface is a proxy
-to manipulate this buffer because this one may have different access model:
-plain, tileable, bound or not, etc.
-
-Surfaces are responsible to know how pixels are stored in memory
-and manage them.
-Surface class hides this memory mapping to higher levels.
-
-The surface class brings methods to access to one pixel or a rectangular
-region, in order to get/set pixel channel values.
-It gives also method to manipulate channels as sub-planes of the pixel surface.
-
-Channel: logical view of one component of a 2D pixels array surface.
-
-Pixel: a object to represent one surface's pixel color in the 2D pixels array.
+Surface object handles a group of pixels arranged in two dimensionals space.
+A surface can be bounded as BoundedPlainSurface or unbounded
+as UnboundedTiledSurface.
 """
 
 import sys
@@ -61,6 +43,96 @@ __all__ = ['Surface', 'UnboundedTiledSurface', 'BoundedPlainSurface',
 TILE_SIZE = 64
 
 
+class Surface(object):
+    def __init__(self, pixfmt, writeprotect=False):
+        self.pixfmt = pixfmt
+
+    def _set_pixel(self, buf, pos, v):
+        if isinstance(v, PixelAccessorMixin) and v.format == self.pixfmt:
+            buf.set_from_pixel(pos, v)
+        else:
+            buf.set_from_tuple(pos, v)
+
+    #### Virtual API ####
+    @property
+    @virtualmethod
+    def empty(self):
+        pass
+
+    @property
+    @virtualmethod
+    def bbox(self):
+        "Returns full drawed bbox of the surface as a region."
+        pass
+
+    @virtualmethod
+    def clear(self):
+        pass
+
+    @virtualmethod
+    def copy(self, surface):
+        "Copy contents from another surface"
+        pass
+
+    @virtualmethod
+    def read_pixel(self, pos):
+        pass
+
+    @virtualmethod
+    def rasterize(self, area=None, pixfmt=None):
+        pass
+
+    @virtualmethod
+    def get_pixbuf(self, x, y):
+        "Return the pixel buffer that store the pixel at location (x, y)"
+        pass
+
+
+class BoundedPlainSurface(Surface):
+    """BoundedPlainSurface class.
+
+    Surface subclass handling the whole 2D pixels array as a unique and linerar
+    memory block, bounded in space.
+
+    Reserved to create small but fast rendering surfaces as all pixels data
+    may reside in the user RAM, like preview or picture thumbnails.
+    """
+
+    def __init__(self, pixfmt, width, height):
+        super(BoundedPlainSurface, self).__init__(pixfmt)
+        self.__buf = _pixbuf.Pixbuf(pixfmt, width, height)
+        self.clear = self.__buf.clear
+        self.clear_white = self.__buf.clear_white
+        self.clear_value = self.__buf.clear_value
+        self.clear()
+
+    def rasterize(self, area=None, pixfmt=None):
+        if area:
+            if pixfmt is None:
+                pixfmt = self.__buf.pixfmt
+            dest = _pixbuf.Pixbuf(pixfmt, *area[2:])
+            self.__buf.blit(dest, 0, 0, *area)
+            return dest
+        buf = self.__buf
+        return _pixbuf.Pixbuf(buf.pixfmt, buf.width, buf.height, buf)
+
+    def get_pixbuf(self, x, y):
+        buf = self.__buf
+        if x >= buf.x and y >= buf.y and x < buf.width and y < buf.height:
+            return buf
+
+    def get_rawbuf(self):
+        return self.__buf
+
+    @property
+    def size(self):
+        """Give the total size of the surface as 2-tuple (width, height).
+
+        Values are given in the surface units.
+        """
+        return self.__buf.size
+
+
 class TileSurfaceSnapshot(dict):
     # These values are set in order to dirty_area returns 0 sized area
     dirty_area = (0, 0, 0, 0)
@@ -72,14 +144,13 @@ class TileSurfaceSnapshot(dict):
         self.area = area
 
         # mark all tiles as readonly:
-        # any modifications will replace this tiles by new ones
+        # A modification on a RO tile replaces it by new one
         # with ro set to False
         for tile in tiles.itervalues():
             tile.ro = True
 
     def reduce(self, surface):
-        "Split modified and unmodified tiles by make a difference with
-        the given surface content"
+        "Split modified and unmodified tiles by make a difference with the given surface content"
 
         # Set dirty area to invalid values
         # (but usefull with min/max computations)
@@ -144,111 +215,12 @@ class Tile(_pixbuf.Pixbuf):
         self.y = y
         self.ro = False
 
-    def __hash__(self):
-        return 0
-
     def copy(self):
         return self.__class__(self.pixfmt, self.x, self.y, self.width, self)
 
-    def as_cairo_surface(self, cfmt=cairo.FORMAT_ARGB32,
-                         pfmt=_pixbuf.FORMAT_ARGB8):
-        s = cairo.ImageSurface(cfmt, *self.size)
-        assert 0  # need a row blit
-        #self.blit(pfmt, s.get_data(), s.get_stride(), *self.size)
-        s.mark_dirty()
-        return s
-
-
-class Surface(object):
-    def __init__(self, pixfmt, writeprotect=False):
-        self.pixfmt = pixfmt
-
-    def _set_pixel(self, buf, pos, v):
-        if isinstance(v, PixelAccessorMixin) and v.format == self.pixfmt:
-            buf.set_from_pixel(pos, v)
-        else:
-            buf.set_from_tuple(pos, v)
-
-    #### Virtual API ####
-
-    @virtualmethod
-    def clear(self):
-        pass
-
-    @property
-    @virtualmethod
-    def empty(self):
-        pass
-
-    @virtualmethod
-    def rasterize(self, area, *args):
-        pass
-
-    @virtualmethod
-    def from_buffer(self, pixfmt, data, stride, xoff, yoff, width, height):
-        pass
-
-    @virtualmethod
-    def as_buffer(self, pixfmt, data, stride, xoff, yoff, width, height):
-        pass
-
-    @property
-    @virtualmethod
-    def bbox(self):
-        "Returns full drawed bbox of the surface as a region."
-        pass
-
-    @virtualmethod
-    def read_pixel(self, pos):
-        pass
-
-    @virtualmethod
-    def copy(self, surface):
-        "Copy content from another surface"
-        pass
-
-    @virtualmethod
-    def get_pixbuf(self, x, y):
-        "Return the pixel buffer at given location"
-        pass
-
-
-class BoundedPlainSurface(Surface):
-    """BoundedPlainSurface class.
-
-    Surface subclass handling the whole 2D pixels array as a unique and linerar
-    memory block, bounded in space.
-
-    Reserved to create small but fast rendering surfaces as all pixels data
-    may reside in the user RAM, like preview or picture thumbnails.
-    """
-
-    def __init__(self, pixfmt, width, height):
-        super(BoundedPlainSurface, self).__init__(pixfmt)
-        self.__buf = _pixbuf.Pixbuf(pixfmt, width, height)
-        self.clear = self.__buf.clear
-        self.clear_white = self.__buf.clear_white
-        self.clear_value = self.__buf.clear_value
-        self.clear()
-
-    def rasterize(self, area, *args):
-        args[0](self.__buf, *args[1:])
-
-    def get_pixbuf(self, x, y):
-        buf = self.__buf
-        if x >= buf.x and y >= buf.y and x < buf.width and y < buf.height:
-            return buf
-
-    def get_rawbuf(self):
-        return self.__buf
-
-    @property
-    def size(self):
-        """Give the total size of the surface as 2-tuple (width, height).
-
-        Values are given in the surface units.
-        """
-        return self.__buf.size
+    def relative_blit(self, args):
+        dst, x, y = args
+        self.blit(dst, self.x - x, self.y - y)
 
 
 class UnboundedTiledSurface(Surface):
@@ -256,27 +228,68 @@ class UnboundedTiledSurface(Surface):
         super(UnboundedTiledSurface, self).__init__(pixfmt)
 
         self.__tilemgr = _tilemgr.UnboundedTileManager(Tile, pixfmt, True)
+
+        # Aliases
+        self.get_pixbuf = self.get_tile
         self.from_buffer = self.__tilemgr.from_buffer
         self.get_tiles = self.__tilemgr.get_tiles
-        self.get_pixbuf = self.get_tile
         self.get_row_tile = self.__tilemgr.get_tile
 
-    def clear(self):
-        self.__tilemgr.tiles.clear()
+    ### Surface implementation ###
 
     @property
     def empty(self):
         return not bool(self.__tilemgr.tiles)
 
+    @property
+    def bbox(self):
+        return self.__tilemgr.bbox
+
+    def clear(self):
+        self.__tilemgr.tiles.clear()
+
+    def copy(self, surface):
+        assert isinstance(surface, UnboundedTiledSurface)
+        src = surface.__tilemgr
+        dst = self.__tilemgr
+        dst.tiles.clear()
+        for tile in src.tiles.itervalues():
+            dst.set_tile(tile.copy(), tile.x, tile.y)
+
+    def read_pixel(self, x, y):
+        tile = self.__tilemgr.get_tile(x, y, False)
+        if tile:
+            return tile.get_pixel(int(x) - tile.x, int(y) - tile.y)
+
+    def rasterize(self, area=None, pixfmt=None):
+        if area is None:
+            x, y, w, h = self.area
+        else:
+            x, y, w, h = area
+
+        dst = _pixbuf.Pixbuf((pixfmt if pixfmt is not None else self.__tilemgr.pixfmt), w, h)
+        dst.clear()
+
+        self.foreach(Tile.relative_blit, area, (dst, x, y))
+
+        return dst
+
+    ### Only for UnboundedTiledSurface ###
+
+    def foreach(self, cb, area=None, args=()):
+        """Apply the given callback on tiles in given rect or all tiles.
+
+        'cb' is a callable, called for each tile with args tuple as argument.
+        'area' is a 4-tuple restricting tiles to the overlaping area.
+        'args' are remaining arguments given as a tuple to 'cb' when called.
+        """
+        self.__tilemgr.foreach(cb, area, args)
+
     def snapshot(self):
-        return TileSurfaceSnapshot(self.__tilemgr.tiles,
-                                   self.area)
+        return TileSurfaceSnapshot(self.__tilemgr.tiles, self.area)
 
     def unsnapshot(self, snapshot, *args):
         snapshot.blit(self.__tilemgr.tiles, *args)
-
-    def rasterize(self, area, *args):
-        self.__tilemgr.rasterize(area, args)
 
     def get_tile(self, *pos):
         t = self.__tilemgr.get_tile(*pos)
@@ -288,33 +301,6 @@ class UnboundedTiledSurface(Surface):
     def from_png_buffer(self, *a, **k):
         self.from_buffer(_pixbuf.FORMAT_RGBA8_NOA, *a, **k)
 
-    def as_buffer(self, pfmt=_pixbuf.FORMAT_RGBA8):
-        x, y, w, h = self.area
-        if not (w and h):
-            return
-
-        buf = _pixbuf.Pixbuf(pfmt, w, h)
-        buf.clear()
-
-        def blit(tile):
-            tile.blit(buf, tile.x-x, tile.y-y)
-        self.rasterize((x, y, w, h), blit)
-
-        return buf
-
-    def read_pixel(self, x, y):
-        tile = self.__tilemgr.get_tile(x, y, False)
-        if tile:
-            return tile.get_pixel(int(x)-tile.x, int(y)-tile.y)
-
-    def copy(self, surface):
-        assert isinstance(surface, UnboundedTiledSurface)
-        src = surface.__tilemgr
-        dst = self.__tilemgr
-        dst.tiles.clear()
-        for tile in src.tiles.itervalues():
-            dst.set_tile(tile.copy(), tile.x, tile.y)
-
     def cleanup(self):
         for k in tuple(k for k, v in self.__tilemgr.tiles.iteritems()
                        if v.empty()):
@@ -322,10 +308,6 @@ class UnboundedTiledSurface(Surface):
 
     def __iter__(self):
         return self.__tilemgr.tiles.itervalues()
-
-    @property
-    def bbox(self):
-        return self.__tilemgr.bbox
 
     @property
     def area(self):

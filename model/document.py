@@ -418,17 +418,9 @@ class Document(list):
         h = int(ceil(h)+1) - y + 1
         model_area = x,y,w,h
 
-        # render temporary buffer (sized by the model redraw area)
-        pb = _pixbuf.Pixbuf(fmt, w, h)
-        pb.clear()
-
-        # Blit layer's tiles using over ope mode on the render surface
-        def blit(tile):
-            tile.blit(pb, tile.x - x, tile.y - y)
-
-        layer.surface.rasterize(model_area, blit)
-
-        rsurf = new_surface(pb, cairo.FORMAT_ARGB32, w, h)
+        # rasterize the layer as a Cairo surface
+        rsurf = new_surface(layer.surface.rasterize(model_area, fmt),
+                            cairo.FORMAT_ARGB32, w, h)
 
         # Now paint the render surface on the model surface
         cr.set_source_surface(rsurf, x, y)

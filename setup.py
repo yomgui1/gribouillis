@@ -60,4 +60,8 @@ setup(name='Gribouillis',
                                 define_macros=defines,
                                 extra_compile_args=opt,
                                 extra_link_args=link_opt),
+                      Extension('model/_cutils', [ 'src/_cutilsmodule.c' ],
+                                define_macros=defines,
+                                extra_compile_args=opt,
+                                extra_link_args=link_opt),
                       ] + ext_extra)

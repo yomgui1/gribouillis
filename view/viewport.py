@@ -31,8 +31,8 @@ from math import floor, ceil
 import main
 
 from model import _pixbuf, prefs
+from model._cutils import transform_area
 from utils import virtualmethod, resolve_path
-
 
 def get_imat(m):
     m = cairo.Matrix(*m)
@@ -126,37 +126,14 @@ class ViewPort(object):
     def get_view_point_pos(self, pos):
         return self.get_view_point(*pos)
 
-    def get_view_area(self, x, y, w, h):
+    def get_view_area(self, *area):
         """Transform a given area from model to view coordinates.
         This function uses the full matrix coefficients.
 
         WARNING: returns integer area values, not clipped
         on viewport bounds (possible negative values!).
         """
-
-        # Get position of the second point
-        w += x - 1
-        h += y - 1
-
-        # 2 points are enough for scaling and translation only matrix
-        c = [self.get_view_point(x, y), self.get_view_point(w, h)]
-
-        # but in case of rotation we need to check the four corners
-        if self._rot_mat:
-            c.append(self.get_view_point(w, y))
-            c.append(self.get_view_point(x, h))
-
-        lx = sorted(x for x, y in c)
-        ly = sorted(y for x, y in c)
-
-        x = int(floor(lx[0]))
-        y = int(floor(ly[0]))
-        w = int(ceil(lx[-1])) - x + 1
-        h = int(ceil(ly[-1])) - y + 1
-
-        # due to mathematical operations just used
-        # w and h are always positive numbers.
-        return x, y, w, h
+        return transform_area(self.get_view_point, *area)
 
     # scroll, scale_up, scale_down, set_scale, rotate and all reset methods
     # don't call update_matrix! This method shall be called by user

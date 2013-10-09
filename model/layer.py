@@ -26,9 +26,11 @@
 import cairo
 import random
 from math import floor, ceil
+from operator import itemgetter
 
 from model.surface import *
 from model import _pixbuf
+from model._cutils import transform_area, transform_bbox
 from utils import virtualmethod
 
 __all__ = [ 'Layer', 'PlainLayer', 'TiledLayer' ]
@@ -132,27 +134,11 @@ class Layer(object):
     def get_bbox(self):
         bbox = self._surface.bbox
         if bbox:
-            x1, y1, x2, y2 = bbox
-            ope = self._matrix.transform_point
+            return transform_bbox(self._matrix.transform_point, *bbox)
 
-            c = [ ope(x1,y1), ope(x2,y2), ope(x1, y2), ope(x2, y1) ]
-            lx = sorted(x for x,y in c)
-            ly = sorted(y for x,y in c)
-
-            return int(floor(lx[0])), int(floor(ly[0])), int(ceil(lx[-1])), int(ceil(ly[-1]))
-
-    def document_area(self, x, y, w, h):
-        w += x - 1
-        h += y - 1
-        ope = self._matrix.transform_point
-
-        c = [ ope(x, y), ope(w, h), ope(x, h), ope(w, y) ]
-        lx = sorted(x for x,y in c)
-        ly = sorted(y for x,y in c)
-
-        x = int(floor(lx[0]))
-        y = int(floor(ly[0]))
-        return x, y, int(ceil(lx[-1])) - x + 1, int(ceil(ly[-1])) - y + 1
+    def document_area(self, *area):
+        "Transpose an area given into layer's coordinates into document's coordinates"
+        return transform_area(self._matrix.transform_point, *area)
 
     def get_size(self):
         area = self.get_bbox()
@@ -196,10 +182,12 @@ class Layer(object):
     name = property(fget=lambda self: self._name, fset=_set_name)
     visible = property(fget=lambda self: self._visible, fset=_set_visible)
 
+
 class PlainLayer(Layer):
     def __init__(self, pixfmt, name, **options):
         surface = None # TODO
         super(PlainLayer, self).__init__(surface, name, **options)
+
 
 class TiledLayer(Layer):
     def __init__(self, pixfmt, name, **options):
@@ -253,24 +241,12 @@ class TiledLayer(Layer):
 
         for tile in self.surface:
             # change tile boundary from its layer origin into global origin
-            x1 = tile.x
-            y1 = tile.y
-            x2 = x1 + tile.width - 1
-            y2 = y1 + tile.height - 1
-            c = [ ope(x1, y1), ope(x2, y2), ope(x1, y2), ope(x2, y1) ]
-            lx = sorted(x for x,y in c)
-            ly = sorted(y for x,y in c)
-            del c, x2, y2
-            x1 = int(floor(lx[0]))
-            y1 = int(floor(ly[0]))
-            w = int(ceil(lx[-1])) - x1 + 1
-            h = int(ceil(ly[-1])) - y1 + 1
-            del lx, ly
+            x, y, w, h = transform_area(ope, tile.x, tile.y, tile.width, tile.height)
 
             # Create a cairo surface for the transformed source tile
             pb_trans = _pixbuf.Pixbuf(tile.pixfmt, w, h)
-            pb_trans.x = x1
-            pb_trans.y = y1
+            pb_trans.x = x
+            pb_trans.y = y
 
             # do the affine transformation
             tile.slow_transform_affine(self.surface.get_row_tile, pb_trans, *inv_matrix)
@@ -286,12 +262,12 @@ class TiledLayer(Layer):
             # Surface for cairo compositing
             src_surf = cairo.ImageSurface.create_for_data(rpb, cairo.FORMAT_ARGB32, w, h)
 
-            for dst_tile in dst.surface.get_tiles([ x1, y1, w, h ], True):
+            for dst_tile in dst.surface.get_tiles([ x, y, w, h ], True):
                 # Make a copy of destination tile
                 dst_tile.blit(rsurf_pb)
 
                 # Blit the transformed source now with its opacity and layer compositing operation.
-                cr.set_source_surface(src_surf, x1-dst_tile.x, y1-dst_tile.y)
+                cr.set_source_surface(src_surf, x - dst_tile.x, y - dst_tile.y)
                 cr.set_operator(operator)
                 cr.paint_with_alpha(src_opa)
 

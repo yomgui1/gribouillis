@@ -76,6 +76,14 @@ OTHER DEALINGS IN THE SOFTWARE.
             typeof(max) _max = (max);                           \
             (_v < _min) ? _min : ((_v > _max) ? _max : _v); })
 
+#define BETWEEN(v, min, max) ({									\
+            typeof(v) _v = (v);                                 \
+            typeof(min) _min = (min);                           \
+            typeof(max) _max = (max);                           \
+            _v >= _min && _v <= _max; })
+
+#define CLEAR(v) memset(v, 0, sizeof(v))
+
 /* T_BOOL is present after >= 2.6 */
 #ifndef T_BOOL
 #define T_BOOL T_BYTE

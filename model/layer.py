@@ -249,7 +249,7 @@ class TiledLayer(Layer):
             pb_trans.y = y
 
             # do the affine transformation
-            tile.slow_transform_affine(self.surface.get_row_tile, pb_trans, *inv_matrix)
+            tile.slow_transform_affine(self.surface.get_row_tile, pb_trans, inv_matrix)
 
             # convert buffers to cairo buffer and use cairo to do compositing (operators needed!)
             # TODO: replace this code by an internal compositor when operators/opacity are supported!

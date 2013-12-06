@@ -165,7 +165,7 @@ class DocWindow(gtk.Window):
 
                 ('quit', gtk.STOCK_QUIT, _T('Quit!'),
                  None, None,
-                 lambda *a: operator.execute("quit_request")),
+                 lambda *a: operator.execute('quit_request')),
 
                 ('cmd-undo', gtk.STOCK_UNDO, _T('Undo last command'),
                  '<Control>z', None,

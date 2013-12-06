@@ -52,7 +52,8 @@ from .layer import TiledLayer
 from .brush import DrawableBrush
 from .openraster import OpenRasterFileWriter, OpenRasterFileReader
 
-from utils import _T, join_area
+from model.surface import UnboundedTiledSurface
+from utils import _T
 
 __all__ = [ 'Document' ]
 
@@ -352,31 +353,13 @@ class Document(list):
 
     ### Rendering API ###
 
-    def rasterize(self, cr, dst, filter=cairo.FILTER_BEST, layers=None, all=False, back=True):
-        """Rasterize document on given cairo context.
+    def rasterize_to_surface(self, surface, clip, m2s_mat, layers=None, force=False, back=True):
+        # Start to paint each layers, bottom-top order.
+        for layer in self:
+            if layer.visible and not force:
+                layer.rasterize_to_surface(surface, clip, m2s_mat)
 
-        The context must have its matrix and clip set before calling this function.
-        Note: the clip must be set before setting the viewing matrix.
-        """
-
-        # Paint visible layers on the transparent raster
-        if layers:
-            if all:
-                for layer in layers:
-                    self.rasterize_layer(layer, cr, dst, filter)
-            else:
-                for layer in layers:
-                    if layer.visible:
-                        self.rasterize_layer(layer, cr, dst, filter)
-        else:
-            if all:
-                for layer in self:
-                    self.rasterize_layer(layer, cr, dst, filter, layer.OPERATORS[layer.operator])
-            else:
-                for layer in self:
-                    if layer.visible:
-                        self.rasterize_layer(layer, cr, dst, filter, layer.OPERATORS[layer.operator])
-
+    def _1():
         # Finish by rendering the background
         if back and self.__fill:
             cr.identity_matrix()
@@ -386,49 +369,6 @@ class Document(list):
             else:
                 cr.set_source_rgb(*self.__fill)
             cr.paint()
-
-    def rasterize_layer(self, layer, cr, dst, filter, ope=cairo.OPERATOR_OVER,
-            fmt=_pixbuf.FORMAT_ARGB8, new_surface = cairo.ImageSurface.create_for_data):
-        # FORMAT_ARGB8 => cairo uses alpha-premul pixels buffers
-
-        clip = layer.area
-        if clip is None:
-            return
-
-        cr.save()
-
-        # XXX: pycairo < 1.8.8 has inverted matrix multiply operation
-        # when done using '*' operator.
-        # So I use the multiply method here.
-        cr.transform(layer.matrix)
-
-        # Reduce again the clipping area to the layer area
-        cr.rectangle(*clip)
-        cr.clip()
-
-        x,y,w,h = cr.clip_extents()
-        #if x == w or y == h:
-        #    return
-
-        # Convert to integer and add an extra border pixel
-        # due to the cairo filtering.
-        x = int(floor(x)-1)
-        y = int(floor(y)-1)
-        w = int(ceil(w)+1) - x + 1
-        h = int(ceil(h)+1) - y + 1
-        model_area = x,y,w,h
-
-        # rasterize the layer as a Cairo surface
-        rsurf = new_surface(layer.surface.rasterize(model_area, fmt),
-                            cairo.FORMAT_ARGB32, w, h)
-
-        # Now paint the render surface on the model surface
-        cr.set_source_surface(rsurf, x, y)
-        cr.get_source().set_filter(filter)
-        cr.set_operator(ope)
-        cr.paint_with_alpha(layer.opacity)
-
-        cr.restore()
 
     def as_cairo_surface(self, layers=None, all=False, **kwds):
         rect = self.get_bbox(layers, all)

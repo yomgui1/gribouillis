@@ -64,7 +64,7 @@ from .brusheditor import BrushEditorWindow
 Application = app.Application
 
 ctx.application = None # ApplicationMediator
-ctx.active_viewport = None
+ctx.active_viewport = None # Viewport
 ctx.viewports = set() # DocViewportMediator
 ctx.brush = None # BrushHouseWindowMediator
 ctx.keymgr = KeymapManager('Application')
@@ -347,7 +347,7 @@ class BrushHouseWindowMediator(GenericMediator):
 
         # default brush
         # FIXME: first one, must be also given by model
-        component.active_brush = l[0]
+        self._on_use_brush(l[0])
 
     # UI events handlers
     def _on_brush_selected(self, brush):

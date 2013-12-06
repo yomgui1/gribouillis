@@ -68,7 +68,8 @@ static void device_to_tile(int *x, int *y, int w)
 	*y = floorf(ty / w);
 }
 
-static int get_tile(PyUnboundedTileMgr *self, int tx, int ty, int create, PyObject **tile, PyObject **key)
+static int get_tile(PyUnboundedTileMgr *self, int tx, int ty, int create,
+					PyObject **tile, PyObject **key)
 {
 	*key = PyTuple_New(2); /* NR */
 	if (NULL == *key)
@@ -173,15 +174,17 @@ ubtilemgr_new(PyTypeObject *type, PyObject *args)
 	PyUnboundedTileMgr *self;
 	int pixfmt;
 	int writable;
+	int size;
 	PyObject *tile_class;
 
-	if (!PyArg_ParseTuple(args, "OII:UnboundedTileManager", &tile_class, &pixfmt, &writable)) /* BR */
+	if (!PyArg_ParseTuple(args, "OIII:UnboundedTileManager", &tile_class,
+						  &pixfmt, &writable, &size)) /* BR */
 		return NULL;
 
 	self = (PyUnboundedTileMgr*)type->tp_alloc(type, 0); /* NR */
 	if (NULL != self)
 	{
-		self->tile_size = TILE_DEFAULT_SIZE;
+		self->tile_size = size;
 		self->pixfmt = pixfmt;
 		self->flags = 0;
 
@@ -377,10 +380,12 @@ static PyObject *
 ubtilemgr_foreach(PyUnboundedTileMgr *self, PyObject *args)
 {
 	int txmin, txmax, tymin, tymax, tx, ty;
+	char create = FALSE;
 	PyObject *foreach_tile_cb, *area, *options;
 	PyObject *ret = NULL;
 
-	if (!PyArg_ParseTuple(args, "OOO!", &foreach_tile_cb, &area, &PyTuple_Type, &options))
+	if (!PyArg_ParseTuple(args, "OOO!|B", &foreach_tile_cb,
+						  &area, &PyTuple_Type, &options, &create))
 		return NULL;
 
 	if (area != Py_None) {
@@ -403,7 +408,7 @@ ubtilemgr_foreach(PyUnboundedTileMgr *self, PyObject *args)
 		{
 			PyObject *result, *tile, *key;
 
-			if (get_tile(self, tx, ty, FALSE, &tile, &key)) /* NR */
+			if (get_tile(self, tx, ty, create, &tile, &key)) /* NR */
 				goto bye;
 
 			Py_DECREF(key);
@@ -513,7 +518,7 @@ static struct PyMethodDef ubtilemgr_methods[] = {
 };
 
 static PyMemberDef ubtilemgr_members[] = {
-	{"pixfmt", T_ULONG, offsetof(PyUnboundedTileMgr, pixfmt), RO, NULL},
+	{"pixfmt", T_UINT, offsetof(PyUnboundedTileMgr, pixfmt), RO, NULL},
 	{"tiles", T_OBJECT, offsetof(PyUnboundedTileMgr, tiles), RO, NULL},
 	{"tile_size", T_UINT, offsetof(PyUnboundedTileMgr, tile_size), RO, NULL},
 	{NULL} /* sentinel */
@@ -552,6 +557,7 @@ static PyMethodDef methods[] = {
 
 static int add_constants(PyObject *m)
 {
+	INSI(m, "TILE_DEFAULT_SIZE", TILE_DEFAULT_SIZE);
 	return 0;
 }
 

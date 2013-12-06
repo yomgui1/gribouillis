@@ -28,6 +28,12 @@ OTHER DEALINGS IN THE SOFTWARE.
 #include "common.h"
 #include "_pixbufmodule.h"
 
+#ifdef HAVE_GDK
+#define GLIB_VERSION_MIN_REQUIRED GLIB_VERSION_2_36
+#include <pygtk-2.0/pygobject.h>
+#include <gdk-pixbuf/gdk-pixbuf.h>
+#endif
+
 #ifdef WITH_ALTIVEC
 #include "altivec.h"
 #endif
@@ -56,6 +62,7 @@ typedef struct PA_InitValue
 typedef void (*blitfunc)(void* src, void *dst,
                          uint32_t width, uint32_t height,
                          Py_ssize_t src_stride, Py_ssize_t dst_stride);
+typedef void (*blendfunc)(int count, uint16_t *dst, uint16_t *bg, uint16_t *fg);
 
 static void rgb8_writepixel(void *, float, float, unsigned short *);
 static void argb8_writepixel(void *, float, float, uint16_t *);
@@ -1486,7 +1493,11 @@ get_pixel_color(PyObject *get_tile_cb, const int x, const int y,
         if (!tile)
             return -1;
 
-		if ((PyObject *)tile == Py_None)
+		if ((PyObject *)tile != Py_None)
+		{
+			Py_XDECREF(g_cache_pb);
+			g_cache_pb = tile;
+		} else
 			Py_CLEAR(tile);
     }
 
@@ -1494,8 +1505,6 @@ get_pixel_color(PyObject *get_tile_cb, const int x, const int y,
     {
         void *src_data = tile->data + (y - tile->y) * tile->bpr + (x - tile->x) * tile->bpp;
         tile->readpixel(src_data, color);
-		Py_XDECREF(g_cache_pb);
-        g_cache_pb = tile;
     }
     else
 		CLEAR(color);
@@ -1507,16 +1516,18 @@ get_pixel_color(PyObject *get_tile_cb, const int x, const int y,
 
 static int
 pixel_sampling_direct(PyObject *get_tile_cb, const int ix, const int iy,
-					  uint16_t color[MAX_CHANNELS], const double coeffs[6])
+					  uint16_t color[MAX_CHANNELS], const float coeffs[6])
 {
-	const double ox = trunc(ix * coeffs[0] + iy * coeffs[1] + coeffs[2]);
-	const double oy = trunc(ix * coeffs[3] + iy * coeffs[4] + coeffs[5]);
+	const float ixf = ix + 0.5;
+	const float iyf = iy + 0.5;
+	const float ox = floorf(ixf * coeffs[0] + iyf * coeffs[1] + coeffs[2]);
+	const float oy = floorf(ixf * coeffs[3] + iyf * coeffs[4] + coeffs[5]);
 	return get_pixel_color(get_tile_cb, (int)ox, (int)oy, color);
 }
 
 static int
 pixel_sampling_bilinear(PyObject *get_tile_cb, const int ix, const int iy,
-						uint16_t color[MAX_CHANNELS], const double coeffs[6],
+						uint16_t color[MAX_CHANNELS], const float coeffs[6],
 						int channels)
 {
 	uint16_t c0[MAX_CHANNELS];
@@ -1560,22 +1571,82 @@ pixel_sampling_bilinear(PyObject *get_tile_cb, const int ix, const int iy,
 	/* Bilinear interpolation on each channel */
 	int i;
 	for (i=0; i < channels; i++) {
-		color[i]  = (double)c0[i] / (1<<15) * f0;
-		color[i] += (double)c1[i] / (1<<15) * f1;
-		color[i] += (double)c2[i] / (1<<15) * f2;
-		color[i] += (double)c3[i] / (1<<15) * f3;
-		color[i] /= 1<<15;
+		color[i]  = (double)c0[i] * f0;
+		color[i] += (double)c1[i] * f1;
+		color[i] += (double)c2[i] * f2;
+		color[i] += (double)c3[i] * f3;
 	}
 
 	return 0;
 }
+
+static int
+pixel_sampling_bresenham_redux(PyObject *get_tile_cb, const int ix, const int iy,
+							   uint16_t color[MAX_CHANNELS], const float coeffs[4],
+							   int channels)
+{
+	uint16_t c0[MAX_CHANNELS];
+	uint16_t c1[MAX_CHANNELS];
+	uint16_t c2[MAX_CHANNELS];
+	uint16_t c3[MAX_CHANNELS];
+
+	const float ox = (ix + .5f) * coeffs[0] + coeffs[2];
+	const float oy = (iy + .5f) * coeffs[1] + coeffs[3];
+
+	const int x_lo = floorf(ox);
+	const int x_hi = ceilf(ox);
+	const int y_lo = floorf(oy);
+	const int y_hi = ceilf(oy);
+
+	/* Read four pixels for interpolations */
+	if (get_pixel_color(get_tile_cb, x_lo, y_lo, c0))
+		return -1;
+
+	if (get_pixel_color(get_tile_cb, x_hi, y_lo, c1))
+		return -1;
+
+	if (get_pixel_color(get_tile_cb, x_hi, y_hi, c2))
+		return -1;
+
+	if (get_pixel_color(get_tile_cb, x_lo, y_hi, c3))
+		return -1;
+
+	/* Compute interpolation factors */
+	const double fx = ox - trunc(ox);
+	const double fy = oy - trunc(oy);
+	const double f0 = (1. - fx) * (1. - fy);
+	const double f1 =       fx  * (1. - fy);
+	const double f2 =       fx  *       fy ;
+	const double f3 = (1. - fx) *       fy ;
+
+	/* Bilinear interpolation on each channel */
+	int i;
+	for (i=0; i < channels; i++) {
+		color[i]  = (double)c0[i] * f0;
+		color[i] += (double)c1[i] * f1;
+		color[i] += (double)c2[i] * f2;
+		color[i] += (double)c3[i] * f3;
+	}
+
+	return 0;
+}
+
+/********* Blending *************************************/
+
+static void
+blend_fg(int count, uint16_t *dc, uint16_t *fg, uint16_t *bg)
+{ memcpy(dc, fg, count * sizeof(uint16_t)); }
+
+static void
+blend_bg(int count, uint16_t *dc, uint16_t *fg, uint16_t *bg)
+{ memcpy(dc, bg, count * sizeof(uint16_t)); }
 
 /*******************************************************************************************
 ** PyPixbuf_Type
 */
 
 static int
-initialize_pixbuf(PyPixbuf *self, int width, int height, int pixfmt, PyPixbuf *src)
+initialize_pixbuf(PyPixbuf *self, int width, int height, int pixfmt, PyPixbuf *src, void *data)
 {
     const PA_InitValue *init_values = get_init_values(pixfmt);
 
@@ -1596,18 +1667,23 @@ initialize_pixbuf(PyPixbuf *self, int width, int height, int pixfmt, PyPixbuf *s
 	self->bpp = init_values->bpp;
     self->bpr = width * self->bpp;
 
-    self->data_alloc = AllocVecTaskPooled((self->bpr*height)+15);
-    if (!self->data_alloc)
-    {
-        PyErr_NoMemory();
-        return 1;
-    }
+	if (!data) {
+		self->data_alloc = AllocVecTaskPooled((self->bpr*height)+15);
+		if (!self->data_alloc)
+		{
+			PyErr_NoMemory();
+			return 1;
+		}
 
-    /* 16-bytes alignment */
-    self->data = (void*)((((unsigned long)self->data_alloc)+15) & ~15);
+		/* 16-bytes alignment */
+		self->data = (void*)((((unsigned long)self->data_alloc)+15) & ~15);
 
-    if (NULL != src)
-        memcpy(self->data, src->data, self->bpr * height);
+		if (NULL != src)
+			memcpy(self->data, src->data, self->bpr * height);
+	} else {
+		self->data_alloc = NULL;
+		self->data = data;
+	}
 
     self->damaged = FALSE;
     self->x = self->y = 0;
@@ -1641,7 +1717,7 @@ pixbuf_new(PyTypeObject *type, PyObject *args)
     self = (PyPixbuf *)type->tp_alloc(type, 0); /* NR */
     if (NULL != self)
     {
-        if (initialize_pixbuf(self, w, h, pixfmt, src))
+        if (initialize_pixbuf(self, w, h, pixfmt, src, NULL))
             Py_CLEAR(self);
     }
 
@@ -1931,9 +2007,10 @@ pixbuf_blit(PyPixbuf *self, PyObject *args)
     if (clip_area(self, dst_pixbuf, &dxoff, &dyoff, &sxoff, &syoff, &width, &height))
         Py_RETURN_NONE;
 
-    dst_pix_size = dst_pixbuf->bpp;
+    dst_pix_size = get_pixel_size(dst_pixbuf->pixfmt); //dst_pixbuf->bpp;
+	int toto = get_pixel_size(self->pixfmt);
 
-    src_data = self->data + syoff * self->bpr + sxoff * self->bpp;
+    src_data = self->data + syoff * self->bpr + sxoff * toto;
     if (src_data < (void *)self->data || src_data >= (void *)(self->data + self->height * self->bpr))
     {
         printf("PixBuf buf: buffer overflow on src_data, off = (%d, %d)\n", sxoff, syoff);
@@ -2266,7 +2343,6 @@ pixbuf_scroll(PyPixbuf *self, PyObject *args)
 
     pixel_size = self->bpp;
 
-
     if (dx >= 0)
     {
         ptr_dst += dx * pixel_size;
@@ -2286,7 +2362,7 @@ pixbuf_scroll(PyPixbuf *self, PyObject *args)
         ptr_src += (y-dy)*self->bpr;
         ptr_dst += y*self->bpr;
 
-        for (; y; y--, ptr_src -= self->bpr, ptr_dst -= self->bpr)
+        for (; y >= dy; y--, ptr_src -= self->bpr, ptr_dst -= self->bpr)
             memcpy(ptr_dst, ptr_src, size);
     }
     else if (dy < 0)
@@ -2311,14 +2387,14 @@ static PyObject *
 pixbuf_slow_transform_affine(PyPixbuf *self, PyObject *args)
 {
 	PyObject *ret = NULL;
-    double coeffs[6]; /* Affine matrix coefficients */
+    float coeffs[6]; /* Affine matrix coefficients */
     PyObject *get_tile_cb; /* Python callable that gives the pixbuf container object of a given point */
     PyPixbuf *pb_dst; /* pixbuf destination */
     unsigned char ss=PB_SS_NONE; /* sub-sampling pixels? */
     void *dst_row_ptr;
 	int ix, iy;
 
-    if (!PyArg_ParseTuple(args, "OO!(dddddd)|B", &get_tile_cb, &PyPixbuf_Type,
+    if (!PyArg_ParseTuple(args, "OO!(ffffff)|B", &get_tile_cb, &PyPixbuf_Type,
 						  &pb_dst, &coeffs[0], &coeffs[3], &coeffs[1],
 						  &coeffs[4], &coeffs[2], &coeffs[5], &ss))
         return NULL;
@@ -2361,6 +2437,151 @@ clear_cache:
 	return ret;
 }
 
+static PyObject *
+pixbuf_blend(PyPixbuf *self, PyObject *args)
+{
+	PyObject *get_tile_cb;
+	float coeffs[4];
+	float opacity;
+    unsigned int subsampling, mipmap_level=0;
+
+    if (!PyArg_ParseTuple(args, "OIfffff|I", &get_tile_cb, &subsampling, &opacity,
+						  &coeffs[0], &coeffs[1], &coeffs[2], &coeffs[3], &mipmap_level))
+        return NULL;
+
+	assert(self->pixfmt == pb_fg->pixfmt);
+
+	const blendfunc blendfunc = blend_fg;
+	const int n_chan = self->nc;
+	void *dst_row_ptr = self->data;
+	uint16_t fg_color[MAX_CHANNELS];
+	uint16_t dst_color[MAX_CHANNELS];
+	uint32_t iopa = opacity * (1<<15);
+
+	const int x_max = self->x + self->width;
+	const int y_max = self->y + self->height;
+
+    /* row-col scanline on self (i.e. destination) */
+	if (subsampling == PB_SS_NONE)
+	{
+		const float ox0 = (self->x + .5f) * coeffs[0] + coeffs[2];
+		const float oy0 = (self->y + .5f) * coeffs[1] + coeffs[3];
+		const float dox = coeffs[0];
+		const float doy = coeffs[1];
+
+		float oy = oy0;
+		int iy = self->y;
+
+		while (iy < y_max)
+		{
+			const int ioy = floorf(oy);
+			char *dst_data = dst_row_ptr;
+			float ox = ox0;
+			int ix = self->x;
+
+			while (ix < x_max)
+			{
+				int iox = floorf(ox);
+
+				PyPixbuf *src_pb = (PyPixbuf *)PyObject_CallFunction(get_tile_cb, "iii", iox, ioy, 0); /* NR */
+				if (!src_pb)
+					return NULL;
+
+				if ((PyObject *)src_pb != Py_None)
+				{
+					const int iox_max = src_pb->x + src_pb->width;
+					void *src_data = src_pb->data + (ioy - src_pb->y) * src_pb->bpr - src_pb->x * src_pb->bpp;
+
+					while (ix < x_max && iox < iox_max)
+					{
+						src_pb->readpixel(src_data + iox * src_pb->bpp, fg_color);
+
+						/* fully transparent? */
+						if (fg_color[3]) {
+							self->readpixel(dst_data, dst_color);
+
+							//blendfunc(n_chan, dst_color, fg_color, dst_color);
+							const uint32_t fg_a = (fg_color[3] * iopa) / (1<<15);
+							const uint32_t fg_a_1 = (1<<15) - fg_a;
+							dst_color[0] = ((uint32_t)dst_color[0] * fg_a_1) / (1<<15) + fg_color[0];
+							dst_color[1] = ((uint32_t)dst_color[1] * fg_a_1) / (1<<15) + fg_color[1];
+							dst_color[2] = ((uint32_t)dst_color[2] * fg_a_1) / (1<<15) + fg_color[2];
+							dst_color[3] = ((uint32_t)dst_color[3] * fg_a_1) / (1<<15) + fg_a;
+
+							self->write2pixel(dst_data, dst_color);
+						}
+
+						dst_data += self->bpp;
+						ix++;
+						ox += dox;
+						iox = floorf(ox);
+					}
+				}
+				else
+				{
+					dst_data += self->bpp;
+					ix++;
+					ox += dox;
+				}
+
+				Py_DECREF(src_pb);
+			}
+
+			dst_row_ptr += self->bpr;
+			iy++;
+			oy += doy;
+		}
+	}
+	else if (subsampling == PB_SS_BRESENHAM)
+	{
+		int iy;
+		for (iy=self->y; iy < self->y + self->height; iy++)
+		{
+			char *dst_data = dst_row_ptr;
+
+			int ix;
+			for (ix=self->x; ix < self->x + self->width; ix++)
+			{
+				self->readpixel(dst_data, dst_color);
+
+				if (pixel_sampling_bresenham_redux(get_tile_cb, ix, iy, fg_color,
+												   coeffs, n_chan))
+					goto clear_cache;
+
+				//blendfunc(n_chan, dst_color, fg_color, dst_color);
+				const uint32_t fg_a = (fg_color[3] * iopa) / (1<<15);
+				const uint32_t fg_a_1 = (1<<15) - fg_a;
+				dst_color[0] = ((uint32_t)dst_color[0] * fg_a_1) / (1<<15) + fg_color[0];
+				dst_color[1] = ((uint32_t)dst_color[1] * fg_a_1) / (1<<15) + fg_color[1];
+				dst_color[2] = ((uint32_t)dst_color[2] * fg_a_1) / (1<<15) + fg_color[2];
+				dst_color[3] = ((uint32_t)dst_color[3] * fg_a_1) / (1<<15) + fg_a;
+
+				// for debug
+				//dst_color[0] = ((uint32_t)dst_color[0] * (1<<14)) / (1<<15) + (1<<15);
+				//dst_color[1] = ((uint32_t)dst_color[1] * (1<<14)) / (1<<15);
+				//dst_color[2] = ((uint32_t)dst_color[2] * (1<<14)) / (1<<15);
+				//dst_color[3] = ((uint32_t)dst_color[3] * (1<<14)) / (1<<15) + (1<<14);
+
+				self->write2pixel(dst_data, dst_color);
+
+				dst_data += self->bpp;
+			}
+
+			dst_row_ptr += self->bpr;
+		}
+	}
+	else
+	{
+		PyErr_Format(PyExc_ValueError, "unknown sampling value %u",
+					 subsampling);
+		goto clear_cache;
+	}
+
+clear_cache:
+	Py_CLEAR(g_cache_pb);
+	Py_RETURN_NONE;
+}
+
 static struct PyMethodDef pixbuf_methods[] = {
     {"set_pixel", (PyCFunction)pixbuf_set_pixel, METH_VARARGS, NULL},
     {"get_pixel", (PyCFunction)pixbuf_get_pixel, METH_VARARGS, NULL},
@@ -2376,6 +2597,7 @@ static struct PyMethodDef pixbuf_methods[] = {
     {"empty", (PyCFunction)pixbuf_empty, METH_NOARGS, NULL},
     {"scroll", (PyCFunction)pixbuf_scroll, METH_VARARGS, NULL},
     {"slow_transform_affine", (PyCFunction)pixbuf_slow_transform_affine, METH_VARARGS, NULL},
+    {"blend", (PyCFunction)pixbuf_blend, METH_VARARGS, NULL},
 
     {NULL} /* sentinel */
 };
@@ -2453,9 +2675,37 @@ module_format_from_colorspace(PyObject *self, PyObject *args)
     return PyLong_FromUnsignedLong(cs | flags);
 }
 
+#ifdef HAVE_GDK
+static PyObject *
+module_pixbuf_from_gdk_pixbuf(PyObject *self, PyObject *args)
+{
+	PyPixbuf *pb;
+	PyGObject *pygdk_pixbuf;
+	GdkPixbuf *_gdk_pixbuf;
+	int pixfmt;
+
+    if (!PyArg_ParseTuple(args, "OI", &pygdk_pixbuf, &pixfmt))
+        return NULL;
+
+	_gdk_pixbuf = (GdkPixbuf *)pygobject_get(pygdk_pixbuf);
+
+	pb = (PyPixbuf*)PyObject_New(PyPixbuf, &PyPixbuf_Type); /* NR */
+	if (pb && initialize_pixbuf(pb, gdk_pixbuf_get_width(_gdk_pixbuf),
+								gdk_pixbuf_get_height(_gdk_pixbuf),
+								pixfmt, NULL,
+								gdk_pixbuf_get_pixels(_gdk_pixbuf)))
+		Py_CLEAR(pb);
+
+    return (PyObject *)pb;
+}
+#endif
+
 static PyMethodDef methods[] = {
     {"format_from_colorspace", (PyCFunction)module_format_from_colorspace, METH_VARARGS, NULL},
-    {NULL} /* sentinel */
+#ifdef HAVE_GDK
+    {"pixbuf_from_gdk_pixbuf", (PyCFunction)module_pixbuf_from_gdk_pixbuf, METH_VARARGS, NULL},
+#endif
+	{NULL} /* sentinel */
 };
 
 static int add_constants(PyObject *m)
@@ -2475,6 +2725,7 @@ static int add_constants(PyObject *m)
     INSI(m, "FORMAT_RGBA15X", PyPixbuf_PIXFMT_RGBA_15X);
 	INSI(m, "SAMPLING_NONE", PB_SS_NONE);
 	INSI(m, "SAMPLING_BILINEAR", PB_SS_BILINEAR);
+	INSI(m, "SAMPLING_BRESENHAM", PB_SS_BRESENHAM);
 
     return 0;
 }

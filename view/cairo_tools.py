@@ -30,6 +30,7 @@ from math import floor, ceil, radians, pi, atan, hypot, cos, sin, exp, degrees
 import utils
 
 from model import _pixbuf, prefs
+from model._cutils import Area
 
 pi2 = pi*2
 IECODE_LBUTTON = 0x68
@@ -121,7 +122,7 @@ class Cursor:
 class Tool(object):
     _dash1 = ((4, 10), 2)
     _dash2 = ((4, 3), 2)
-    _area = None
+    _area = Area()
     _handlers = []
     added = False
 
@@ -678,9 +679,9 @@ class Handler(object):
         cr.set_source_rgba(*prefs['view-color-handler-ol'])
         cr.stroke()
         d = int((self.radius+1)*2) # take car of antialiasing thinkness
-        self.area = (int(self.x+off[0]-self.radius-1), int(self.y+off[1]-self.radius-1), d, d)
+        self.area = Area(int(self.x+off[0]-self.radius-1), int(self.y+off[1]-self.radius-1), d, d)
         if self._dot:
-            self.area = utils.join_area(self.area, [int(self.x-3), int(self.y-3), 6, 6])
+            self.area.join_in(Area(int(self.x-3), int(self.y-3), 6, 6))
         return self.hitpath
 
     def _draw_square(self, cr, off=(0,0)):
@@ -832,9 +833,9 @@ class LineGuide(Tool):
         # Handlers
         self._cross.draw(cr)
         self._move.draw(cr, off=(16, 16))
-        self._area = utils.join_area(self._cross.area, self._move.area)
+        self._area = self._cross.area.join(self._move.area)
         self._dot.draw(cr, off=(16,16))
-        self._area = utils.join_area(self._area, self._dot.area)
+        self._area.join_in(self._dot.area)
 
     def move_handler(self, hl, *pos):
         delta = hl.get_rel(*pos)

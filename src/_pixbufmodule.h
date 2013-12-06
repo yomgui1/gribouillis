@@ -87,6 +87,7 @@ static PyTypeObject PyPixbuf_Type;
 enum {
 	PB_SS_NONE=0,		/* no sub-sampling */
 	PB_SS_BILINEAR,		/* linearizations with immediate neigboors */
+	PB_SS_BRESENHAM,    /* Smooth bresenham: only if 0.5 <= scale <= 2.0 */
 };
 
 typedef void (*writefunc)(void * pixel, float opacity, float erase, uint16_t *color);

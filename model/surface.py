@@ -34,6 +34,7 @@ import cairo
 
 import _pixbuf
 import _tilemgr
+import _cutils
 
 from utils import virtualmethod
 
@@ -44,15 +45,6 @@ TILE_SIZE = 64
 
 
 class Surface(object):
-    def __init__(self, pixfmt, writeprotect=False):
-        self.pixfmt = pixfmt
-
-    def _set_pixel(self, buf, pos, v):
-        if isinstance(v, PixelAccessorMixin) and v.format == self.pixfmt:
-            buf.set_from_pixel(pos, v)
-        else:
-            buf.set_from_tuple(pos, v)
-
     #### Virtual API ####
     @property
     @virtualmethod
@@ -99,7 +91,8 @@ class BoundedPlainSurface(Surface):
     """
 
     def __init__(self, pixfmt, width, height):
-        super(BoundedPlainSurface, self).__init__(pixfmt)
+        super(BoundedPlainSurface, self).__init__()
+        self.pixfmt = pixfmt
         self.__buf = _pixbuf.Pixbuf(pixfmt, width, height)
         self.clear = self.__buf.clear
         self.clear_white = self.__buf.clear_white
@@ -135,7 +128,7 @@ class BoundedPlainSurface(Surface):
 
 class TileSurfaceSnapshot(dict):
     # These values are set in order to dirty_area returns 0 sized area
-    dirty_area = (0, 0, 0, 0)
+    dirty_area = _cutils.Area()
 
     def __init__(self, tiles, area=None):
         # Fast tiles copy
@@ -184,7 +177,7 @@ class TileSurfaceSnapshot(dict):
                 del self[pos]
 
         if self._mod or self:
-            self.dirty_area = xmin, ymin, xmax-xmin+1, ymax-ymin+1
+            self.dirty_area = _cutils.area_from_bbox(xmin, ymin, xmax, ymax)
             return True
 
     def blit(self, tiles, redo):
@@ -222,18 +215,20 @@ class Tile(_pixbuf.Pixbuf):
         dst, x, y = args
         self.blit(dst, self.x - x, self.y - y)
 
+    def gen_mipmap(self):
+        pass
+
 
 class UnboundedTiledSurface(Surface):
-    def __init__(self, pixfmt):
-        super(UnboundedTiledSurface, self).__init__(pixfmt)
-
-        self.__tilemgr = _tilemgr.UnboundedTileManager(Tile, pixfmt, True)
+    def __init__(self, pixfmt, size=_tilemgr.TILE_DEFAULT_SIZE):
+        Surface.__init__(self)
+        self.__tilemgr = _tilemgr.UnboundedTileManager(Tile, pixfmt, True, size)
 
         # Aliases
         self.get_pixbuf = self.get_tile
         self.from_buffer = self.__tilemgr.from_buffer
         self.get_tiles = self.__tilemgr.get_tiles
-        self.get_row_tile = self.__tilemgr.get_tile
+        self.get_raw_tile = self.__tilemgr.get_tile
 
     ### Surface implementation ###
 
@@ -261,29 +256,22 @@ class UnboundedTiledSurface(Surface):
         if tile:
             return tile.get_pixel(int(x) - tile.x, int(y) - tile.y)
 
-    def rasterize(self, area=None, pixfmt=None):
-        if area is None:
-            x, y, w, h = self.area
-        else:
-            x, y, w, h = area
-
-        dst = _pixbuf.Pixbuf((pixfmt if pixfmt is not None else self.__tilemgr.pixfmt), w, h)
-        dst.clear()
-
-        self.foreach(Tile.relative_blit, area, (dst, x, y))
-
-        return dst
+    def rasterize(self, area, x0, y0, pixfmt=None, destination=None):
+        if destination is None:
+            destination = _pixbuf.Pixbuf((pixfmt if pixfmt is not None else self.__tilemgr.pixfmt), area.w, area.h)
+        self.foreach(Tile.relative_blit, area, destination, int(x0), int(y0))
+        return destination
 
     ### Only for UnboundedTiledSurface ###
 
-    def foreach(self, cb, area=None, args=()):
+    def foreach(self, cb, area, *args, **kwds):
         """Apply the given callback on tiles in given rect or all tiles.
 
         'cb' is a callable, called for each tile with args tuple as argument.
         'area' is a 4-tuple restricting tiles to the overlaping area.
         'args' are remaining arguments given as a tuple to 'cb' when called.
         """
-        self.__tilemgr.foreach(cb, area, args)
+        self.__tilemgr.foreach(cb, tuple(area), args, kwds.get("create", False))
 
     def snapshot(self):
         return TileSurfaceSnapshot(self.__tilemgr.tiles, self.area)
@@ -323,3 +311,7 @@ class UnboundedTiledSurface(Surface):
     @property
     def tile_size(self):
         return self.__tilemgr.tile_size
+
+    @property
+    def pixfmt(self):
+        return self.__tilemgr.pixfmt

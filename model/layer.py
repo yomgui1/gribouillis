@@ -25,12 +25,11 @@
 
 import cairo
 import random
-from math import floor, ceil
+from math import floor, ceil, log
 from operator import itemgetter
 
 from model.surface import *
-from model import _pixbuf
-from model._cutils import transform_area, transform_bbox
+from model import _pixbuf, _cutils
 from utils import virtualmethod
 
 __all__ = [ 'Layer', 'PlainLayer', 'TiledLayer' ]
@@ -107,7 +106,7 @@ class Layer(object):
         self._matrix = layer._matrix.multiply(cairo.Matrix())
         self.inv_matrix = layer.inv_matrix.multiply(cairo.Matrix())
         self._surface.copy(layer._surface)
-        self._dirty = True
+        self.dirty = True
 
     def snapshot(self):
         # TODO: and alpha/alphamask
@@ -121,37 +120,29 @@ class Layer(object):
         x, y = self.inv_matrix.transform_distance(*delta)
         self._matrix.translate(x,y)
         self.inv_matrix.translate(-x,-y)
-        self._dirty = True
+        self.dirty = True
 
     def _set_name(self, name):
         self._name = name
-        self._dirty = True
+        self.dirty = True
 
     def _set_visible(self, value):
         self._visible = value
-        self._dirty = True
+        self.dirty = True
 
-    def get_bbox(self):
-        bbox = self._surface.bbox
-        if bbox:
-            return transform_bbox(self._matrix.transform_point, *bbox)
+    def document_relative_bbox(self, *bbox):
+        "Transpose a bbox given into layer's coordinates into document's coordinates"
+        return _cutils.transform_bbox(self._matrix.transform_point, *bbox)
 
-    def document_area(self, *area):
+    def document_relative_area(self, *area):
         "Transpose an area given into layer's coordinates into document's coordinates"
-        return transform_area(self._matrix.transform_point, *area)
-
-    def get_size(self):
-        area = self.get_bbox()
-        if not area: return 0,0
-        return area[1]-area[0]+1, area[3]-area[2]+1
+        return _cutils.transform_area(self._matrix.transform_point, *area)
 
     def set_matrix(self, matrix):
         self._matrix = matrix
         self.inv_matrix = cairo.Matrix(*matrix)
         self.inv_matrix.invert()
-        self._dirty = True
-
-    matrix = property(lambda self: self._matrix, fset=set_matrix)
+        self.dirty = True
 
     @property
     def surface(self):
@@ -162,25 +153,42 @@ class Layer(object):
         return self._surface.empty
 
     @property
-    def area(self):
-        area = self.get_bbox()
-        if area:
-            return area[0], area[1], area[2]-area[0]+1, area[3]-area[1]+1
-
-    @property
-    def extends(self):
+    def bbox(self):
+        "Layer relative bbox"
         return self._surface.bbox
 
-    @virtualmethod
-    def merge_to(self, dst):
-        pass
+    @property
+    def area(self):
+        "Layer relative area"
+        bbox = self._surface.bbox
+        if bbox:
+            return _cutils.area_from_bbox(*bbox)
+
+    @property
+    def size(self):
+        "Layer relative size"
+        bbox = self._surface.bbox
+        if bbox:
+            return bbox[1] - bbox[0] + 1, bbox[3] - bbox[2] + 1
+        return 0, 0
 
     @property
     def modified(self):
         return self.dirty
 
+    matrix = property(lambda self: cairo.Matrix(*self._matrix), fset=set_matrix)
     name = property(fget=lambda self: self._name, fset=_set_name)
     visible = property(fget=lambda self: self._visible, fset=_set_visible)
+
+    # Virtual API
+
+    @virtualmethod
+    def rasterize_to_surface(self, surface, clip, subsampling, opacity):
+        pass
+
+    @virtualmethod
+    def merge_to(self, dst):
+        pass
 
 
 class PlainLayer(Layer):
@@ -197,6 +205,54 @@ class TiledLayer(Layer):
     @property
     def empty(self):
         return len(self._surface.tiles) == 0
+
+    def rasterize_to_surface(self, surface, clip, m2s_mat):
+        opa = self.opacity
+
+        l2s_mat = m2s_mat * self._matrix
+        s2l_mat = cairo.Matrix(*l2s_mat)
+        s2l_mat.invert()
+
+        lpt2s = l2s_mat.transform_point
+
+        # Optimisation: dynamic MIP-map lookup + interpolation
+        # To do that we need to compute the MIP-map level closest to the wanted scaling factor.
+        # Note that we consider scaling factors (xx, yy) equal (except the sign)
+        # in the s2l matrix as scaling is isotropic, so we're going to consider only xx.
+        # Inspiration source: http://www.compuphase.com/graphic/scale.htm
+        xx, _, _, yy, tx, ty = s2l_mat
+        s = abs(xx)
+        if s > 1.0:
+            s = log(s, 2)
+            level = int(s)
+            # compute remaining scale factor to apply to mipmap'ed tile
+            s = 2 ** (s - level)
+            xx = s if xx > 0 else -s
+            yy = s if yy > 0 else -s
+            subsampling = _pixbuf.SAMPLING_BRESENHAM
+            del s
+        else:
+            level = 0
+            subsampling = _pixbuf.SAMPLING_NONE
+
+        # For each source tile inside the given clipping area
+        # add to the set the destination surface tile impacted
+        # by this source tile.
+        # Then, for each destination tile in the set, blend source tiles
+        # This algo find the minimal set of tiles impacted by layer tiles
+        # restricted to a given area.
+
+        dst_tiles = set()
+        f = surface.get_tiles
+        for tile in self._surface.get_tiles(clip.transform(s2l_mat.transform_point)):
+            dst_tiles.update(f(_cutils.Area(tile.x, tile.y, tile.width, tile.height).transform_in(lpt2s), 1))
+            if tile.damaged:
+                tile.gen_mipmap()
+                tile.damaged = False
+
+        args = (self._surface.get_raw_tile, subsampling, opa, xx, yy, tx, ty, level)
+        for tile in dst_tiles:
+            tile.blend(*args)
 
     def merge_to(self, dst):
         """Merging the layer on a given layer (dst).
@@ -275,7 +331,7 @@ class TiledLayer(Layer):
                 rsurf_pb.blit(dst_tile)
 
             # Finalisation
-            dst._dirty = True
+            dst.dirty = True
 
     def get_pixel(self, brush, *pt):
         brush.surface = self.surface

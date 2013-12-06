@@ -52,6 +52,8 @@ OTHER DEALINGS IN THE SOFTWARE.
 #define MAX(a, b) ({typeof(a) _a=(a);typeof(b) _b=(b);_a>_b?_a:_b;})
 #endif
 
+#define SWAP(a, b) ({ typeof(a) _t=(a); (a)=(b); (b)=(a); })
+
 #define OBJ_TNAME(o) (((PyObject *)(o))->ob_type->tp_name)
 #define OBJ_TNAME_SAFE(o) ({                                            \
             PyObject *_o = (PyObject *)(o);                             \
@@ -80,7 +82,7 @@ OTHER DEALINGS IN THE SOFTWARE.
             typeof(v) _v = (v);                                 \
             typeof(min) _min = (min);                           \
             typeof(max) _max = (max);                           \
-            _v >= _min && _v <= _max; })
+            _v >= _min && _v < _max; })
 
 #define CLEAR(v) memset(v, 0, sizeof(v))
 

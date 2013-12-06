@@ -17,10 +17,11 @@ if os.name == 'morphos':
     link_opt = [ '-llcms2', '-lGL', '-lGLU', '-lGLUT', '-lm' ]
 
 elif os.name == 'posix':
-    opt = None
+    opt = [ '-I/usr/include/gdk-pixbuf-2.0', '-I/usr/include/libpng15',
+            '-I/usr/include/glib-2.0', '-I/usr/lib64/glib-2.0/include' ]
     pb_plat_srcs = [ 'src/platform-posix.c' ]
-    defines = ()
-    link_opt = ['-llcms2']
+    defines = [ ('HAVE_GDK', True) ]
+    link_opt = [ '-llcms2', '-lgdk_pixbuf-2.0', '-lgobject-2.0', '-lglib-2.0' ]
 
 link_opt += ['-lpng']
 pb_srcs = pb_generic_srcs + pb_plat_srcs

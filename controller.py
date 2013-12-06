@@ -109,7 +109,7 @@ class ActivateDocumentCmd(SimpleCommand, ICommand):
     def execute(self, note):
         docproxy = note.getBody()
         assert docproxy is not None
-            
+
         # activate the commands history proxy of the document
         hp = self.facade.retrieveProxy('HP_' + docproxy.getProxyName())
         hp.activate()
@@ -321,7 +321,7 @@ class RecordStrokeCmd(UndoableCommand):
         if vo.dirty_area:
             vo.docproxy.layerproxy.unsnapshot(vo.layer, vo.snapshot, True)
         else:
-            vo.dirty_area = vo.layer.document_area(*vo.snapshot.dirty_area)
+            vo.dirty_area = vo.snapshot.dirty_area.transform(vo.layer.matrix.transform_point)
 
     def getCommandName(self):
         return self.__name
@@ -385,13 +385,12 @@ class SetLayerMatrixCmd(UndoableCommand):
         note = self.getNote()
         docproxy, layer, old_mat, new_mat = note.getBody()
         layer.matrix = old_mat
-        old_area = layer.area  # area in document space with current matrix
+        old_area = layer.area.copy()  # area in document space with current matrix
         layer.matrix = new_mat
         new_area = layer.area
         note.setBody((docproxy, layer, new_mat, old_mat))  # inverse matrixes for undo/redo
 
-        area = utils.join_area(old_area, new_area)
-        self.sendNotification(main.DOC_DIRTY, (docproxy, area))
+        self.sendNotification(main.DOC_DIRTY, (docproxy, old_area.join(new_area)))
 
     def getCommandName(self):
         return self.__name

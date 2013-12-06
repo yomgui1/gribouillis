@@ -34,6 +34,7 @@ import model
 import model.vo as _vo
 
 from utils import _T
+from model import _cutils
 from .document import Document
 from .layer import Layer
 from .palette import Palette
@@ -354,11 +355,10 @@ class DocumentProxy(Proxy):
     def draw_end(self):
         layer = self._layer
         doc = self.data
-        area = doc.brush.stop()
+        area = doc.brush.stop() # layer relative area
         if area:
             layer.dirty = True
-            area = layer.document_area(*area)
-            self.layerproxy.handle_dirty(layer, area)
+            self.layerproxy.handle_dirty(layer, layer.document_relative_area(*area))
 
         ss = self._snapshot
         if ss.reduce(layer.surface):
@@ -373,12 +373,11 @@ class DocumentProxy(Proxy):
     def _record(self):
         state = self._dev.current
         self._stroke.append(state)
-        area = self.data.brush.draw_stroke(state)
+        area = self.data.brush.draw_stroke(state) # layer relative area
         if area:
             layer = self._layer
             layer.dirty = True
-            area = layer.document_area(*area)
-            self.layerproxy.handle_dirty(layer, area)
+            self.layerproxy.handle_dirty(layer, layer.document_relative_area(*area))
 
     ####
     #### Document layers handling ####
@@ -446,21 +445,20 @@ class DocumentProxy(Proxy):
         layer = self.data.active
         if layer.empty:
             return
-        area = layer.area
+        area = layer.area.copy()
         if not area:
             return
 
         layer.translate(*delta)
 
         # Refresh the old area + the new layer area
-        area = utils.join_area(area, layer.area)
-        self.sendNotification(self.DOC_DIRTY, (self, area))
+        self.sendNotification(self.DOC_DIRTY, (self, area.join(layer.area)))
 
     def layer_rotate(self, angle, ox=0, oy=0):
         layer = self.data.active
         if layer.empty:
             return
-        area = layer.area
+        area = layer.area.copy()
         if not area:
             return
 
@@ -472,8 +470,7 @@ class DocumentProxy(Proxy):
         layer.matrix = matrix
 
         # Refresh the old area + the new layer area
-        area = utils.join_area(area, layer.area)
-        self.sendNotification(self.DOC_DIRTY, (self, area))
+        self.sendNotification(self.DOC_DIRTY, (self, area.join(layer.area)))
 
     def get_layer_pos(self, *pos):
         layer = self.data.active

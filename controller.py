@@ -98,7 +98,7 @@ class SaveDocumentCmd(SimpleCommand, ICommand):
             docproxy.document.save_as(filename)
             docproxy.docname = filename
 
-        except (IOError, TypeError), e:
+        except (IOError, TypeError) as e:
             self.sendNotification(main.DOC_SAVE_RESULT,
                                   (docproxy, False, str(e)))
         else:

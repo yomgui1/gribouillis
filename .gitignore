@@ -1,0 +1,8 @@
+*~
+*.so
+*.pyc
+build/
+__pycache__
+GPATH
+GRTAGS
+GTAGS

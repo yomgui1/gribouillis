@@ -114,7 +114,7 @@ class DocViewport(gtk.DrawingArea, view.render.BackgroundMixin):
         self.set_can_focus(True)
         self.set_sensitive(True)
 
-        self.connect("expose-event"        , self._on_expose)
+        self.connect("draw"        , self._on_expose)
         self.connect("motion-notify-event" , self._on_vp_event)
         self.connect("button-press-event"  , self._on_vp_event)
         self.connect("button-release-event", self._on_vp_event)

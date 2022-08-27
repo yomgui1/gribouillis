@@ -62,8 +62,8 @@ class BrushPreview(gtk.DrawingArea):
 
         self.set_size_request(BrushPreview.WIDTH, BrushPreview.HEIGHT)
         self.set_events(gdk.EventMask.EXPOSURE_MASK)
-        self.connect("expose-event", self.on_expose)
-        
+        self.connect("draw", self.on_expose)
+
     def stroke(self, v=1.0):
         self._brush.paint_rgb_preview(BrushPreview.WIDTH, BrushPreview.HEIGHT,
                                       surface=self._surface, states=self._states)

@@ -83,7 +83,7 @@ class EyeArea(gtk.DrawingArea):
 
         self.set_size_request(self.eye_img[0].get_width(), self.eye_img[0].get_height())
 
-        self.connect('expose-event', self.draw)
+        self.connect('draw', self.draw)
 
     def set_active(self, v):
         self._active = int(v)

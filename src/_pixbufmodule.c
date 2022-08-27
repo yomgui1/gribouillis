@@ -1728,7 +1728,7 @@ static void
 pixbuf_dealloc(PyPixbuf *self)
 {
     if (NULL != self->data_alloc) FreeVecTaskPooled(self->data_alloc);
-    self->ob_type->tp_free((PyObject *)self);
+    Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
 static PyObject *

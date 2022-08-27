@@ -91,7 +91,7 @@ static void
 profile_dealloc(PyLCMS_Profile *self)
 {
     if (NULL != self->handle) cmsCloseProfile(self->handle);
-    self->ob_type->tp_free((PyObject *)self);
+    Py_TYPE(self)->tp_free((PyObject *)self);
 }
 //-
 #if 0
@@ -213,7 +213,7 @@ lcms_th_dealloc(PyLCMS_Transform *self)
     Py_CLEAR(self->th_hOutProfile);
     if (NULL != self->th_hTransform)
         cmsDeleteTransform(self->th_hTransform);
-    self->ob_type->tp_free((PyObject *)self);
+    Py_TYPE(self)->tp_free((PyObject *)self);
 }
 //-
 //+ lcms_th_apply

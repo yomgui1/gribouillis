@@ -231,7 +231,7 @@ ubtilemgr_dealloc(PyUnboundedTileMgr *self)
 {
 	ubtilemgr_clear(self);
 	rwlock_destroy(self->lock);
-	self->ob_type->tp_free((PyObject *)self);
+	Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
 static PyObject *

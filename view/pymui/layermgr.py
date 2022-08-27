@@ -30,13 +30,13 @@ import os
 import traceback as tb
 
 import model, view, main, utils
-import const
+from . import const
 
 from utils import _T, resolve_path
 from model import devices
 from model import prefs
 
-import eventparser
+from . import eventparser
 
 __all__ = [ 'LayerMgr', 'LayerCtrl' ]
 

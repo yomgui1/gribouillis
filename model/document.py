@@ -40,7 +40,7 @@ try:
 except:
     pass
 
-import _pixbuf
+import model._pixbuf as _pixbuf
 
 try:
     import _savers

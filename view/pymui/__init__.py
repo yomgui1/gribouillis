@@ -49,8 +49,8 @@ from .app import Application
 from .viewport import DocViewport
 from .docviewer import DrawingRoot
 
-import operators
-import keymaps
+from . import operators
+from . import keymaps
 
 del keymaps, operators
 

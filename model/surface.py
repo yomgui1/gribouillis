@@ -32,9 +32,9 @@ as UnboundedTiledSurface.
 import sys
 import cairo
 
-import _pixbuf
-import _tilemgr
-import _cutils
+import model._pixbuf as _pixbuf
+import model._tilemgr as _tilemgr
+import model._cutils as _cutils
 
 from utils import virtualmethod
 

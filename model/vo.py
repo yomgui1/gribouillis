@@ -1,4 +1,3 @@
-
 ###############################################################################
 # Copyright (c) 2009-2013 Guillaume Roguez
 #
@@ -24,7 +23,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import document
+import model.document
 from utils import _T
 
 __all__ = [ 'DocumentConfigVO', 'FileDocumentConfigVO',

@@ -31,7 +31,6 @@ import random
 from math import floor
 
 import view
-import view.viewstate
 import view.render
 import view.context as ctx
 import view.cairo_tools as tools

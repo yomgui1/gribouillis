@@ -45,9 +45,9 @@ import model.brush
 import view.context as ctx
 import view.operator as operator
 
-import app
-import operators
-import keymaps
+import view.pygtk.app as app
+import view.pygtk.operators as operator
+import view.pygtk.keymaps as keymaps
 
 from utils import _T, mvcHandler
 from view.keymap import KeymapManager

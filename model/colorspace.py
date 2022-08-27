@@ -23,7 +23,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import _pixbuf
+import model._pixbuf as _pixbuf
 
 class MetaColorSpace(type):
     __classes = {}

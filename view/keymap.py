@@ -24,8 +24,7 @@
 ###############################################################################
 
 import utils
-import context
-import operator
+import view.operator as operator
 import view.context as ctx
 
 

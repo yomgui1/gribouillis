@@ -31,12 +31,12 @@ import math
 
 from math import sin, pi
 
-import _brush
-import _pixbuf
+import model._brush as _brush
+import model._pixbuf as _pixbuf
 
-from devices import DeviceState
-from colorspace import ColorSpaceRGB
-from surface import BoundedPlainSurface
+from model.devices import DeviceState
+from model.colorspace import ColorSpaceRGB
+from model.surface import BoundedPlainSurface
 
 __all__ = ['Brush', 'DrawableBrush']
 

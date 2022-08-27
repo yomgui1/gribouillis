@@ -25,7 +25,7 @@
 
 import os
 import math
-import cairo_tools as tools
+from . import cairo_tools as tools
 from functools import wraps, partial
 
 import cairo

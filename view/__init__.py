@@ -28,7 +28,7 @@ import os
 import mixin
 
 from main import app_args
-from viewstate import *
+from view.viewstate import *
 
 if app_args.view == 'auto':
     if os.name == 'morphos':

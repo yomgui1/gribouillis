@@ -42,8 +42,5 @@ class ColorWindow(SubWindow):
         top.show_all()
 
     def set_color_rgb(self, rgb):
-        color = gdk.Color()
-        color.red_float = rgb[0]
-        color.green_float = rgb[1]
-        color.blue_float = rgb[2]
+        color = gdk.Color.from_floats(rgb[0], rgb[1], rgb[2])
         self.colorsel.set_current_color(color)

@@ -35,7 +35,7 @@ from .common import SubWindow
 __all__ = [ 'LayerManager', 'LayerCtrl' ]
 
 def _new_signal(name):
-    return gobject.signal_new(name, gtk.Object,
+    return gobject.signal_new(name, gobject.Object,
                               gobject.SIGNAL_ACTION,
                               gobject.TYPE_BOOLEAN, (gobject.TYPE_PYOBJECT, ))
 
@@ -124,7 +124,7 @@ class LayerCtrl(gtk.EventBox):
         self.disp.connect('toggled', self._on_disp_toggled)
 
         # Layer operator
-        self.operator = gtk.combo_box_new_text()
+        self.operator = gtk.ComboBoxText()
         ope = model.Layer.OPERATORS_LIST
         for name in ope:
             self.operator.append_text(name)

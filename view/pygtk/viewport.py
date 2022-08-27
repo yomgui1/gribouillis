@@ -142,9 +142,9 @@ class DocViewport(gtk.DrawingArea, view.render.BackgroundMixin):
         # So we don't have to support that here.
         #
 
-        area = Area(*evt.area)
-        width = self.allocation.width
-        height = self.allocation.height
+        area = Area(*map(int, evt.clip_extents()))
+        width = self.get_allocated_width()
+        height = self.get_allocated_height()
 
         # full repaint on surface size change
         if self.width != width or self.height != height:
@@ -159,6 +159,7 @@ class DocViewport(gtk.DrawingArea, view.render.BackgroundMixin):
             # reconstruct viewports and rasterize
             self._doc_gtk_pb = GdkPixbuf.Pixbuf.new(GdkPixbuf.Colorspace.RGB, True, 8, width, height)
             self._doc_pb = _pixbuf.pixbuf_from_gdk_pixbuf(self._doc_gtk_pb, _pixbuf.FORMAT_RGBA8_NOA)
+            self._doc_sf = self.__new_cairo_surface(self._doc_pb, cairo.FORMAT_ARGB32, width, height)
             self._docre.set_pixbuf(self._doc_pb)
 
             self._docre.reset(width, height)
@@ -172,7 +173,7 @@ class DocViewport(gtk.DrawingArea, view.render.BackgroundMixin):
             #self._toolsvp.repaint()
 
         # Cairo compositing (doc + tools)
-        cr = self.window.cairo_create()
+        cr = evt #self.window.cairo_create()
         cr.set_operator(cairo.OPERATOR_OVER)
         self._paint_composite(cr, area)
 
@@ -210,7 +211,9 @@ class DocViewport(gtk.DrawingArea, view.render.BackgroundMixin):
             # Full transformation
             self._docre.render(clip, m2v_mat)
 
-        self.window.draw_pixbuf(None, self._doc_gtk_pb, 0, 0, 0, 0, dither=gdk.RGB_DITHER_MAX)
+        ##self.window.draw_pixbuf(None, self._doc_gtk_pb, 0, 0, 0, 0, dither=gdk.RGB_DITHER_MAX)
+        cr.set_source_surface(self._doc_sf, 0, 0)
+        cr.paint()
 
         # Paint tools surface
 

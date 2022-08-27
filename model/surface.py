@@ -147,8 +147,8 @@ class TileSurfaceSnapshot(dict):
 
         # Set dirty area to invalid values
         # (but usefull with min/max computations)
-        xmin = ymin = sys.maxint
-        xmax = ymax = -sys.maxint - 1
+        xmin = ymin = sys.maxsize//2
+        xmax = ymax = -sys.maxsize//2 - 1
 
         # Search for modifications (and additions!)
         for pos, tile in surface.tiles.items():

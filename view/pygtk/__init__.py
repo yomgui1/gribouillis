@@ -312,7 +312,7 @@ class DocViewportMediator(GenericMediator):
     def _on_brush_prop_changed(self, brush, name):
         "Update viewport brush rendering"
 
-        if name is 'radius_max':
+        if name == 'radius_max':
             self.viewComponent.set_cursor_radius(getattr(brush, name))
 
 

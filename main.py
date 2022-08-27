@@ -89,7 +89,7 @@ class Gribouillis(puremvc.patterns.facade.Facade):
         if cl.__instance:
             return cl.__instance
 
-        self = super(Gribouillis, cl).__new__(cl, *a, **k)
+        self = super(Gribouillis, cl).__new__(cl)
         cl.__instance = self
         return self
 

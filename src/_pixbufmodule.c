@@ -1731,35 +1731,56 @@ pixbuf_dealloc(PyPixbuf *self)
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
+static Py_ssize_t
+pixbuf_length(PyPixbuf *self)
+{
+    return self->bpr * self->height;
+}
+
 static PyObject *
 pixbuf_get_item(PyPixbuf *self, Py_ssize_t i)
 {
-    Py_RETURN_NONE;
+    return PyLong_FromLong(self->data[i]);
 }
 
-static int
-pixbuf_compare(PyPixbuf *self, PyPixbuf *other)
+static PyObject *
+pixbuf_richcompare(PyPixbuf *self, PyPixbuf *other, int op)
 {
     Py_ssize_t s1, s2;
     int r;
 
     if (!PyPixbuf_Check(other))
     {
-        PyErr_SetString(PyExc_TypeError, "Can compare against Pixbuf object");
-        return -1;
+        PyErr_SetString(PyExc_TypeError, "Can only compare against Pixbuf object");
+        return NULL;
     }
 
     s1 = self->height*self->bpr;
     s2 = other->height*other->bpr;
 
-    if (s1 > s2)
-        return 1;
-
-    if (s1 < s2)
-        return -1;
+	if (s1 != s2)
+	{
+		switch (op)
+		{
+		case Py_GT:
+			if (s1 > s2) Py_RETURN_TRUE; else Py_RETURN_FALSE;
+		case Py_LT:
+			if (s1 < s2) Py_RETURN_TRUE; else Py_RETURN_FALSE;
+		}
+		return Py_NotImplemented;
+	}
 
     r = memcmp(self->data, other->data, s1);
-    return r>0?1:r<0?-1:0;
+	switch (op)
+	{
+	case Py_GT:
+		if (r > 0) Py_RETURN_TRUE; else Py_RETURN_FALSE;
+	case Py_LT:
+		if (r < 0) Py_RETURN_TRUE; else Py_RETURN_FALSE;
+	case Py_EQ:
+		if (r == 0) Py_RETURN_TRUE; else Py_RETURN_FALSE;
+	}
+	return Py_NotImplemented;
 }
 
 static PyObject *
@@ -2297,25 +2318,10 @@ pixbuf_empty(PyPixbuf *self, PyObject *args)
     Py_RETURN_TRUE;
 }
 
-static Py_ssize_t
-pixbuf_getsegcount(PyPixbuf *self, Py_ssize_t *lenp)
+static int
+pixbuf_getbuffer(PyPixbuf *self, Py_buffer *view, int flags)
 {
-    if (NULL != lenp)
-        *lenp = self->bpr * self->height;
-    return 1;
-}
-
-static Py_ssize_t
-pixbuf_getbuffer(PyPixbuf *self, Py_ssize_t segment, void **ptrptr)
-{
-    if (segment != 0)
-    {
-        PyErr_SetString(PyExc_TypeError, "Only segment 0 is allowed");
-        return -1;
-    }
-
-    *ptrptr = self->data;
-    return self->bpr * self->height;
+	return PyBuffer_FillInfo(view, self, self->data, self->bpr * self->height, 0, flags);
 }
 
 static PyObject *
@@ -2582,6 +2588,16 @@ clear_cache:
 	Py_RETURN_NONE;
 }
 
+static Py_hash_t
+pixbuf_hash(PyPixbuf *obj)
+{
+    Py_hash_t result;
+    result = (Py_hash_t)obj;
+    if (result == -1)
+       result = -2;
+    return result;
+}
+
 static struct PyMethodDef pixbuf_methods[] = {
     {"set_pixel", (PyCFunction)pixbuf_set_pixel, METH_VARARGS, NULL},
     {"get_pixel", (PyCFunction)pixbuf_get_pixel, METH_VARARGS, NULL},
@@ -2605,10 +2621,10 @@ static struct PyMethodDef pixbuf_methods[] = {
 static PyMemberDef pixbuf_members[] = {
     {"x", T_INT, offsetof(PyPixbuf, x), 0, NULL},
     {"y", T_INT, offsetof(PyPixbuf, y), 0, NULL},
-    {"width", T_INT, offsetof(PyPixbuf, width), RO, NULL},
-    {"height", T_INT, offsetof(PyPixbuf, height), RO, NULL},
-    {"pixfmt", T_UINT, offsetof(PyPixbuf, pixfmt), RO, NULL},
-    {"stride", T_UINT, offsetof(PyPixbuf, bpr), RO, NULL},
+    {"width", T_INT, offsetof(PyPixbuf, width), READONLY, NULL},
+    {"height", T_INT, offsetof(PyPixbuf, height), READONLY, NULL},
+    {"pixfmt", T_UINT, offsetof(PyPixbuf, pixfmt), READONLY, NULL},
+    {"stride", T_UINT, offsetof(PyPixbuf, bpr), READONLY, NULL},
     {"ro", T_BYTE, offsetof(PyPixbuf, readonly), 0, NULL},
     {"damaged", T_BOOL, offsetof(PyPixbuf, damaged), 0, NULL},
 
@@ -2622,9 +2638,8 @@ static PyGetSetDef pixbuf_getseters[] = {
 };
 
 static PyBufferProcs pixbuf_as_buffer = {
-    bf_getreadbuffer  : (readbufferproc)pixbuf_getbuffer,
-    bf_getwritebuffer : (writebufferproc)pixbuf_getbuffer,
-    bf_getsegcount    : (segcountproc)pixbuf_getsegcount,
+    bf_getbuffer  : (getbufferproc)pixbuf_getbuffer,
+    bf_releasebuffer : NULL,
 };
 
 static PyNumberMethods pixbuf_as_number = {
@@ -2632,7 +2647,8 @@ static PyNumberMethods pixbuf_as_number = {
 };
 
 static PySequenceMethods pixbuf_as_sequence = {
-    sq_item: (ssizeargfunc)pixbuf_get_item,
+	sq_length : (lenfunc)pixbuf_length,
+	sq_item: (ssizeargfunc)pixbuf_get_item,
 };
 
 static PyTypeObject PyPixbuf_Type = {
@@ -2645,13 +2661,15 @@ static PyTypeObject PyPixbuf_Type = {
 
     tp_new          : (newfunc)pixbuf_new,
     tp_dealloc      : (destructor)pixbuf_dealloc,
-    tp_compare      : (cmpfunc)pixbuf_compare,
+    tp_richcompare  : (richcmpfunc)pixbuf_richcompare,
     tp_methods      : pixbuf_methods,
     tp_members      : pixbuf_members,
     tp_getset       : pixbuf_getseters,
     tp_as_buffer    : &pixbuf_as_buffer,
     tp_as_number    : &pixbuf_as_number,
     tp_as_sequence  : &pixbuf_as_sequence,
+
+	tp_hash			: (hashfunc)pixbuf_hash,
 };
 
 /*******************************************************************************************

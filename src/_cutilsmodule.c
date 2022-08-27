@@ -394,7 +394,7 @@ return_self:
 }
 
 static int
-area_nonzero(PyArea *self, PyObject *args)
+area_bool(PyArea *self, PyObject *args)
 {
 	return self->w && self->h;
 }
@@ -434,7 +434,7 @@ static struct PyMethodDef area_methods[] = {
 };
 
 static PyNumberMethods area_as_number = {
-    nb_nonzero : (inquiry)area_nonzero,
+    nb_bool : (inquiry)area_bool,
 };
 
 static PyMemberDef area_members[] = {

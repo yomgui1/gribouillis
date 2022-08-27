@@ -518,9 +518,9 @@ static struct PyMethodDef ubtilemgr_methods[] = {
 };
 
 static PyMemberDef ubtilemgr_members[] = {
-	{"pixfmt", T_UINT, offsetof(PyUnboundedTileMgr, pixfmt), RO, NULL},
-	{"tiles", T_OBJECT, offsetof(PyUnboundedTileMgr, tiles), RO, NULL},
-	{"tile_size", T_UINT, offsetof(PyUnboundedTileMgr, tile_size), RO, NULL},
+	{"pixfmt", T_UINT, offsetof(PyUnboundedTileMgr, pixfmt), READONLY, NULL},
+	{"tiles", T_OBJECT, offsetof(PyUnboundedTileMgr, tiles), READONLY, NULL},
+	{"tile_size", T_UINT, offsetof(PyUnboundedTileMgr, tile_size), READONLY, NULL},
 	{NULL} /* sentinel */
 };
 

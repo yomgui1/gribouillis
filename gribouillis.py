@@ -29,6 +29,11 @@ if __name__ == '__main__':
     import os
     import argparse
 
+    import gi
+    gi.require_version("Gtk", "3.0")
+    gi.require_version('IBus', '1.0')
+    from gi.repository import Gtk
+
     sys.setrecursionlimit(100)
     sys.path.append('libs')
 

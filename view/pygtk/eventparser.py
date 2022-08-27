@@ -28,7 +28,7 @@ a GTK event (keys, mouse motion, ...).
 This object is used jointly with view.Context as mapping keys.
 """
 
-from gtk import gdk
+from gi.repository import Gdk as gdk
 
 
 class GdkEventParser:

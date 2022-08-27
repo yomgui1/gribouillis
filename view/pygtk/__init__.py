@@ -25,16 +25,8 @@
 
 import sys
 
-try:
-    import pygtk
-except ImportError:
-    print("PyGTK not installed on this platform")
-    sys.exit(-1)
-
-pygtk.require('2.0')
-
-import gtk
-import gtk.gdk as gdk
+from gi.repository import Gtk as gtk
+from gi.repository import GObject as gobject
 
 import main
 import utils

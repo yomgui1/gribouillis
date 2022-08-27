@@ -23,7 +23,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import gtk
+from gi.repository import Gtk as gtk
 
 from utils import _T
 from .common import SubWindow

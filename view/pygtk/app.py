@@ -23,7 +23,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import gtk
+from gi.repository import Gtk as gtk
 
 import view
 import utils

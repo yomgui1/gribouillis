@@ -23,7 +23,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-from gtk.gdk import keyval_from_name
+from gi.repository.IBus import keyval_from_name
 from view.keymap import Keymap
 
 RALT_MASK = 'mod5-mask'

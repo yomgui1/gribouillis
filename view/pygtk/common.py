@@ -23,8 +23,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import gtk, gobject
-import gtk.gdk as gdk
+from gi.repository import Gtk as gtk
 
 __all__ = ['SubWindow']
 

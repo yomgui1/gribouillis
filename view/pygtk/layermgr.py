@@ -23,10 +23,12 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import gtk, gobject
-import gtk.gdk as gdk
-
 import model
+
+from gi.repository import Gtk as gtk
+from gi.repository import Gdk as gdk
+from gi.repository import GdkPixbuf
+from gi.repository import GObject as gobject
 
 from .common import SubWindow
 

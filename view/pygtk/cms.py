@@ -23,7 +23,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import gtk, gobject
+from gi.repository import Gtk as gtk
+from gi.repository import GObject as gobject
 
 from model.profile import Profile
 from utils import _T

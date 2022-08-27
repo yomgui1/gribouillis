@@ -23,9 +23,9 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-import gtk
-import gtk.gdk as gdk
-import gobject
+from gi.repository import Gtk as gtk
+from gi.repository import Gdk as gdk
+from gi.repository import GObject as gobject
 
 from utils import _T
 from view import context as ctx

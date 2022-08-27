@@ -32,7 +32,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 #include <string.h>
 
 #ifndef INITFUNC
-#define INITFUNC init_brush
+#define INITFUNC PyInit__brush
 #endif
 
 #ifndef MODNAME
@@ -1757,7 +1757,7 @@ static PyTypeObject PyBrush_Type = {
 ** Module
 */
 
-static PyMethodDef _BrushMethods[] = {
+static PyMethodDef methods[] = {
     {NULL}
 };
 
@@ -1787,6 +1787,16 @@ static int add_constants(PyObject *m)
 
     return 0;
 }
+
+static struct PyModuleDef module =
+{
+    PyModuleDef_HEAD_INIT,
+    MODNAME,
+    "",
+    -1,
+	methods
+};
+
 PyMODINIT_FUNC
 INITFUNC(void)
 {
@@ -1802,15 +1812,17 @@ INITFUNC(void)
         fixed_sin[i] = sinf(a);
     }
 
-    if (PyType_Ready(&PyBrush_Type) < 0) return;
+    if (PyType_Ready(&PyBrush_Type) < 0) return NULL;
 
-    m = Py_InitModule(MODNAME, _BrushMethods);
-    if (NULL == m) return;
+    m = PyModule_Create(&module);
+    if (NULL == m) return NULL;
 
-    if (add_constants(m)) return;
+    if (add_constants(m)) return NULL;
 
     ADD_TYPE(m, "Brush", &PyBrush_Type);
 
     if (!import_pixbuf())
-        return;
+        return NULL;
+
+	return m;
 }

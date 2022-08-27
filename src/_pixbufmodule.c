@@ -39,7 +39,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 #endif
 
 #ifndef INITFUNC
-#define INITFUNC init_pixbuf
+#define INITFUNC PyInit__pixbuf
 #endif
 
 #ifndef MODNAME
@@ -2730,19 +2730,27 @@ static int add_constants(PyObject *m)
     return 0;
 }
 
+static struct PyModuleDef module =
+{
+    PyModuleDef_HEAD_INIT,
+    MODNAME,
+    "",
+    -1,
+	methods
+};
+
 PyMODINIT_FUNC
 INITFUNC(void)
 {
     PyObject *m;
 
-    if (PyType_Ready(&PyPixbuf_Type) < 0) return;
+    if (PyType_Ready(&PyPixbuf_Type) < 0) return NULL;
 
-    m = Py_InitModule(MODNAME, methods);
-    if (NULL == m)
-        return;
+    m = PyModule_Create(&module);
+    if (NULL == m) return NULL;
 
     add_constants(m);
-
     ADD_TYPE(m, "Pixbuf", &PyPixbuf_Type);
-}
 
+	return m;
+}

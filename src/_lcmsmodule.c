@@ -29,7 +29,11 @@ OTHER DEALINGS IN THE SOFTWARE.
 #include <wchar.h>
 
 #ifndef INITFUNC
-#define INITFUNC init_lcms
+#define INITFUNC PyInit__lcms
+#endif
+
+#ifndef MODNAME
+#define MODNAME "_lcms"
 #endif
 
 typedef struct PyLCMS_Profile_STRUCT {
@@ -306,22 +310,32 @@ static int add_constants(PyObject *m)
 }
 //-
 
+static struct PyModuleDef module =
+{
+    PyModuleDef_HEAD_INIT,
+    MODNAME,
+    "",
+    -1,
+	methods
+};
+
 //+ INITFUNC()
 PyMODINIT_FUNC
 INITFUNC(void)
 {
     PyObject *m;
 
-    if (PyType_Ready(&PyLCMS_Profile_Type) < 0) return;
-    if (PyType_Ready(&PyLCMS_Transform_Type) < 0) return;
+    if (PyType_Ready(&PyLCMS_Profile_Type) < 0) return NULL;
+    if (PyType_Ready(&PyLCMS_Transform_Type) < 0) return NULL;
 
-    m = Py_InitModule("_lcms", methods);
-    if (NULL == m)
-        return;
+    m = PyModule_Create(&module);
+    if (NULL == m) return NULL;
 
     add_constants(m);
 
     ADD_TYPE(m, "Profile", &PyLCMS_Profile_Type);
     ADD_TYPE(m, "Transform", &PyLCMS_Transform_Type);
+
+	return m;
 }
 //-

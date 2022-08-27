@@ -30,7 +30,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 #endif
 
 #ifndef INITFUNC
-#define INITFUNC init_cutils
+#define INITFUNC PyInit__cutils
 #endif
 
 typedef struct PyArea_STRUCT {
@@ -523,11 +523,20 @@ mod_area_from_bbox(PyObject *mod, PyObject *args)
 	return _area_new(x1, y1, x2-x1+1, y2-y1+1);
 }
 
-static PyMethodDef mod_methods[] = {
+static PyMethodDef methods[] = {
 	{"area_from_bbox", (PyCFunction)mod_area_from_bbox, METH_VARARGS, NULL},
 	{"transform_bbox", (PyCFunction)mod_transform_bbox, METH_VARARGS, NULL},
 	{"transform_area", (PyCFunction)mod_transform_area, METH_VARARGS, NULL},
 	{NULL} /* sentinel */
+};
+
+static struct PyModuleDef module =
+{
+    PyModuleDef_HEAD_INIT,
+    MODNAME,
+    "",
+    -1,
+	methods
 };
 
 PyMODINIT_FUNC
@@ -535,10 +544,12 @@ INITFUNC(void)
 {
     PyObject *m;
 
-	if (PyType_Ready(&PyArea_Type) < 0) return;
+	if (PyType_Ready(&PyArea_Type) < 0) return NULL;
 
-    m = Py_InitModule(MODNAME, mod_methods);
-    if (!m) return;
+	m = PyModule_Create(&module);
+    if (NULL == m) return NULL;
 
 	ADD_TYPE(m, "Area", &PyArea_Type);
+
+	return m;
 }

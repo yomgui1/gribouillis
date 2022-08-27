@@ -27,7 +27,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 #include "_pixbufmodule.h"
 
 #ifndef INITFUNC
-#define INITFUNC init_tilemgr
+#define INITFUNC PyInit__tilemgr
 #endif
 
 #ifndef MODNAME
@@ -561,18 +561,27 @@ static int add_constants(PyObject *m)
 	return 0;
 }
 
+static struct PyModuleDef module =
+{
+    PyModuleDef_HEAD_INIT,
+    MODNAME,
+    "",
+    -1,
+	methods
+};
+
 PyMODINIT_FUNC
 INITFUNC(void)
 {
 	PyObject *m;
 
-	if (PyType_Ready(&PyUnboundedTileMgr_Type) < 0) return;
+	if (PyType_Ready(&PyUnboundedTileMgr_Type) < 0) return NULL;
 
-	m = Py_InitModule(MODNAME, methods);
-	if (NULL == m)
-		return;
+	m = PyModule_Create(&module);
+    if (NULL == m) return NULL;
 
 	add_constants(m);
-
 	ADD_TYPE(m, "UnboundedTileManager", &PyUnboundedTileMgr_Type);
+
+	return m;
 }

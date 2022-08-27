@@ -213,7 +213,7 @@ class BrushHouseWindow(pymui.Window):
     def _mkbrushbt(self, page, brush):
         if brush.icon:
             data = self._load_brush_icon_for_rawimage(brush)
-            bt = rawimage.Rawimage(long(data),
+            bt = rawimage.Rawimage(int(data),
                                    Frame='None',
                                    InputMode='Toggle',
                                    InnerSpacing=2)
@@ -223,7 +223,7 @@ class BrushHouseWindow(pymui.Window):
                 brush.icon_preview = self._preview_icon_buffer(brush)
             buf = brush.icon_preview
             data = rawimage.mkRawimageData(buf.width, buf.height, str(buffer(buf)))
-            bt = rawimage.Rawimage(long(data),
+            bt = rawimage.Rawimage(int(data),
                                    Frame='None',
                                    InputMode='Toggle',
                                    InnerSpacing=2)
@@ -320,12 +320,12 @@ class BrushHouseWindow(pymui.Window):
             bt.brush.icon = filename.replace('PROGDIR:', '')
             data = self._load_brush_icon_for_rawimage(bt.brush)
             bt.ri_data = data
-            bt.Picture = long(data)
+            bt.Picture = int(data)
             if bt.bt2:
                 bt = bt.bt2
                 data = self._load_brush_icon_for_rawimage(bt.brush)
                 bt.ri_data = data
-                bt.Picture = long(data)
+                bt.Picture = int(data)
             self._top.ExitChange()
 
     def _on_delete_brush(self, evt):
@@ -349,18 +349,18 @@ class BrushHouseWindow(pymui.Window):
         bt = evt.Source.allbt
         buf = bt.brush.icon_preview = self._preview_icon_buffer(bt.brush)
         bt.ri_data = rawimage.mkRawimageData(buf.width, buf.height, str(buffer((buf))))
-        bt.Picture = long(bt.ri_data)
+        bt.Picture = int(bt.ri_data)
         if bt.bt2:
-            bt.bt2.Picture = long(bt.ri_data)
+            bt.bt2.Picture = int(bt.ri_data)
 
     def _on_image_icon(self, evt):
         bt = evt.Source.allbt
         if bt.brush.icon:
             data = self._load_brush_icon_for_rawimage(bt.brush)
             bt.ri_data = data
-            bt.Picture = long(data)
+            bt.Picture = int(data)
             if bt.bt2:
-                bt.bt2.Picture = long(bt.ri_data)
+                bt.bt2.Picture = int(bt.ri_data)
         else:
             self._on_change_icon(evt)
 

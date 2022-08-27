@@ -42,7 +42,7 @@ class MyList(List):
         # so record a str object here
         s = c_STRPTR(msg.entry.value).value
         v = c_STRPTR(s)
-        self.__entries[long(v)] = s
+        self.__entries[int(v)] = s
         return v
 
     @muimethod(MUIM_List_Destruct)

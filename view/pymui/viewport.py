@@ -331,7 +331,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         self._docvp.set_view_size(width, height)
         self._toolsvp.set_view_size(width, height)
         
-        gl.init_gl_context(long(self._docrp), width, height)
+        gl.init_gl_context(int(self._docrp), width, height)
         
         # Full rendering
         self._docvp.repaint()

@@ -269,7 +269,7 @@ class BrushEditorWindow(pymui.Window):
         self._brush = None # forbid brush prop changed events, so a endless loop
 
         # Update the UI
-        for name in self.prop.iterkeys():
+        for name in self.prop.keys():
             self.brush_changed_prop(name, getattr(brush, name))
 
         self._brush = brush

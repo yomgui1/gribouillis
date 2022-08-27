@@ -50,11 +50,11 @@ _SVG_OP_2_GB = {
     }
 
 _GB_OP_2_SVG = {}
-for k, v in _SVG_OP_2_GB.iteritems():
+for k, v in _SVG_OP_2_GB.items():
     _GB_OP_2_SVG[v] = k
 
 def ienumerate(iterable):
-    return itertools.izip(itertools.count(), iterable)
+    return zip(itertools.count(), iterable)
 
 def svg_operator_to_gb(ope):
     try:
@@ -120,7 +120,7 @@ class OpenRasterFileWriter:
         self.top_stack = ET.SubElement(image, 'stack')
 
         a = image.attrib
-        a.update((k, str(v)) for k,v in self.extra.iteritems())
+        a.update((k, str(v)) for k,v in self.extra.items())
         a['name'] = os.path.basename(self.filename) # ORA optional
         a['w'] = str(self.width) # ORA mandatory
         a['h'] = str(self.height) # ORA mandatory

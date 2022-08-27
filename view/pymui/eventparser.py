@@ -91,7 +91,7 @@ _PAD_BT = {
     }
 
 _KEYVALS_INV = {}
-for k, v in _KEYVALS.iteritems():
+for k, v in _KEYVALS.items():
     _KEYVALS_INV[v] = k
 
 _DEFAULT_PRESSURE = 0.5

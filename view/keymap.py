@@ -67,7 +67,7 @@ class KeymapManager():
         if not done and self._mapstack:
             km = KeymapManager.__kmd.get(self._mapstack[-1])
             if km:
-                done = self._process(km, km.viewkeys(), self._locals, args)
+                done = self._process(km, km.keys(), self._locals, args)
         return done
 
     def _process(self, km, filters, locals, args):
@@ -81,7 +81,7 @@ class KeymapManager():
         if m is not self._km:
             ctx.keymap = self
             self._km = m
-            self._filters = m.viewkeys()
+            self._filters = m.keys()
 
     def use_default(self):
         assert self._default is not None
@@ -105,7 +105,7 @@ class KeymapManager():
         Note: this operation destroy original contents of the keymap.
         """
 
-        for k in km.keys():
+        for k in tuple(km.keys()):
             km[eval("lambda evt_type, evt:" + k)] = compile(km.pop(k), 'keymap', 'exec')
         cls.__kmd[km.NAME] = km
 

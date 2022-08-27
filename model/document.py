@@ -140,7 +140,7 @@ class Document(list):
         try:
             data = [ path + '\n' ]
             with open(LASTS_FILENAME) as fd:
-                for i in xrange(5):
+                for i in range(5):
                     line = fd.readline()
                     if line[:-1].strip() != path:
                         data.append(line)

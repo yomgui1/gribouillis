@@ -239,7 +239,7 @@ class BrushHouseWindow(SubWindow):
         self.add_brush(Brush())
 
     def _on_save_all(self, evt):
-        Brush.save_brushes(self._brushes.iterkeys())
+        Brush.save_brushes(self._brushes.keys())
 
     def _on_brush_bt_released(self, bt, evt):
         if evt.button == 3:

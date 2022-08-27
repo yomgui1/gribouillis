@@ -117,7 +117,7 @@ class _ToolsWheelPrefHandler(IPrefHandler):
                 if i in range(8):
                     name = bind_el.get('command')
                     cmd = None
-                    for k,v in contexts.ALL_COMMANDS.iteritems():
+                    for k,v in contexts.ALL_COMMANDS.items():
                         if v.__name__ == name:
                             cmd = k
                             
@@ -197,7 +197,7 @@ class _RenderingPrefHandler(IPrefHandler):
         prefs['pymui-ruler-fg-pen'] = max(0, min(int(rendering.get('pymui_ruler_fg_pen', prefs['pymui-ruler-fg-pen'])), 255))
 
     def save_data(self, prefs, root):
-        for k, v in self.MAPS.iteritems():
+        for k, v in self.MAPS.items():
             r,g,b,a = map(str, prefs[v])
             ET.SubElement(root, 'color', {}, name=k, red=r, green=g, blue=b, alpha=a)
             
@@ -209,7 +209,7 @@ class _InterfacePrefHandler(IPrefHandler):
     def parse(self, prefs, interface):
         avail_maps = pymui.GetApp().startup_windows
         win_list = interface.get('pymui_startup_win_list', ','.join(prefs['pymui-window-open-at-startup']))
-        win_list = tuple(name for name in map(lambda x: x.strip().lower(), win_list.split(',')) if name in avail_maps)
+        win_list = tuple(name for name in [x.strip().lower() for x in win_list.split(',')] if name in avail_maps)
         
         # Update prefs and MUI now
         prefs['pymui-window-open-at-startup'] = win_list
@@ -355,7 +355,7 @@ class AppPrefWindow(pymui.Window):
             
     def _init_bindings(self):
         self.clear_bindings()
-        for ctx_name, bind_list in prefs['bindings'].iteritems():
+        for ctx_name, bind_list in prefs['bindings'].items():
                 page = self._ctx_pages.get(ctx_name)
                 page.vgp.InitChange()
                 try:
@@ -391,7 +391,7 @@ class AppPrefWindow(pymui.Window):
     def _init_rendering(self):
         self._filter_threshold.Value = prefs['view-filter-threshold']
             
-        for k, v in _RenderingPrefHandler.MAPS.iteritems():
+        for k, v in _RenderingPrefHandler.MAPS.items():
             r,g,b,a = prefs[v]
             field, alpha = self._colors[k]
             field.Red = int(r * 255) * 0x01010101
@@ -404,7 +404,7 @@ class AppPrefWindow(pymui.Window):
             
     def _init_interface(self):
         win_list = prefs['pymui-window-open-at-startup']
-        for key, bt in self._startup_win_bt.iteritems():
+        for key, bt in self._startup_win_bt.items():
             bt.Selected = key in win_list
                 
     def init_from_prefs(self, *a):
@@ -419,7 +419,7 @@ class AppPrefWindow(pymui.Window):
             self.Sleep = False
                         
     def clear_bindings(self):
-        for page in self._ctx_pages.itervalues():
+        for page in self._ctx_pages.values():
             page.vgp.InitChange()
             try:
                 for child in page.bindings:
@@ -434,11 +434,11 @@ class AppPrefWindow(pymui.Window):
 
     def apply_config(self, *a):
         # Events bindings
-        for page in self._ctx_pages.itervalues():
+        for page in self._ctx_pages.values():
             name = page.ctx.NAME
             page.ctx.reset_bindings()
             bind_list = prefs['bindings'][name] = []
-            for bind in page.bindings.itervalues():
+            for bind in page.bindings.values():
                 data = bind.data
                 if data:
                     bind_list.append(data)
@@ -491,7 +491,7 @@ class AppPrefWindow(pymui.Window):
             col.append(alpha.Value.value / 100.)
             return tuple(col)
             
-        for k, v in _RenderingPrefHandler.MAPS.iteritems():
+        for k, v in _RenderingPrefHandler.MAPS.items():
             prefs[v] = apply_color(*self._colors[k])
         
         prefs['pymui-ruler-bg-pen'] = self._ruler_bg_pen.Value.value
@@ -499,7 +499,7 @@ class AppPrefWindow(pymui.Window):
         
         # Interface
         win_list = []
-        for key, bt in self._startup_win_bt.iteritems():
+        for key, bt in self._startup_win_bt.items():
             if bt.Selected.value:
                 win_list.append(key)
         prefs['pymui-window-open-at-startup'] = win_list

@@ -206,7 +206,7 @@ class DrawableBrush(_brush.Brush, Brush):
         r = height / 4
         size = width - 20
 
-        for x in xrange(10, width - 10):
+        for x in range(10, width - 10):
             state = DeviceState()
             state.time = t = float(x - 10) / size
             state.pressure = 1.0 - (2 * t - 1) ** 2

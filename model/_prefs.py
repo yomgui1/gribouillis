@@ -93,7 +93,7 @@ class Preferences(dict):
         with open(filename, 'w') as fd:
             config = ET.Element('config', {}, version=str(main.VERSION))
 
-            for tag, handler in self.handlers.iteritems():
+            for tag, handler in self.handlers.items():
                 element = ET.Element(tag)
                 try:
                     handler.save(self, element)

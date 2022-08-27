@@ -90,7 +90,7 @@ class MetaMediator(type):
         d = {}
         dct['_mvc_handlers'] = d
         # Added decorated functions, then cleanup
-        for v in dct.itervalues():
+        for v in dct.values():
             if hasattr(v, '_mvc_signals'):
                 for sig in v._mvc_signals:
                     d[sig] = v
@@ -123,7 +123,7 @@ class Mediator(puremvc.patterns.mediator.Mediator, puremvc.interfaces.IMediator)
 
     @classmethod
     def listNotificationInterests(cls):
-        return cls._mvc_handlers.keys()
+        return tuple(cls._mvc_handlers.keys())
 
     def handleNotification(self, note):
         func = self.__class__._mvc_handlers[note.getName()]

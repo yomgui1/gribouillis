@@ -46,7 +46,7 @@ class Palette(list):
 
     def __init__(self, name, filename=None):
         list.__init__(self)
-        for i in xrange(self.MAX_COLORS):
+        for i in range(self.MAX_COLORS):
             self.append(PaletteValue())
 
         self.name = name
@@ -146,9 +146,9 @@ class PaintShopProHandler(PaletteHandler):
             count = max(0, min(int(fd.readline()), Palette.MAX_COLORS))
 
             # Read RGB values
-            for i in xrange(count):
+            for i in range(count):
                 line = fd.readline()[:-1]
-                rgb = map(lambda x: int(x)/255., line.split())
+                rgb = [int(x)/255. for x in line.split()]
                 assert len(rgb) == 3, "Invalid RGB value: '%s'" % line
                 palette[i].rgb = rgb
 
@@ -181,7 +181,7 @@ class AdobeColorSwatchHandler(PaletteHandler):
             count = max(0, min(a[1], Palette.MAX_COLORS))
 
             # Laod value
-            for i in xrange(count):
+            for i in range(count):
                 off = 2+i*5
                 cs, w, x, y, _ = a[off:off+5]
                 if cs == 0:

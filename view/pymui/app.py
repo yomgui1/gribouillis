@@ -128,7 +128,7 @@ class Application(pymui.Application, view.mixin.ApplicationMixin):
         # Should be created after startup-open-window list
         #self.appprefwin = AppPrefWindow()
 
-        for win in dwin.itervalues():
+        for win in dwin.values():
             self.AddChild(win)
 
     def _create_menustrip(self):
@@ -257,7 +257,7 @@ class Application(pymui.Application, view.mixin.ApplicationMixin):
         self.windows[name].Open = not self.windows[name].Open.value
     
     def close_all_non_drawing_windows(self):
-        for win in self.windows.itervalues():
+        for win in self.windows.values():
             win.Open = False
             
     def show_drawroot(self, root):
@@ -365,7 +365,7 @@ class Splash(pymui.Window):
                                PreParse=pymui.MUIX_L+pymui.MUIX_PH,
                                Contents=_T('Recent')+':'))
             with open(LASTS_FILENAME) as fd:
-                for i in xrange(5):
+                for i in range(5):
                     path = fd.readline()[:-1]
                     if path:
                         logo = pymui.Dtpic('SYS:Prefs/Presets/Deficons/image/default.info',

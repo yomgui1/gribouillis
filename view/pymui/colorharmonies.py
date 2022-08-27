@@ -196,7 +196,7 @@ class ColorWeelHarmonies(pymui.Area):
 
         # Draw harmonies
         da = (get_angle(*self.__pos) or 0.)-pi/12.
-        for i in xrange(12):
+        for i in range(12):
             cr.set_line_width(1 if i else 3)
             a1 = i*pi/6.+radians(3)+da
             a2 = (i+1)*pi/6.-radians(3)+da
@@ -468,7 +468,7 @@ class ColorWeelHarmonies2(pymui.Area):
 
         # Draw harmonies
         da = (get_angle(*self.__pos) or 0.)-pi/12.
-        for i in xrange(12):
+        for i in range(12):
             cr.set_line_width(1 if i else 3)
             a1 = i*pi/6.+radians(3)+da
             a2 = (i+1)*pi/6.-radians(3)+da
@@ -513,7 +513,7 @@ class ColorWeelHarmonies2(pymui.Area):
 
         h,s,v = self.__hsv
         w -= 1
-        for y in xrange(w+1):
+        for y in range(w+1):
             i = float(y) / w
             pat = cairo.LinearGradient(0, 0, w, 0)
             pat.add_color_stop_rgb(0,*hsv_to_rgb(h,0,1-i/2))
@@ -724,7 +724,7 @@ class ColorHarmoniesWindow(pymui.Window):
         vgrp = pymui.VGroup(SameSize=True, Columns=16, Spacing=1, HorizWeight=100, Horiz=False, Background='2:00000000,00000000,00000000')
         grp.AddChild(pymui.HCenter(vgrp))
         self._pal_bt = []
-        for i in xrange(256):
+        for i in range(256):
             bt = DropColorBox(12, 12)
             vgrp.AddChild(bt)
             bt.Notify('Pressed', self._on_palbt, when=False)
@@ -783,7 +783,7 @@ class ColorHarmoniesWindow(pymui.Window):
             self._pal_bt[i].rgb = data.rgb
             
         # Reset the rest
-        for i in xrange(i+1, 256):
+        for i in range(i+1, 256):
             self._pal_bt[i].rgb = None
 
         self._predefpallister.Active = self._predefpal_list.index(name)

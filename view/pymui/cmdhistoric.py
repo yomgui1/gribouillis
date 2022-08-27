@@ -99,7 +99,7 @@ class CommandsHistoryList(Window):
 
     def add_cmd(self, cmd):
         if self.__last_added > 0:
-            for i in xrange(self.__last_added):
+            for i in range(self.__last_added):
                 self._cmdlist.Remove(MUIV_List_Remove_First)
 
         self._cmdlist.InsertSingleString(cmd.getCommandName(), MUIV_List_Insert_Top)

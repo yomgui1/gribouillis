@@ -139,7 +139,7 @@ class TileSurfaceSnapshot(dict):
         # mark all tiles as readonly:
         # A modification on a RO tile replaces it by new one
         # with ro set to False
-        for tile in tiles.itervalues():
+        for tile in tiles.values():
             tile.ro = True
 
     def reduce(self, surface):
@@ -151,7 +151,7 @@ class TileSurfaceSnapshot(dict):
         xmax = ymax = -sys.maxint - 1
 
         # Search for modifications (and additions!)
-        for pos, tile in surface.tiles.iteritems():
+        for pos, tile in surface.tiles.items():
             if not tile.ro:
                 # Move added tiles into the other dict,
                 # and update the dirty area
@@ -192,8 +192,8 @@ class TileSurfaceSnapshot(dict):
 
     @property
     def size(self):
-        return sum(t.memsize for t in self.itervalues()) + \
-            sum(t.memsize for t in self._mod.itervalues())
+        return sum(t.memsize for t in self.values()) + \
+            sum(t.memsize for t in self._mod.values())
 
 
 class Tile(_pixbuf.Pixbuf):
@@ -248,7 +248,7 @@ class UnboundedTiledSurface(Surface):
         src = surface.__tilemgr
         dst = self.__tilemgr
         dst.tiles.clear()
-        for tile in src.tiles.itervalues():
+        for tile in src.tiles.values():
             dst.set_tile(tile.copy(), tile.x, tile.y)
 
     def read_pixel(self, x, y):
@@ -290,12 +290,12 @@ class UnboundedTiledSurface(Surface):
         self.from_buffer(_pixbuf.FORMAT_RGBA8_NOA, *a, **k)
 
     def cleanup(self):
-        for k in tuple(k for k, v in self.__tilemgr.tiles.iteritems()
+        for k in tuple(k for k, v in self.__tilemgr.tiles.items()
                        if v.empty()):
             del self.__tilemgr.tiles[k]
 
     def __iter__(self):
-        return self.__tilemgr.tiles.itervalues()
+        return self.__tilemgr.tiles.values()
 
     @property
     def area(self):

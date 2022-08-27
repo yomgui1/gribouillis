@@ -26,7 +26,6 @@
 import cairo
 import re
 from puremvc.patterns.proxy import Proxy
-from itertools import imap
 
 import main
 import utils
@@ -212,15 +211,15 @@ class DocumentProxy(Proxy):
 
     @classmethod
     def iternames(cls):
-        return cls.__instances.iterkeys()
+        return cls.__instances.keys()
 
     @classmethod
     def proxies(cls):
-        return cls.__instances.itervalues()
+        return cls.__instances.values()
 
     @classmethod
     def has_modified(cls):
-        return any(imap(lambda dp: dp.document.modified and not dp.document.empty, cls.__instances.itervalues()))
+        return any([dp.document.modified and not dp.document.empty for dp in cls.__instances.values()])
 
     @classmethod
     def new_proxy(cls, vo):

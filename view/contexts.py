@@ -173,7 +173,7 @@ class MetaContext(type):
         
             # Construct a list of all available actions for this context
             actdict = cl.AVAIL_ACTIONS
-            for v in dct.itervalues():
+            for v in dct.values():
                 if hasattr(v, '_act_name'):
                     if v in actdict:
                         raise SystemError("Already defined action for context %s: %s" % (clname, v._act_name))
@@ -259,7 +259,7 @@ class Context(object):
         return False, self
         
     def enter_context(self, name, **kwds):
-        for k, v in self._data.iteritems():
+        for k, v in self._data.items():
             kwds.setdefault(k, v)
         self.__next = new_context(name, **kwds)
         self.__next.__parent = self

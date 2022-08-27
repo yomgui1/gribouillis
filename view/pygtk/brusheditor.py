@@ -183,7 +183,7 @@ class BrushEditorWindow(SubWindow):
         self._brush = None # forbid brush prop changed events, so a endless loop
 
         # Update the UI
-        for name in self.prop.iterkeys():
+        for name in self.prop.keys():
             self.set_property(name, getattr(brush, name))
 
         self._brush = brush

@@ -142,6 +142,6 @@ class Application(view.mixin.ApplicationMixin):
         return vo
 
     def close_all_non_drawing_windows(self):
-        for win in ctx.windows.itervalues:
+        for win in ctx.windows.values:
             win.hide()
 

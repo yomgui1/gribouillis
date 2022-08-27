@@ -60,9 +60,9 @@ OTHER DEALINGS IN THE SOFTWARE.
 #define GET_INT_FROM_STROKE(state, var, name) \
     { PyObject *_o = PyObject_GetAttrString(state, name); \
     if (NULL == _o) return NULL; \
-    else if (!PyInt_CheckExact(_o)) \
+    else if (!PyLong_CheckExact(_o)) \
     { Py_DECREF(_o); return PyErr_Format(PyExc_TypeError, "Invalid '%s' attribute in stroke", name); } \
-    var = PyInt_AS_LONG(_o); Py_DECREF(_o); }
+    var = PyLong_AS_LONG(_o); Py_DECREF(_o); }
 
 #define GET_FLOAT_FROM_STROKE(state, var, name) \
     { PyObject *_o = PyObject_GetAttrString(state, name); \
@@ -85,8 +85,8 @@ OTHER DEALINGS IN THE SOFTWARE.
     if (NULL == _o) return NULL; \
     else if (!PyTuple_CheckExact(_o)) \
     { Py_DECREF(_o); return PyErr_Format(PyExc_TypeError, "Invalid '%s' attribute in stroke", name); } \
-    var0 = PyInt_AsLong(PyTuple_GET_ITEM(_o, 0)); \
-    var1 = PyInt_AsLong(PyTuple_GET_ITEM(_o, 1)); \
+    var0 = PyLong_AsLong(PyTuple_GET_ITEM(_o, 0)); \
+    var1 = PyLong_AsLong(PyTuple_GET_ITEM(_o, 1)); \
     Py_DECREF(_o); }
 
 
@@ -327,8 +327,8 @@ obtain_pixbuffer(PyBrush *self, PyObject *surface, int x, int y)
          * but harmless in pratice as the tuple deallocation
          * will call Py_XDECREF() on each items.
          */
-        PyTuple_SET_ITEM(args, 0, PyInt_FromLong(x));
-        PyTuple_SET_ITEM(args, 1, PyInt_FromLong(y));
+        PyTuple_SET_ITEM(args, 0, PyLong_FromLong(x));
+        PyTuple_SET_ITEM(args, 1, PyLong_FromLong(y));
 
         /* Call the cached get_pixbuf surface method */
         o = PyObject_Call(self->b_GetPixBufFunc, args, NULL); /* NR */

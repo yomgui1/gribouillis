@@ -413,7 +413,7 @@ area_get_item(PyArea *self, Py_ssize_t i)
 	default: PyErr_SetString(PyExc_IndexError, "invalid index"); return NULL;
 	}
 
-	return PyInt_FromLong(v);
+	return PyLong_FromLong(v);
 }
 
 static Py_ssize_t

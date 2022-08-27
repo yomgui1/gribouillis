@@ -75,8 +75,8 @@ static int get_tile(PyUnboundedTileMgr *self, int tx, int ty, int create,
 	if (NULL == *key)
 		return -1;
 
-	PyTuple_SetItem(*key, 0, PyInt_FromLong(tx));
-	PyTuple_SetItem(*key, 1, PyInt_FromLong(ty));
+	PyTuple_SetItem(*key, 0, PyLong_FromLong(tx));
+	PyTuple_SetItem(*key, 1, PyLong_FromLong(ty));
 
 	if (NULL != PyErr_Occurred())
 	{
@@ -141,8 +141,8 @@ static int get_bbox(PyUnboundedTileMgr *self, int *txmin_p, int *txmax_p, int *t
 	{
 		int tx, ty;
 
-		tx = PyInt_AS_LONG(PyTuple_GET_ITEM(key, 0));
-		ty = PyInt_AS_LONG(PyTuple_GET_ITEM(key, 1));
+		tx = PyLong_AS_LONG(PyTuple_GET_ITEM(key, 0));
+		ty = PyLong_AS_LONG(PyTuple_GET_ITEM(key, 1));
 
 		if (tx < txmin)
 			txmin = tx;
@@ -271,8 +271,8 @@ ubtilemgr_set_tile(PyUnboundedTileMgr *self, PyObject *args)
 	if (NULL == key)
 		return NULL;
 
-	PyTuple_SetItem(key, 0, PyInt_FromLong(tx));
-	PyTuple_SetItem(key, 1, PyInt_FromLong(ty));
+	PyTuple_SetItem(key, 0, PyLong_FromLong(tx));
+	PyTuple_SetItem(key, 1, PyLong_FromLong(ty));
 
 	if (NULL != PyErr_Occurred())
 	{

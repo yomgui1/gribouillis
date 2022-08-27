@@ -217,7 +217,7 @@ class BrushHouseWindow(SubWindow):
         t = frame.table
         x = t.count % TABLE_WIDTH
         y = t.count / TABLE_WIDTH
-        frame.table.attach(bt, x, x+1, y, y+1, gtk.FILL, gtk.FILL, 1, 1)
+        frame.table.attach(bt, x, x+1, y, y+1)
         t.count += 1
 
         return bt

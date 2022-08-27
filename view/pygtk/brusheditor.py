@@ -101,7 +101,7 @@ class BrushEditorWindow(SubWindow):
         topbox.pack_start(box, False, False, 0)
 
         # Brush parameters
-        table = gtk.Table(2)
+        table = gtk.Grid()
         topbox.pack_start(table, False, False, 0)
 
         self.prop = {}
@@ -156,7 +156,7 @@ class BrushEditorWindow(SubWindow):
 
         if islog: hs.connect('format-value', self._format_value)
 
-        table.attach(lb, 0, 1, i, i+1, gtk.FILL, gtk.FILL, 5, 0)
+        table.attach(lb, 0, 1, i, i+1)
         table.attach(hs, 1, 2, i, i+1)
 
         return hs

@@ -23,7 +23,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
-from __future__ import with_statement
+
 
 import os, pymui
 import xml.etree.ElementTree as ET

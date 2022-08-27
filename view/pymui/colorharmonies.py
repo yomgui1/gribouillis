@@ -24,7 +24,7 @@
 ###############################################################################
 
 # Python 2.5 compatibility
-from __future__ import with_statement
+
 
 import pymui, cairo, os, glob, array
 from math import *

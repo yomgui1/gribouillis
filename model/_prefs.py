@@ -24,7 +24,7 @@
 ###############################################################################
 
 # 2.5 only
-from __future__ import with_statement
+
 
 import os
 import main

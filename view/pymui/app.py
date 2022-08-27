@@ -25,7 +25,7 @@
 ###############################################################################
 
 # Python 2.5 compatibility
-from __future__ import with_statement
+
 
 import pymui, os, sys, string, gc, glob, random
 

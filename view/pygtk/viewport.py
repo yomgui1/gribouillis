@@ -157,7 +157,7 @@ class DocViewport(gtk.DrawingArea, view.render.BackgroundMixin):
             self.view_area = (0, 0, width, height)
 
             # reconstruct viewports and rasterize
-            self._doc_gtk_pb = gdk.Pixbuf(gdk.COLORSPACE_RGB, True, 8, width, height)
+            self._doc_gtk_pb = GdkPixbuf.Pixbuf.new(GdkPixbuf.Colorspace.RGB, True, 8, width, height)
             self._doc_pb = _pixbuf.pixbuf_from_gdk_pixbuf(self._doc_gtk_pb, _pixbuf.FORMAT_RGBA8_NOA)
             self._docre.set_pixbuf(self._doc_pb)
 

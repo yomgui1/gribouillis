@@ -179,8 +179,8 @@ class BrushHouseWindow(SubWindow):
         height = 60
 
         buf = self._drawbrush.paint_rgb_preview(width, height, fmt=_pixbuf.FORMAT_RGBA8_NOA)
-        pixbuf = gdk.pixbuf_new_from_data(buf, gdk.COLORSPACE_RGB, True, 8,
-                                          buf.width, buf.height, buf.stride)
+        pixbuf = GdkPixbuf.Pixbuf.new_from_data(buf, gdk.COLORSPACE_RGB, True, 8,
+                                                buf.width, buf.height, buf.stride)
         icon_image = gtk.image_new_from_pixbuf(pixbuf)
         bt.set_image(icon_image)
         bt.set_size_request(width+15, height+5)
@@ -201,9 +201,9 @@ class BrushHouseWindow(SubWindow):
             height = 60
 
             buf = self._drawbrush.paint_rgb_preview(width, height, fmt=_pixbuf.FORMAT_RGBA8_NOA)
-            pixbuf = gdk.pixbuf_new_from_data(buf, gdk.COLORSPACE_RGB, True, 8,
-                                              buf.width, buf.height, buf.stride)
-            icon_image = gtk.image_new_from_pixbuf(pixbuf)
+            pixbuf = GdkPixbuf.Pixbuf.new_from_data(buf, GdkPixbuf.Colorspace.RGB, True, 8,
+                                                    buf.width, buf.height, buf.stride)
+            icon_image = gtk.Image.new_from_pixbuf(pixbuf)
 
         bt = gtk.ToggleButton()
         bt.set_image(icon_image)

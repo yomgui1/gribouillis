@@ -103,7 +103,7 @@ class Brush(object):
                         file.write("%s=%s\n" % (prop, getattr(brush, prop)))
                     file.write("\n")
         except Exception as e:
-            print "[DBG] error during brushes saving:", e
+            print("[DBG] error during brushes saving:", e)
             if os.path.isfile(filename):
                 os.remove(filename)
         else:
@@ -154,8 +154,8 @@ class Brush(object):
                                     if attr == 'page':
                                         attr = 'group'
                             setattr(brush, attr, value)
-                print "[DBG] error during brushes loading:", e
             except Exception as e:
+                print("[DBG] error during brushes loading:", e)
 
         # Default brushes
         if not l:

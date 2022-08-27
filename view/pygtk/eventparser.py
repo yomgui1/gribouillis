@@ -58,7 +58,7 @@ class GdkEventParser:
         if p is not None:
             if p < 0. or p > 1.:
                 if evt.device.name not in cls.__bad_devices:
-                    print 'WARNING: device "%s" is reporting bad pressure %+f' % (evt.device.name, p)
+                    print('WARNING: device "%s" is reporting bad pressure %+f' % (evt.device.name, p))
                     cls.__bad_devices.append(evt.device.name)
                     # Over limits?
                 if p < -10000. or p > 10000.:

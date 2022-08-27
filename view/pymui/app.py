@@ -212,7 +212,7 @@ class Application(pymui.Application, view.mixin.ApplicationMixin):
 
     def _do_gc_collect(self):
         gc.set_debug(gc.DEBUG_LEAK)
-        print "=> %u collected" % gc.collect()
+        print("=> %u collected" % gc.collect())
         gc.set_debug(0)
         
     # Public API

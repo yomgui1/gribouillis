@@ -162,7 +162,7 @@ class OpenRasterFileReader:
     def GetLayersContents(self):
         for layer in self.top_stack:
             if layer.tag != 'layer':
-                print "[*DBG*] Warning: ignoring item %s in stack" % layer.tag
+                print("[*DBG*] Warning: ignoring item %s in stack" % layer.tag)
                 continue
 
             a = layer.attrib
@@ -182,7 +182,7 @@ class OpenRasterFileReader:
             srcpath = a.get('src')
             if srcpath:
                 if not srcpath.lower().endswith('.png'):
-                    print "[*DBG*] Warning: ignoring layer src %s" % srcpath
+                    print("[*DBG*] Warning: ignoring layer src %s" % srcpath)
                     continue
 
                 x = int(a.get('x', 0)) + self.ox # optional
@@ -193,7 +193,7 @@ class OpenRasterFileReader:
                 im = pil.open(file)
                 w, h = im.size
                 if w != int(a.get('w', w)) or h != int(a.get('h', h)):
-                    print "[*DBG*] Warning: ignoring unwanted size (%lux%lu)" % (w, h)
+                    print("[*DBG*] Warning: ignoring unwanted size (%lux%lu)" % (w, h))
                     continue
 
                 yield a['name'], cpop, (x, y, w, h), visible, opacity, im.tostring()

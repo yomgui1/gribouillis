@@ -81,7 +81,7 @@ class _BindingsPrefHandler(IPrefHandler):
                 try:
                     action = getattr(contexts.ALL_CONTEXTS[ctx_name], action)
                 except:
-                    print "[*DBG*] Bindings: Unknown action for context '%s': '%s'" % (ctx_name, action)
+                    print("[*DBG*] Bindings: Unknown action for context '%s': '%s'" % (ctx_name, action))
                 else:
                     if action:
                         key = bind_el.get('key', '').strip()
@@ -122,7 +122,7 @@ class _ToolsWheelPrefHandler(IPrefHandler):
                             cmd = k
                             
                     if cmd is None:
-                        print "[*DBG*] ToolsWheel: Unknown command: '%s'" % name
+                        print("[*DBG*] ToolsWheel: Unknown command: '%s'" % name)
                         continue
                         
                     binds[i] = cmd

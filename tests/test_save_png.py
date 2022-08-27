@@ -4,7 +4,7 @@ import PIL.Image
 filename = "/tmp/test.png"
 rows = ["\x55\xAA\x5A\xff" * 320] * 256
 
-print "Test image save/load degradation:",
+print("Test image save/load degradation:", end=None)
 try:
     for n in range(25):
         _savers.png_init(320, 256)
@@ -26,7 +26,7 @@ try:
             rows = data_new[y*320:(y+1)*320]
         del im
 except:
-    print "Failed"
+    print("Failed")
     raise
 else:
-    print "Ok"
+    print("Ok")

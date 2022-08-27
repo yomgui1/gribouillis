@@ -238,7 +238,7 @@ class Context(object):
                 
         # Check for action in context itself
         action = self.get_action(event)
-        #print "[%s] Event: %s: %s" % (self, event, action)
+        #print("[%s] Event: %s: %s" % (self, event, action))
 
         # If not found check parent if we're not a modal context
         if not action and not isinstance(self, ModalContext):

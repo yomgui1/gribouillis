@@ -34,7 +34,7 @@ from utils import virtualmethod
 debug = 0
 
 def _DBG(msg):
-    print msg
+    print(msg)
 
 DBG = (_DBG if debug else lambda x: None)
 del debug, _DBG

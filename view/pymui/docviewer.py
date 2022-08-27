@@ -74,7 +74,7 @@ class ModifiableContainer:
                 root.RemChild(old_contents)
             self.__contents = contents
             if contents:
-                #print "Set %s as contents of %s" % (contents, root)
+                #print("Set %s as contents of %s" % (contents, root))
                 root.AddTail(contents)
         finally:
             root.ExitChange()

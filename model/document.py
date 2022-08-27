@@ -32,7 +32,7 @@ import cairo
 import PIL.Image
 import array
 
-from cStringIO import StringIO
+from io import StringIO
 from math import floor, ceil
 
 try:

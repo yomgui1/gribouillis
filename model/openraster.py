@@ -26,7 +26,7 @@
 import zipfile, itertools, os
 import xml.etree.ElementTree as ET
 import PIL.Image as pil
-from StringIO import StringIO
+from io import StringIO
 from math import ceil
 
 __all__ = ('OpenRasterFileWriter', 'OpenRasterFileReader')

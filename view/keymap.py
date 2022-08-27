@@ -36,7 +36,7 @@ class Keymap(dict):
         KeymapManager.register_keymap(self)
 
 
-class KeymapManager():
+class KeymapManager(metaclass=utils.MetaSingleton):
     """KeymapManager
 
     Instance of this class helps to map OS specific events
@@ -50,7 +50,6 @@ class KeymapManager():
     Requiers 2.7
     """
 
-    __metaclass__ = utils.MetaSingleton
     __kmd = {} # all registered keymaps
 
     def __init__(self, default):

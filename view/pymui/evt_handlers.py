@@ -37,9 +37,7 @@ class MetaEventHandler(type):
         cl = type.__new__(meta, name, bases, dct)
         return cl
 
-class EventHandler(object):
-    __metaclass__ = MetaEventHandler
-    
+class EventHandler(metaclass=MetaEventHandler):
     def start(self, vp): pass
     def stop(self, vp): pass
     def on_enter(self, vp, state, evt): pass

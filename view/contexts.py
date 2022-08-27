@@ -105,9 +105,7 @@ class MetaEvent(type):
     def __str__(cl):
         return cl.NAME
 
-class EventBase(object):
-    __metaclass__ = MetaEvent
-    
+class EventBase(metaclass=MetaEvent):
     repeat = False
     
     def __str__(self):
@@ -187,9 +185,8 @@ class MetaContext(type):
         type.__init__(cl, clname, bases, dct)
         cl.reset_bindings()
             
-class Context(object):
-    __metaclass__ = MetaContext
-    
+
+class Context(metaclass=MetaContext):
     __parent = None
     __next = None
     

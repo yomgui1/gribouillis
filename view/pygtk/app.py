@@ -41,9 +41,7 @@ from .brushhouse import BrushHouseWindow
 __all__ = ['Application']
 
 
-class Application(view.mixin.ApplicationMixin):
-    __metaclass__ = utils.MetaSingleton
-
+class Application(metaclass=utils.MetaSingleton):
     _last_filename = None
 
     def __init__(self):

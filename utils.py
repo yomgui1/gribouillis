@@ -109,7 +109,7 @@ class MetaSingleton(type):
         return cls.instance
 
 
-class Mediator(puremvc.patterns.mediator.Mediator, puremvc.interfaces.IMediator):
+class Mediator(puremvc.patterns.mediator.Mediator, puremvc.interfaces.IMediator, metaclass=MetaMediator):
     """Mediator
     Base class to create MVC Mediator classes.
 
@@ -118,8 +118,6 @@ class Mediator(puremvc.patterns.mediator.Mediator, puremvc.interfaces.IMediator)
 
     Moreover this class detectes methods decorated with 'mvcHandler'.
     """
-
-    __metaclass__ = MetaMediator
 
     @classmethod
     def listNotificationInterests(cls):

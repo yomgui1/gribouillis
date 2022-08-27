@@ -111,9 +111,7 @@ class _MetaPaletteHandler(type):
             _MetaPaletteHandler.HANDLERS.add(cl)
             SUPPORTED_EXTENSIONS.append(cl.EXT)
 
-class PaletteHandler(object):
-    __metaclass__ = _MetaPaletteHandler
-
+class PaletteHandler(metaclass=_MetaPaletteHandler):
     @classmethod
     def getext(cl, filename):
         return os.path.splitext(filename)[1].lower()

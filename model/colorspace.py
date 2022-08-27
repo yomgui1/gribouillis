@@ -48,9 +48,7 @@ class MetaColorSpace(type):
         return meta.__classes[name]
 
 
-class ColorSpace(object):
-    __metaclass__ = MetaColorSpace
-
+class ColorSpace(metaclass=MetaColorSpace):
     # Given by sublasses
     # type = pixbuf colorpace type
     # _names = dict

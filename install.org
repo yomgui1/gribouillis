@@ -1,0 +1,4 @@
+* Fedora (35 at least)
+
+  sudo dnf install pygobject2-devel gdk-pixbuf2-devel lcms2-devel pygtk2-devel
+  pip3 install mixin viewstate PureMVC

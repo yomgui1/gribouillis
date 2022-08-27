@@ -108,18 +108,18 @@ class Application(metaclass=utils.MetaSingleton):
 
         # Document name
         hbox = gtk.HBox()
-        dlg.vbox.pack_start(hbox)
-        hbox.pack_start(gtk.Label(_T("Document name:")))
+        dlg.vbox.pack_start(hbox, True, True, 0)
+        hbox.pack_start(gtk.Label(_T("Document name:")), True, True, 0)
 
         name = gtk.Entry()
-        hbox.pack_start(name)
+        hbox.pack_start(name, True, True, 0)
         name.set_text(vo.name)
 
         hbox.show_all()
 
         # ComboBox
         combo = gtk.combo_box_new_text()
-        dlg.vbox.pack_start(combo)
+        dlg.vbox.pack_start(combo, True, True, 0)
 
         # Add entries
         combo.append_text(_T("Select document type:"))

@@ -53,8 +53,8 @@ def ask_for_name(widget, title, default):
                     gtk.STOCK_OK, gtk.RESPONSE_ACCEPT))
 
     hbox = gtk.HBox()
-    d.vbox.pack_start(hbox)
-    hbox.pack_start(gtk.Label('Name'))
+    d.vbox.pack_start(hbox, True, True, 0)
+    hbox.pack_start(gtk.Label('Name'), True, True, 0)
 
     d.e = e = gtk.Entry()
     e.set_text(default)
@@ -63,7 +63,7 @@ def ask_for_name(widget, title, default):
         dialog.response(response)
     e.connect("activate", responseToDialog, d, gtk.RESPONSE_ACCEPT)
 
-    hbox.pack_start(e)
+    hbox.pack_start(e, True, True, 0)
     d.vbox.show_all()
     if d.run() == gtk.RESPONSE_ACCEPT:
         result = d.e.get_text()
@@ -138,9 +138,9 @@ class LayerCtrl(gtk.EventBox):
 
         # Pack them all
         self.topbox = gtk.HBox()
-        self.topbox.pack_start(self.disp, expand=False)
-        self.topbox.pack_start(self.operator, expand=False)
-        self.topbox.pack_start(self.label)
+        self.topbox.pack_start(self.disp, False, True, 0)
+        self.topbox.pack_start(self.operator, False, True, 0)
+        self.topbox.pack_start(self.label, True, True, 0)
         self.add(self.topbox)
 
         self.show_all()
@@ -205,7 +205,7 @@ class LayerManager(SubWindow):
             im = gtk.Image()
             im.set_from_stock(stock, gtk.ICON_SIZE_BUTTON)
             bt.set_image(im)
-            btnbox.pack_start(bt)
+            btnbox.pack_start(bt, True, True, 0)
 
         self.btn = {}
 
@@ -219,8 +219,8 @@ class LayerManager(SubWindow):
         addButton('merge',  gtk.STOCK_CONVERT)
 
         # Packing all
-        topbox.pack_start(scroll)
-        topbox.pack_start(btnbox, expand=False)
+        topbox.pack_start(scroll, True, True, 0)
+        topbox.pack_start(btnbox, False, True, 0)
         self.add(topbox)
         topbox.show_all()
 
@@ -256,7 +256,7 @@ class LayerManager(SubWindow):
     def add_layer_ctrl(self, layer, pos=0):
         ctrl = LayerCtrl(layer)
         ctrl.label.connect('button-press-event', self.on_ctrl_label_press)
-        self.layers_container.pack_start(ctrl, expand=False)
+        self.layers_container.pack_start(ctrl, False, True, 0)
         self.layers_container.reorder_child(ctrl, len(self)-pos-1)
 
     def set_layers(self, layers, active=None):

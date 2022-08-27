@@ -95,14 +95,14 @@ class BrushEditorWindow(SubWindow):
         self.bprev = BrushPreview()
         
         box = gtk.HBox()
-        box.pack_start(gtk.VBox())
-        box.pack_start(self.bprev, False, False)
-        box.pack_start(gtk.VBox())
-        topbox.pack_start(box, False, False)
+        box.pack_start(gtk.VBox(), True, True, 0)
+        box.pack_start(self.bprev, False, False, 0)
+        box.pack_start(gtk.VBox(), True, True, 0)
+        topbox.pack_start(box, False, False, 0)
 
         # Brush parameters
         table = gtk.Table(2)
-        topbox.pack_start(table, False, False)
+        topbox.pack_start(table, False, False, 0)
 
         self.prop = {}
         self.prop['radius_min']        = self._add_slider(table, 'radius_min', -1, 5, 3, .1, .5, islog = True)

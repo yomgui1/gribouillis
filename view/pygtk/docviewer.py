@@ -55,8 +55,8 @@ class HViewportSplit(gtk.HBox):
     def __init__(self, parent, left, right):
         super(HViewportSplit, self).__init__()
         parent.add(self)
-        self.pack_start(left)
-        self.pack_start(right)
+        self.pack_start(left, True, True, 0)
+        self.pack_start(right, True, True, 0)
         self.show_all()
 
     def remove_left(self):
@@ -252,11 +252,11 @@ class DocWindow(gtk.Window):
 
         # MenuBar
         menubar = uimanager.get_widget('/MenuBar')
-        topbox.pack_start(menubar, False)
+        topbox.pack_start(menubar, False, True, 0)
 
         # Top drawing box
         self._drbox = drbox = gtk.HBox(False, 1)
-        topbox.pack_start(drbox, True)
+        topbox.pack_start(drbox, True, True, 0)
 
         # Default viewport
         vp = DocViewport(self, docproxy)

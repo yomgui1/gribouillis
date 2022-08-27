@@ -84,7 +84,7 @@ class BrushHouseWindow(SubWindow):
         # Pages controls
         box = gtk.HButtonBox()
         box.set_layout(gtk.BUTTONBOX_START)
-        topbox.pack_start(box, False)
+        topbox.pack_start(box, False, True, 0)
 
         bt = gtk.Button('New page')
         box.add(bt)

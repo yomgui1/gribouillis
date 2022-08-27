@@ -43,7 +43,7 @@ class AssignCMSDialog(gtk.Dialog):
         self._profiles = Profile.get_all()
         
         frame = gtk.Frame(_T("Assign Profile")+':')
-        self.vbox.pack_start(frame, False, False)
+        self.vbox.pack_start(frame, False, False, 0)
 
         vbox = gtk.VBox()
         frame.add(vbox)
@@ -51,14 +51,14 @@ class AssignCMSDialog(gtk.Dialog):
         # Nothing
         bt1 = gtk.RadioButton(None, _T("No color management on this document"))
         self._bt.append(bt1)
-        vbox.pack_start(bt1, False, False)
+        vbox.pack_start(bt1, False, False, 0)
 
         # Current
         if docproxy.profile:
             bt2 = gtk.RadioButton(bt1, _T("Working")+': %s' % docproxy.profile)
             bt2.set_active()
             self._bt.append(bt2)
-            vbox.pack_start(bt2, False, False)
+            vbox.pack_start(bt2, False, False, 0)
         else:
             self._bt.append(None)
 
@@ -73,10 +73,10 @@ class AssignCMSDialog(gtk.Dialog):
         self._cb = cb
 
         hbox = gtk.HBox()
-        hbox.pack_start(bt3, False, False)
-        hbox.pack_start(cb)
+        hbox.pack_start(bt3, False, False, 0)
+        hbox.pack_start(cb, True, True, 0)
 
-        vbox.pack_start(hbox, False, False)
+        vbox.pack_start(hbox, False, False, 0)
         
         self.show_all()
 
@@ -101,17 +101,17 @@ class ConvertDialog(gtk.Dialog):
         self._profiles = Profile.get_all()
         
         frame = gtk.Frame(_T("Source")+':')
-        self.vbox.pack_start(frame, False, False)
+        self.vbox.pack_start(frame, False, False, 0)
 
         hbox = gtk.HBox()
         frame.add(hbox)
 
         label = gtk.Label(_T("Profile")+': %s' % docproxy.profile)
         label.set_justify(gtk.JUSTIFY_LEFT)
-        hbox.pack_start(label, False, False)
+        hbox.pack_start(label, False, False, 0)
 
         frame = gtk.Frame(_T("Destination")+':')
-        self.vbox.pack_start(frame, False, False)
+        self.vbox.pack_start(frame, False, False, 0)
 
         self._dest = cb = gtk.combo_box_new_text()
         for profile in self._profiles:
@@ -121,11 +121,11 @@ class ConvertDialog(gtk.Dialog):
         hbox = gtk.HBox()
         frame.add(hbox)
 
-        hbox.pack_start(gtk.Label(_T("Profile")+': '), False, False)
-        hbox.pack_start(cb, False, False)
+        hbox.pack_start(gtk.Label(_T("Profile")+': '), False, False, 0)
+        hbox.pack_start(cb, False, False, 0)
 
         frame = gtk.Frame(_T("Options")+':')
-        self.vbox.pack_start(frame, False, False)
+        self.vbox.pack_start(frame, False, False, 0)
 
         vbox = gtk.VBox()
         frame.add(vbox)
@@ -138,10 +138,10 @@ class ConvertDialog(gtk.Dialog):
         cb.set_active(0)
 
         hbox = gtk.HBox()
-        vbox.pack_start(hbox)
+        vbox.pack_start(hbox, True, True, 0)
 
-        hbox.pack_start(gtk.Label(_T("Intent")+': '), False, False)
-        hbox.pack_start(cb, False, False)
+        hbox.pack_start(gtk.Label(_T("Intent")+': '), False, False, 0)
+        hbox.pack_start(cb, False, False, 0)
 
         bt1 = gtk.CheckButton(_T("Use Black Point Compensation")+': ')
         bt2 = gtk.CheckButton(_T("Use Dither")+': ')
@@ -149,9 +149,9 @@ class ConvertDialog(gtk.Dialog):
         if len(docproxy.document.layers) == 1:
             bt3.set_sensitive(False)
 
-        vbox.pack_start(bt1)
-        vbox.pack_start(bt2)
-        vbox.pack_start(bt3)
+        vbox.pack_start(bt1, True, True, 0)
+        vbox.pack_start(bt2, True, True, 0)
+        vbox.pack_start(bt3, True, True, 0)
 
         self.show_all()
 

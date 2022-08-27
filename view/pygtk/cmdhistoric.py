@@ -54,12 +54,12 @@ class CommandsHistoryList(SubWindow):
         self.btn_flush = gtk.Button(_T('Flush'))
 
         # Packing
-        topbox.pack_start(self.scrolledwin, True)
-        topbox.pack_start(btnbox, False)
+        topbox.pack_start(self.scrolledwin, True, True, 0)
+        topbox.pack_start(btnbox, False, True, 0)
 
-        btnbox.pack_start(self.btn_undo)
-        btnbox.pack_start(self.btn_redo)
-        btnbox.pack_start(self.btn_flush)
+        btnbox.pack_start(self.btn_undo, True, True, 0)
+        btnbox.pack_start(self.btn_redo, True, True, 0)
+        btnbox.pack_start(self.btn_flush, True, True, 0)
 
         self.add(topbox)
         topbox.show_all()

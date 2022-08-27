@@ -37,7 +37,7 @@ class ColorWindow(SubWindow):
         self.add(top)
 
         self.colorsel = gtk.ColorSelection()
-        top.pack_start(self.colorsel)
+        top.pack_start(self.colorsel, True, True, 0)
 
         top.show_all()
 

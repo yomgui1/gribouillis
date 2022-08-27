@@ -251,7 +251,7 @@ class Document(list):
         return self.__fill
 
     def set_fill(self, fill):
-        if isinstance(fill, basestring):
+        if isinstance(fill, str):
             if self.isBackgroundFile(fill):
                 surface = cairo.ImageSurface.create_from_png(fill)
                 self.__fill = cairo.SurfacePattern(surface)

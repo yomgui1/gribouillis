@@ -183,7 +183,7 @@ class BackgroundMixin:
     _backpat = None  # background as pattern
 
     def set_background(self, back):
-        if isinstance(back, basestring):
+        if isinstance(back, str):
             self.set_background_file(back)
         else:
             self.set_background_rgb(back)

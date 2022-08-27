@@ -65,25 +65,31 @@ for description, name in [('color manager window', 'ColorManager'),
                  "operators", "exec"))
 '''
 
+
 @operator(_T('cleanup workspace'))
 def cleanup_workspace(ctx):
     ctx.application.close_all_non_drawing_windows()
+
 
 @operator(_T('undo'))
 def hist_undo(ctx):
     ctx.active_docproxy.undo()
 
+
 @operator(_T('redo'))
 def hist_redo(ctx):
     ctx.active_docproxy.redo()
+
 
 @operator(_T('flush'))
 def hist_flush(ctx):
     ctx.active_docproxy.flush()
 
+
 @operator(_T('clear active layer'))
 def clear_active_layer(ctx):
     ctx.active_docproxy.clear_layer()
+
 
 @operator(_T('quit'))
 def quit_request(ctx):
@@ -94,17 +100,21 @@ def quit_request(ctx):
 ## Event operators
 ##
 
+
 @operator(_T("vp-enter"))
 def vp_enter(ctx):
     ctx.active_viewport.show_brush_cursor(True)
+
 
 @operator(_T("vp-leave"))
 def vp_leave(ctx):
     ctx.active_viewport.show_brush_cursor(False)
 
+
 @operator(_T("vp-move-cursor"))
 def vp_move_cursor(ctx, event):
     ctx.active_viewport.repaint_cursor(*GdkEventParser.get_cursor_position(event))
+
 
 @operator(_T("vp-stroke-start"))
 def vp_stroke_start(ctx, event):
@@ -114,6 +124,7 @@ def vp_stroke_start(ctx, event):
     vp.docproxy.draw_start(vp.device)
     ctx.keymgr.push('Brush-Stroke')
 
+
 @operator(_T("vp-stroke-confirm"))
 def vp_stroke_confirm(ctx, event):
     vp = ctx.active_viewport
@@ -122,11 +133,13 @@ def vp_stroke_confirm(ctx, event):
     vp.show_brush_cursor(True, state.cpos)
     ctx.keymgr.pop()
 
+
 @operator(_T("vp-stroke-append"))
 def vp_stroke_append(ctx, event):
     vp = ctx.active_viewport
     vp.update_dev_state(event)
     vp.docproxy.record()
+
 
 @operator(_T("vp-scroll-start"))
 def vp_scroll_start(ctx, event):
@@ -137,6 +150,7 @@ def vp_scroll_start(ctx, event):
     ctx._scroll = dict(x0=x, y0=y, x=x, y=y, offset=vp.offset)
     ctx.keymgr.push('Viewport-Scroll')
 
+
 @operator(_T("vp-scroll-confirm"))
 def vp_scroll_confirm(ctx, event):
     vp = ctx.active_viewport
@@ -144,6 +158,7 @@ def vp_scroll_confirm(ctx, event):
     vp.show_brush_cursor(True, state.cpos)
     del ctx._scroll
     ctx.keymgr.pop()
+
 
 @operator(_T("vp-scroll-delta"))
 def vp_scroll_delta(ctx, event):
@@ -155,11 +170,13 @@ def vp_scroll_delta(ctx, event):
     d['x'] = x
     d['y'] = y
 
+
 @operator(_T("vp-scroll-left"))
 def vp_scroll_left(ctx):
     vp = ctx.active_viewport
     vp.scroll(-SCROLL_DIST, 0)
     vp.show_brush_cursor(True)
+
 
 @operator(_T("vp-scroll-right"))
 def vp_scroll_right(ctx):
@@ -167,11 +184,13 @@ def vp_scroll_right(ctx):
     vp.scroll(SCROLL_DIST, 0)
     vp.show_brush_cursor(True)
 
+
 @operator(_T("vp-scroll-up"))
 def vp_scroll_up(ctx):
     vp = ctx.active_viewport
     vp.scroll(0, -SCROLL_DIST)
     vp.show_brush_cursor(True)
+
 
 @operator(_T("vp-scroll-down"))
 def vp_scroll_down(ctx):
@@ -179,13 +198,16 @@ def vp_scroll_down(ctx):
     vp.scroll(0, SCROLL_DIST)
     vp.show_brush_cursor(True)
 
+
 @operator(_T("vp-scale-up"))
 def vp_scale_up(ctx, event):
     ctx.active_viewport.scale_up(*GdkEventParser.get_cursor_position(event))
 
+
 @operator(_T("vp-scale-down"))
 def vp_scale_down(ctx, event):
     ctx.active_viewport.scale_down(*GdkEventParser.get_cursor_position(event))
+
 
 @operator(_T("vp-swap-x"))
 def vp_swap_x(ctx):
@@ -193,26 +215,27 @@ def vp_swap_x(ctx):
     pos = vp._cur_pos
     vp.swap_x(pos[0])
 
+
 @operator(_T("vp-swap-y"))
 def vp_swap_y(ctx):
     vp = ctx.active_viewport
     pos = vp._cur_pos
     vp.swap_y(pos[1])
 
+
 @operator(_T("vp-reset-all"))
 def vp_reset_all(ctx):
     ctx.active_viewport.reset()
+
 
 @operator(_T("vp-clear-layer"))
 def vp_clear_layer(ctx):
     ctx.active_viewport.docproxy.clear_layer()
 
+
 @operator(_T("vp-insert-layer"))
 def vp_insert_layer(ctx):
     dp = ctx.active_viewport.docproxy
     doc = dp.document
-    vo = model.vo.GenericVO(docproxy=dp,
-                            pos=doc.index(doc.active)+1,
-                            layer=None,
-                            name=_T("untitled"))
+    vo = model.vo.GenericVO(docproxy=dp, pos=doc.index(doc.active) + 1, layer=None, name=_T("untitled"))
     dp.sendNotification(main.DOC_LAYER_ADD, vo)

@@ -56,40 +56,50 @@ ctrl_mod = "'control-mask' in evt.state.value_nicks"
 shift_mod = "'shift-mask' in evt.state.value_nicks"
 
 
-Keymap('Application', {
-    AND(KEY_RELEASE_VAL(ord('z')), ctrl_mod): 'hist_undo(ctx, event)', # ctrl-z
-    AND(KEY_RELEASE_VAL(ord('y')), AND(ctrl_mod, shift_mod)): 'hist_redo(ctx, event)', # ctrl-shift-z
-})
+Keymap(
+    'Application',
+    {
+        AND(KEY_RELEASE_VAL(ord('z')), ctrl_mod): 'hist_undo(ctx, event)',  # ctrl-z
+        AND(KEY_RELEASE_VAL(ord('y')), AND(ctrl_mod, shift_mod)): 'hist_redo(ctx, event)',  # ctrl-shift-z
+    },
+)
 
-Keymap('Viewport', {
-    # View motions/transforms
-    AND(button_press, button2): 'vp_scroll_start(ctx, event)',
-    scroll_down: 'vp_scale_down(ctx, event)',
-    scroll_up: 'vp_scale_up(ctx, event)',
-    KEY_PRESS_NAME('Left'): 'vp_scroll_left(ctx)',
-    KEY_PRESS_NAME('Right'): 'vp_scroll_right(ctx)',
-    KEY_PRESS_NAME('Up'): 'vp_scroll_up(ctx)',
-    KEY_PRESS_NAME('Down'): 'vp_scroll_down(ctx)',
-    KEY_PRESS_NAME('x'): 'vp_swap_x(ctx)',
-    KEY_PRESS_NAME('y'): 'vp_swap_y(ctx)',
-    KEY_PRESS_NAME('equal'): 'vp_reset_all(ctx)',
+Keymap(
+    'Viewport',
+    {
+        # View motions/transforms
+        AND(button_press, button2): 'vp_scroll_start(ctx, event)',
+        scroll_down: 'vp_scale_down(ctx, event)',
+        scroll_up: 'vp_scale_up(ctx, event)',
+        KEY_PRESS_NAME('Left'): 'vp_scroll_left(ctx)',
+        KEY_PRESS_NAME('Right'): 'vp_scroll_right(ctx)',
+        KEY_PRESS_NAME('Up'): 'vp_scroll_up(ctx)',
+        KEY_PRESS_NAME('Down'): 'vp_scroll_down(ctx)',
+        KEY_PRESS_NAME('x'): 'vp_swap_x(ctx)',
+        KEY_PRESS_NAME('y'): 'vp_swap_y(ctx)',
+        KEY_PRESS_NAME('equal'): 'vp_reset_all(ctx)',
+        # Cursor related
+        cursor_enter: 'vp_enter(ctx)',
+        cursor_leave: 'vp_leave(ctx)',
+        cursor_motion: 'vp_move_cursor(ctx, event)',
+        # Drawing
+        AND(button_press, button1): 'vp_stroke_start(ctx, event)',
+        KEY_RELEASE_VAL(ord(' ')): 'vp_clear_layer(ctx)',  # space
+    },
+)
 
-    # Cursor related
-    cursor_enter: 'vp_enter(ctx)',
-    cursor_leave: 'vp_leave(ctx)',
-    cursor_motion: 'vp_move_cursor(ctx, event)',
+Keymap(
+    'Brush-Stroke',
+    {
+        AND(cursor_motion, button1_mod): 'vp_stroke_append(ctx, event)',
+        AND(button_release, button1): 'vp_stroke_confirm(ctx, event)',
+    },
+)
 
-    # Drawing
-    AND(button_press, button1): 'vp_stroke_start(ctx, event)',
-    KEY_RELEASE_VAL(ord(' ')): 'vp_clear_layer(ctx)', # space
-})
-
-Keymap('Brush-Stroke', {
-    AND(cursor_motion, button1_mod): 'vp_stroke_append(ctx, event)',
-    AND(button_release, button1): 'vp_stroke_confirm(ctx, event)',
-})
-
-Keymap('Viewport-Scroll', {
-    AND(cursor_motion, button2_mod): 'vp_scroll_delta(ctx, event)',
-    AND(button_release, button2): 'vp_scroll_confirm(ctx, event)',
-})
+Keymap(
+    'Viewport-Scroll',
+    {
+        AND(cursor_motion, button2_mod): 'vp_scroll_delta(ctx, event)',
+        AND(button_release, button2): 'vp_scroll_confirm(ctx, event)',
+    },
+)

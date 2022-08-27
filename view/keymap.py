@@ -49,17 +49,17 @@ class KeymapManager(metaclass=utils.MetaSingleton):
     Requiers 2.7
     """
 
-    __kmd = {} # all registered keymaps
+    __kmd = {}  # all registered keymaps
 
     def __init__(self, default):
-        self._km = None # active keymap
-        self._filters = None # current keymap's keys view used as filters
+        self._km = None  # active keymap
+        self._filters = None  # current keymap's keys view used as filters
         self._mapstack = []
         self.use(default)
         self._locals = {}
 
     def process(self, *args):
-        assert self._km is not None # need a valid keymap
+        assert self._km is not None  # need a valid keymap
         self._locals['event'] = args[1]
         done = self._process(self._km, self._filters, self._locals, args)
         if not done and self._mapstack:
@@ -69,7 +69,7 @@ class KeymapManager(metaclass=utils.MetaSingleton):
         return done
 
     def _process(self, km, filters, locals, args):
-        opl = [ km[f] for f in filters if f(*args) ]
+        opl = [km[f] for f in filters if f(*args)]
         for op in opl:
             eval(op, operator.ope_globals, locals)
         return bool(opl)
@@ -106,5 +106,3 @@ class KeymapManager(metaclass=utils.MetaSingleton):
         for k in tuple(km.keys()):
             km[eval("lambda evt_type, evt:" + k)] = compile(km.pop(k), 'keymap', 'exec')
         cls.__kmd[km.NAME] = km
-
-

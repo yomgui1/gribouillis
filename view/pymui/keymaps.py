@@ -30,13 +30,9 @@ cursor_enter = "evt_type=='cursor-enter'"
 cursor_leave = "evt_type=='cursor-leave'"
 cursor_motion = "evt_type=='cursor-motion'"
 
-Keymap('Application', {
-        
-    })
-    
-Keymap('Viewport', {
-        
-    })
+Keymap('Application', {})
+
+Keymap('Viewport', {})
 """
 Keymap('Viewport', {
         # UI

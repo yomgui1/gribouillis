@@ -40,9 +40,7 @@ if app_args.view == 'auto':
 else:
     backend_name = app_args.view
 
-_backend = __import__('view.' + backend_name,
-                      globals(), locals(),
-                      fromlist=['*'], level=0)
+_backend = __import__('view.' + backend_name, globals(), locals(), fromlist=['*'], level=0)
 
 Application = _backend.Application
 ApplicationMediator = _backend.ApplicationMediator

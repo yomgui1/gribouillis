@@ -1,4 +1,3 @@
-
 # Copyright (c) 2009-2013 Guillaume Roguez
 #
 # Permission is hereby granted, free of charge, to any person
@@ -34,9 +33,10 @@ from model.brush import Brush, DrawableBrush
 from model import _pixbuf
 from .common import SubWindow
 
-__all__ = [ 'BrushHouseWindow' ]
+__all__ = ['BrushHouseWindow']
 
 TABLE_WIDTH = 5
+
 
 class BrushHouseWindow(SubWindow):
     _current_cb = utils.idle_cb
@@ -48,8 +48,8 @@ class BrushHouseWindow(SubWindow):
 
         self._brushes = {}
         self._all = None
-        self._selected = None # selected button
-        self._drawbrush = DrawableBrush() # used for preview
+        self._selected = None  # selected button
+        self._drawbrush = DrawableBrush()  # used for preview
 
         # UI
         topbox = gtk.VBox()
@@ -72,10 +72,19 @@ class BrushHouseWindow(SubWindow):
         actiongroup = gtk.ActionGroup('BrushHouseAG')
         self.actiongroup = actiongroup
 
-        actiongroup.add_actions([
-            ('delete', gtk.STOCK_DELETE, 'Delete', None, None, lambda *a: self.del_brush(self._popup_bt)),
-            ('preview', gtk.STOCK_REFRESH, 'Preview Icon', None, None, lambda *a: self.refresh_brush(self._popup_bt)),
-            ])
+        actiongroup.add_actions(
+            [
+                ('delete', gtk.STOCK_DELETE, 'Delete', None, None, lambda *a: self.del_brush(self._popup_bt)),
+                (
+                    'preview',
+                    gtk.STOCK_REFRESH,
+                    'Preview Icon',
+                    None,
+                    None,
+                    lambda *a: self.refresh_brush(self._popup_bt),
+                ),
+            ]
+        )
 
         uimanager.insert_action_group(actiongroup, 0)
 
@@ -168,7 +177,7 @@ class BrushHouseWindow(SubWindow):
         bt.clicked()
 
     def del_brush(self, bt):
-        pass # TODO
+        pass  # TODO
 
     def refresh_brush(self, bt):
         bt = bt.allbt
@@ -179,14 +188,13 @@ class BrushHouseWindow(SubWindow):
         height = 60
 
         buf = self._drawbrush.paint_rgb_preview(width, height, fmt=_pixbuf.FORMAT_RGBA8_NOA)
-        pixbuf = GdkPixbuf.Pixbuf.new_from_data(buf, gdk.COLORSPACE_RGB, True, 8,
-                                                buf.width, buf.height, buf.stride)
+        pixbuf = GdkPixbuf.Pixbuf.new_from_data(buf, gdk.COLORSPACE_RGB, True, 8, buf.width, buf.height, buf.stride)
         icon_image = gtk.image_new_from_pixbuf(pixbuf)
         bt.set_image(icon_image)
-        bt.set_size_request(width+15, height+5)
+        bt.set_size_request(width + 15, height + 5)
         if bt.bt2:
             bt.bt2.set_image(icon_image)
-            bt.bt2.set_size_request(width+15, height+5)
+            bt.bt2.set_size_request(width + 15, height + 5)
         bt.show_all()
 
     def _mkbrushbt(self, frame, brush):
@@ -201,23 +209,24 @@ class BrushHouseWindow(SubWindow):
             height = 60
 
             buf = self._drawbrush.paint_rgb_preview(width, height, fmt=_pixbuf.FORMAT_RGBA8_NOA)
-            pixbuf = GdkPixbuf.Pixbuf.new_from_data(buf, GdkPixbuf.Colorspace.RGB, True, 8,
-                                                    buf.width, buf.height, buf.stride)
+            pixbuf = GdkPixbuf.Pixbuf.new_from_data(
+                buf, GdkPixbuf.Colorspace.RGB, True, 8, buf.width, buf.height, buf.stride
+            )
             icon_image = gtk.Image.new_from_pixbuf(pixbuf)
 
         bt = gtk.ToggleButton()
         bt.set_image(icon_image)
-        bt.set_size_request(width+15, height+5)
+        bt.set_size_request(width + 15, height + 5)
         bt.show_all()
         bt.connect('clicked', self._on_brush_bt_clicked)
         bt.connect('button-release-event', self._on_brush_bt_released)
         bt.brush = brush
-        bt.bt2 = None # button in another page if it has been added
+        bt.bt2 = None  # button in another page if it has been added
 
         t = frame.table
         x = t.count % TABLE_WIDTH
         y = t.count / TABLE_WIDTH
-        frame.table.attach(bt, x, x+1, y, y+1)
+        frame.table.attach(bt, x, x + 1, y, y + 1)
         t.count += 1
 
         return bt

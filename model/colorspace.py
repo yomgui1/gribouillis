@@ -25,6 +25,7 @@
 
 import model._pixbuf as _pixbuf
 
+
 class MetaColorSpace(type):
     __classes = {}
 
@@ -33,7 +34,7 @@ class MetaColorSpace(type):
         if name != 'ColorSpace':
             if not any(x in dct for x in ('type', '_colors')):
                 raise RuntimeError("ColorSpace subclasses must define 'type' and '_colors' attributes")
-            name  = dct['_name_']
+            name = dct['_name_']
             if name in meta.__classes:
                 raise KeyError("Already registered ColorSpace '%s'" % name)
             meta.__classes[name] = cls
@@ -61,14 +62,16 @@ class ColorSpace(metaclass=MetaColorSpace):
 class ColorSpaceRGB(ColorSpace):
     _name_ = 'RGB'
     type = _pixbuf.FLAG_RGB
-    _colors = { 'black':       (0., 0., 0.),
-                'white':       (1., 1., 1.),
-              }
+    _colors = {
+        'black': (0.0, 0.0, 0.0),
+        'white': (1.0, 1.0, 1.0),
+    }
 
 
 class ColorSpaceCMYK(ColorSpace):
     _name_ = 'CMYK'
     type = _pixbuf.FLAG_CMYK
-    _colors = { 'black':       (0., 0., 0., 1.),
-                'white':       (1., 1., 1., 0.),
-              }
+    _colors = {
+        'black': (0.0, 0.0, 0.0, 1.0),
+        'white': (1.0, 1.0, 1.0, 0.0),
+    }

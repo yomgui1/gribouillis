@@ -45,7 +45,7 @@ class Application(metaclass=utils.MetaSingleton):
     _last_filename = None
 
     def __init__(self):
-        self._open_doc = None # last open document filename
+        self._open_doc = None  # last open document filename
         self.create_ui()
 
     def create_ui(self):
@@ -78,9 +78,12 @@ class Application(metaclass=utils.MetaSingleton):
         else:
             action = gtk.FILE_CHOOSER_ACTION_SAVE
 
-        dlg = gtk.FileChooserDialog(title, parent, action,
-                                    (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
-                                     (gtk.STOCK_OPEN if read else gtk.STOCK_SAVE), gtk.RESPONSE_OK))
+        dlg = gtk.FileChooserDialog(
+            title,
+            parent,
+            action,
+            (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, (gtk.STOCK_OPEN if read else gtk.STOCK_SAVE), gtk.RESPONSE_OK),
+        )
         if self._last_filename:
             dlg.set_filename(self._last_filename)
 
@@ -102,9 +105,9 @@ class Application(metaclass=utils.MetaSingleton):
         The given DocumentVO is modified accordingly.
         """
 
-        dlg = gtk.Dialog(_T("New Document"), parent,
-                         buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
-                                  gtk.STOCK_NEW, gtk.RESPONSE_OK))
+        dlg = gtk.Dialog(
+            _T("New Document"), parent, buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_NEW, gtk.RESPONSE_OK)
+        )
 
         # Document name
         hbox = gtk.HBox()
@@ -142,4 +145,3 @@ class Application(metaclass=utils.MetaSingleton):
     def close_all_non_drawing_windows(self):
         for win in ctx.windows.values:
             win.hide()
-

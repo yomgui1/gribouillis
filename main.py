@@ -37,7 +37,7 @@ DATE = 'dd.mm.yyyy'
 STATUS = 'beta'
 
 DOC_ACTIVATE = 'doc-activate'
-DOC_ACTIVATED = 'doc-activated'                       # gives the working document
+DOC_ACTIVATED = 'doc-activated'  # gives the working document
 DOC_SAVE = 'doc-save'
 DOC_SAVE_RESULT = 'doc-save-result'
 DOC_DELETE = 'doc-delete'
@@ -47,20 +47,20 @@ DOC_RELEASE = 'doc-release'
 DOC_LAYER_ACTIVATE = 'doc-layer-active'
 DOC_LAYER_ACTIVATED = 'doc-layer-actived'
 DOC_LAYER_UPDATED = 'doc-layer-updated'
-DOC_LAYER_RENAME = 'doc-layer-rename'                 # undoable command
+DOC_LAYER_RENAME = 'doc-layer-rename'  # undoable command
 DOC_LAYER_RENAMED = 'doc-layer-renamed'
-DOC_LAYER_ADD = 'doc-layer-add'                       # undoable command
-DOC_LAYER_DEL = 'doc-layer-del'                       # undoable command
+DOC_LAYER_ADD = 'doc-layer-add'  # undoable command
+DOC_LAYER_DEL = 'doc-layer-del'  # undoable command
 DOC_LAYER_DELETED = 'doc-layer-deleted'
-DOC_LAYER_DUP = 'doc-layer-dup'                       # undoable command
-DOC_LAYER_STACK_CHANGE = 'doc-layer-stack-change'     # undoable command
+DOC_LAYER_DUP = 'doc-layer-dup'  # undoable command
+DOC_LAYER_STACK_CHANGE = 'doc-layer-stack-change'  # undoable command
 DOC_LAYER_STACK_CHANGED = 'doc-layer-stack-changed'
 DOC_LAYER_SET_VISIBLE = 'doc-layer-visible'
 DOC_LAYER_SET_OPACITY = 'doc-layer-opacity'
-DOC_LAYER_MERGE_DOWN = 'doc-layer-merge-down'         # undoable command
-DOC_RECORD_STROKE = 'doc-record-stroke'               # undoable command
-DOC_LOAD_IMAGE_AS_LAYER = 'doc-load-image-as-layer'   # undoable command
-DOC_LAYER_MATRIX = 'doc-layer-matrix'                 # undoable command
+DOC_LAYER_MERGE_DOWN = 'doc-layer-merge-down'  # undoable command
+DOC_RECORD_STROKE = 'doc-record-stroke'  # undoable command
+DOC_LOAD_IMAGE_AS_LAYER = 'doc-load-image-as-layer'  # undoable command
+DOC_LAYER_MATRIX = 'doc-layer-matrix'  # undoable command
 
 # refactored ok
 STARTUP = 'startup'
@@ -71,11 +71,12 @@ SHOW_WARNING_DIALOG = 'show-warning-dlg'
 SHOW_INFO_DIALOG = 'show-info-dlg'
 
 NEW_DOCUMENT = 'new-doc'  # user want to create a new document
-LAYER_CLEAR = 'layer-clear' # clear layer contents (undoable, data: LayerCmdVO)
+LAYER_CLEAR = 'layer-clear'  # clear layer contents (undoable, data: LayerCmdVO)
 
 USE_BRUSH = 'use-brush'
 
-app_args = None # set by Gribouilly.py
+app_args = None  # set by Gribouilly.py
+
 
 class Gribouillis(puremvc.patterns.facade.Facade):
     __instance = None

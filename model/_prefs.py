@@ -43,14 +43,14 @@ class Preferences(dict):
         'view-metrics-unit': 'dpi',
         'view-metrics-x': 96,
         'view-metrics-y': 96,
-        'view-color-bg': (.8, .8, .9, .7),
-        'view-color-text': (.0, .0, .0, 1.),
-        'view-color-ol': (.4, .6, .9, .9),
-        'view-color-wheel-bg': (0, 0, 0, .35),
-        'view-color-wheel-ol': (1, 1, 1, .80),
-        'view-color-wheel-sel': (1, 0, 0, .80),
-        'view-color-handler-bg': (.9, .9, 1., .8),
-        'view-color-handler-ol': (.0, .2, .4, .8),
+        'view-color-bg': (0.8, 0.8, 0.9, 0.7),
+        'view-color-text': (0.0, 0.0, 0.0, 1.0),
+        'view-color-ol': (0.4, 0.6, 0.9, 0.9),
+        'view-color-wheel-bg': (0, 0, 0, 0.35),
+        'view-color-wheel-ol': (1, 1, 1, 0.80),
+        'view-color-wheel-sel': (1, 0, 0, 0.80),
+        'view-color-handler-bg': (0.9, 0.9, 1.0, 0.8),
+        'view-color-handler-ol': (0.0, 0.2, 0.4, 0.8),
     }
 
     def __init__(self):
@@ -84,7 +84,7 @@ class Preferences(dict):
                     try:
                         handler.parse(self, element)
                     except:
-                        pass # faulty_elmt.append(str(element))
+                        pass  # faulty_elmt.append(str(element))
 
         if faulty_elmt:
             raise KeyError(_T("Following elements causes errors:%s)") % '\n'.join(faulty_elmt))
@@ -105,6 +105,7 @@ class Preferences(dict):
             # Write XML tree as file
             xml = ET.tostring(config, encoding='UTF-8')
             fd.write(xml)
+
 
 prefs = Preferences()
 

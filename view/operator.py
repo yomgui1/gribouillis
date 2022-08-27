@@ -38,17 +38,22 @@ def decorate(func, text=None):
     ope_globals[fname] = func
     return functools.partial(func, ctx)
 
+
 def operator(translation):
     return functools.partial(decorate, text=translation)
+
 
 def get_translation(func):
     return func.__translation
 
+
 def get_operators():
     return sorted(__OPERATORS.keys())
+
 
 def get_event_op(name):
     return __OPERATORS[name]
 
+
 def execute(name, *args, **kwds):
-    return eval(name+"(ctx, *a, **k)", ope_globals, dict(a=args, k=kwds))
+    return eval(name + "(ctx, *a, **k)", ope_globals, dict(a=args, k=kwds))

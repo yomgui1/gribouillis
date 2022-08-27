@@ -52,7 +52,7 @@ from .openraster import OpenRasterFileWriter, OpenRasterFileReader
 from model.surface import UnboundedTiledSurface
 from utils import _T
 
-__all__ = [ 'Document' ]
+__all__ = ['Document']
 
 if os.name == 'morphos':
     LASTS_FILENAME = 'ENVARC:Gribouillis/lasts'
@@ -68,6 +68,7 @@ class _IntegerBuffer(object):
 
     def __getslice__(self, start, stop):
         return tuple(ord(c) for c in self.b[start:stop])
+
 
 class Document(list):
     """User drawing document.
@@ -90,8 +91,10 @@ class Document(list):
 
     def __init__(self, name, colorspace='RGB', fill='white'):
         self.name = name
-        self._colorspace = (colorspace if isinstance(colorspace, ColorSpace) else ColorSpace.from_name(colorspace))
-        self._layer_fmt = _pixbuf.format_from_colorspace(self._colorspace.type, _pixbuf.FLAG_15X | _pixbuf.FLAG_ALPHA_FIRST)
+        self._colorspace = colorspace if isinstance(colorspace, ColorSpace) else ColorSpace.from_name(colorspace)
+        self._layer_fmt = _pixbuf.format_from_colorspace(
+            self._colorspace.type, _pixbuf.FLAG_15X | _pixbuf.FLAG_ALPHA_FIRST
+        )
         self.fill = fill
 
         # Create the drawing brush with default properties
@@ -104,9 +107,9 @@ class Document(list):
 
     @classmethod
     def isBackgroundFile(cls, name):
-        return (not os.path.isabs(name) and
-                os.path.isfile(os.path.join(cls.BACKGROUND_PATH, name))) or \
-                os.path.isfile(name)
+        return (not os.path.isabs(name) and os.path.isfile(os.path.join(cls.BACKGROUND_PATH, name))) or os.path.isfile(
+            name
+        )
 
     @staticmethod
     def load_image(filename, mode='RGBA'):
@@ -126,7 +129,7 @@ class Document(list):
         stride = w * len(mode)
         del im
 
-        return a,w,h,stride
+        return a, w, h, stride
 
     def add_to_lasts(self, path):
         try:
@@ -135,7 +138,7 @@ class Document(list):
             pass
 
         try:
-            data = [ path + '\n' ]
+            data = [path + '\n']
             with open(LASTS_FILENAME) as fd:
                 for i in range(5):
                     line = fd.readline()
@@ -197,7 +200,7 @@ class Document(list):
                 layer = self._create_layer(name, operator=operator, opacity=opa)
                 layer.visible = visible
                 if data:
-                    layer.surface.from_buffer(_pixbuf.FORMAT_RGBA8_NOA, data, area[2]*4, *area)
+                    layer.surface.from_buffer(_pixbuf.FORMAT_RGBA8_NOA, data, area[2] * 4, *area)
                 self.insert(0, layer)
 
     def save_as(self, filename=None):
@@ -221,7 +224,7 @@ class Document(list):
     def save_as_ora(self, filename):
         with OpenRasterFileWriter(self, filename) as ora:
             layers = list(self)
-            layers.reverse() # ORA uses FG-to-BG layers order convention
+            layers.reverse()  # ORA uses FG-to-BG layers order convention
             for layer in layers:
                 ora.AddLayer(layer, self.as_png_buffer)
 
@@ -235,7 +238,7 @@ class Document(list):
         self.metadata = {
             'dimensions': None,
             'densities': [300, 300],
-            }
+        }
 
     def clear(self):
         self._clear()
@@ -267,7 +270,7 @@ class Document(list):
             color = layer.get_pixel(brush, *pt)
             if color is not None:
                 return color
-        return (0.0,)*3
+        return (0.0,) * 3
 
     ### Document's layer methods ###
     # Layers are ordered using a list using BG-to-FG convention
@@ -305,7 +308,7 @@ class Document(list):
 
         if self.active is layer:
             # Activate the layer just before this one
-            self.active = self[min(i, len(self)-1)]
+            self.active = self[min(i, len(self) - 1)]
 
     def move_layer(self, layer, pos):
         self.remove(layer)
@@ -319,27 +322,33 @@ class Document(list):
 
     def get_bbox(self, layers=None, all=False):
         empty = True
-        for layer in (layers or self):
+        for layer in layers or self:
             if not layer.visible and not all:
                 continue
             a = layer.get_bbox()
             if a:
                 if empty:
                     empty = False
-                    xmin,ymin,xmax,ymax = a
+                    xmin, ymin, xmax, ymax = a
                 else:
-                    x1,y1,x2,y2 = a
-                    if xmin > x1: xmin = x1
-                    if ymin > y1: ymin = y1
-                    if xmax < x2: xmax = x2
-                    if ymax < y2: ymax = y2
-        if empty: return
-        return xmin,ymin,xmax,ymax
+                    x1, y1, x2, y2 = a
+                    if xmin > x1:
+                        xmin = x1
+                    if ymin > y1:
+                        ymin = y1
+                    if xmax < x2:
+                        xmax = x2
+                    if ymax < y2:
+                        ymax = y2
+        if empty:
+            return
+        return xmin, ymin, xmax, ymax
 
     def get_size(self):
         area = self.get_bbox()
-        if not area: return 0,0
-        return area[1]-area[0]+1, area[3]-area[2]+1
+        if not area:
+            return 0, 0
+        return area[1] - area[0] + 1, area[3] - area[2] + 1
 
     def get_active(self):
         return self.__active
@@ -369,7 +378,8 @@ class Document(list):
 
     def as_cairo_surface(self, layers=None, all=False, **kwds):
         rect = self.get_bbox(layers, all)
-        if not rect: return
+        if not rect:
+            return
 
         dx, dy, dw, dh = rect
         dw -= dx - 1
@@ -385,9 +395,10 @@ class Document(list):
 
     def as_png_buffer(self, comp=4, layers=None, all=False, **kwds):
         rect = self.get_bbox(layers, all)
-        if not rect: return
+        if not rect:
+            return
 
-        x,y,w,h = rect
+        x, y, w, h = rect
         w -= x - 1
         h -= y - 1
 
@@ -396,21 +407,25 @@ class Document(list):
 
         # Rendering
         surface = self.as_cairo_surface(layers, all, **kwds)
-        pixelbuf.from_buffer(_pixbuf.FORMAT_ARGB8,
-                             surface.get_data(),
-                             surface.get_stride(),
-                             0, 0,
-                             surface.get_width(), surface.get_height())
+        pixelbuf.from_buffer(
+            _pixbuf.FORMAT_ARGB8,
+            surface.get_data(),
+            surface.get_stride(),
+            0,
+            0,
+            surface.get_width(),
+            surface.get_height(),
+        )
 
         # Encode pixels data to PNG
 
         # DEPRECATED
-        #pngbuf = StringIO()
-        #writer = png.Writer(w, h, alpha=True, bitdepth=8, compression=comp)
-        #writer.write_array(pngbuf, _IntegerBuffer(pixelbuf))
-        #return pngbuf.getvalue()
+        # pngbuf = StringIO()
+        # writer = png.Writer(w, h, alpha=True, bitdepth=8, compression=comp)
+        # writer.write_array(pngbuf, _IntegerBuffer(pixelbuf))
+        # return pngbuf.getvalue()
 
-        return _savers.save_pixbuf_as_png_buffer(pixelbuf);
+        return _savers.save_pixbuf_as_png_buffer(pixelbuf)
 
     ### Properties ###
 
@@ -429,8 +444,9 @@ class Document(list):
     @property
     def area(self):
         bbox = self.get_bbox()
-        if not bbox: return 0,0,0,0
-        return bbox[0], bbox[1], bbox[2]-bbox[0]+1, bbox[3]-bbox[1]+1
+        if not bbox:
+            return 0, 0, 0, 0
+        return bbox[0], bbox[1], bbox[2] - bbox[0] + 1, bbox[3] - bbox[1] + 1
 
     @property
     def modified(self):

@@ -35,9 +35,24 @@ from model import _pixbuf, _cutils, prefs, surface
 from utils import virtualmethod, resolve_path
 
 
-SCALES = [1/20., 1/10., 1/6., 1/5., 1/4., 1/3., 1/2.,
-          1.0,
-          4/3., 2.0, 3.0, 4.0, 5.0, 6.0, 10., 20.]
+SCALES = [
+    1 / 20.0,
+    1 / 10.0,
+    1 / 6.0,
+    1 / 5.0,
+    1 / 4.0,
+    1 / 3.0,
+    1 / 2.0,
+    1.0,
+    4 / 3.0,
+    2.0,
+    3.0,
+    4.0,
+    5.0,
+    6.0,
+    10.0,
+    20.0,
+]
 SCALES.reverse()
 
 MAX_SCALE = len(SCALES) - 1
@@ -51,20 +66,20 @@ class ViewState(object):
     """
 
     # States = how a model point is transformed to be displayed
-    _tx = _ty = 0.0 # translation factor
-    _scale_idx = 0 # scaling factor
-    _mox = _moy = 0.0 # mirror center
-    _mx = _my = 1.0 # mirror factor
-    _rot = 0.0 # rotation angle (radians)
-    _rx = _ry = 0.0 # rotation center
+    _tx = _ty = 0.0  # translation factor
+    _scale_idx = 0  # scaling factor
+    _mox = _moy = 0.0  # mirror center
+    _mx = _my = 1.0  # mirror factor
+    _rot = 0.0  # rotation angle (radians)
+    _rx = _ry = 0.0  # rotation center
 
     # Generated matrices from states
-    _m2v_mat = None # model to view matrix
-    _v2m_mat = None # view to model matrix
-    _rot_mat = None # rotation matrix
-    _rot_imat = None # invert of _rot_mat
-    _mirror_mat = None # mirror matrix
-    _mirror_imat = None # invert of _mirror_mat
+    _m2v_mat = None  # model to view matrix
+    _v2m_mat = None  # view to model matrix
+    _rot_mat = None  # rotation matrix
+    _rot_imat = None  # invert of _rot_mat
+    _mirror_mat = None  # mirror matrix
+    _mirror_imat = None  # invert of _mirror_mat
     _w = 0
     _h = 0
 
@@ -72,7 +87,7 @@ class ViewState(object):
 
     def __init__(self):
         self.reset()
-        self._update_matrices() # for aliases
+        self._update_matrices()  # for aliases
 
     def _gen_rot_mat(self):
         _ = self._mirror_imat * cairo.Matrix(x0=self._rx, y0=self._ry)
@@ -85,7 +100,9 @@ class ViewState(object):
         self._rot_imat = _
 
     def _gen_mirror_mat(self):
-        self._mirror_mat = cairo.Matrix(self._mx, 0, 0, self._my, self._mox * (1 - self._mx), self._moy * (1 - self._my))
+        self._mirror_mat = cairo.Matrix(
+            self._mx, 0, 0, self._my, self._mox * (1 - self._mx), self._moy * (1 - self._my)
+        )
         self._mirror_imat = cairo.Matrix(self._mirror_mat)
         self._mirror_imat.invert()
 
@@ -126,14 +143,11 @@ class ViewState(object):
 
         self._w = width
         self._h = height
-        self._rx = width/ 2.
-        self._ry = height / 2.
+        self._rx = width / 2.0
+        self._ry = height / 2.0
 
     def reset(self):
-        return self.reset_translation() \
-            or self.reset_scale() \
-            or self.reset_rotation() \
-            or self.reset_mirror()
+        return self.reset_translation() or self.reset_scale() or self.reset_rotation() or self.reset_mirror()
 
     def reset_translation(self):
         _ = self._tx or self._ty
@@ -144,7 +158,7 @@ class ViewState(object):
 
     def reset_scale(self):
         _ = self._scale_idx
-        self._scale_idx = SCALES.index(1.)
+        self._scale_idx = SCALES.index(1.0)
         if _ != self._scale_idx:
             self._m2v_mat = None
             return True
@@ -189,13 +203,13 @@ class ViewState(object):
             self._m2v_mat = None
             return True
 
-    def mirror_x(self, x=0.):
+    def mirror_x(self, x=0.0):
         self._mox = x
         self._mx = -self._mx
         self._m2v_mat = None
         return True
 
-    def mirror_y(self, y=0.):
+    def mirror_y(self, y=0.0):
         self._moy = y
         self._my = -self._my
         self._m2v_mat = None
@@ -245,7 +259,8 @@ class ViewState(object):
         return SCALES[self._scale_idx]
 
     @property
-    def scale_idx(self): pass
+    def scale_idx(self):
+        pass
 
     offset = property(get_offset, set_offset)
 

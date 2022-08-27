@@ -41,11 +41,11 @@ _KEYVALS = {
     0x47: 'insert',
     0x48: 'page_up',
     0x49: 'page_down',
-    0x4b: 'f11',
-    0x4c: 'up',
-    0x4d: 'down',
-    0x4e: 'right',
-    0x4f: 'left',
+    0x4B: 'f11',
+    0x4C: 'up',
+    0x4D: 'down',
+    0x4E: 'right',
+    0x4F: 'left',
     0x50: 'f1',
     0x51: 'f2',
     0x52: 'f3',
@@ -56,20 +56,20 @@ _KEYVALS = {
     0x57: 'f8',
     0x58: 'f9',
     0x59: 'f10',
-    0x5f: 'help',
+    0x5F: 'help',
     0x60: 'lshift',
     0x61: 'rshift',
     0x68: 'mouse_left',
     0x69: 'mouse_right',
-    0x6a: 'mouse_middle',
-    0x6f: 'f12',
+    0x6A: 'mouse_middle',
+    0x6F: 'f12',
     0x70: 'home',
     0x71: 'end',
-    0x7a: 'wheel_up',
-    0x7b: 'wheel_down',
-    0x7e: 'mouse_fourth',
-    0x7f: '',
-    }
+    0x7A: 'wheel_up',
+    0x7B: 'wheel_down',
+    0x7E: 'mouse_fourth',
+    0x7F: '',
+}
 
 _PAD_BT = {
     0x0001: 'pad_bt0',
@@ -88,28 +88,29 @@ _PAD_BT = {
     0x2000: 'pad_bt13',
     0x4000: 'pad_bt14',
     0x8000: 'pad_bt15',
-    }
+}
 
 _KEYVALS_INV = {}
 for k, v in _KEYVALS.items():
     _KEYVALS_INV[v] = k
 
 _DEFAULT_PRESSURE = 0.5
-_PRESSURE_MAX     = 0x7ffff800
-_ANGLE_MAX        = 128.0
+_PRESSURE_MAX = 0x7FFFF800
+_ANGLE_MAX = 128.0
+
 
 class MUIEventParser:
-    __t0 = int(time.time()) - 252460800.
-    
+    __t0 = int(time.time()) - 252460800.0
+
     def __init__(self, event, src):
         self._event = event
         self._left, self._top, self._right, self._bottom = src.MBox
-        
+
         if self._event.RawKey in _KEYVALS:
             v = self._event.RawKey
         else:
             v = ord((self._event.SimpleKey or chr(self._event.RawKey))[0].lower()) + 0x10000
-            
+
         self.__key = v
         q = self._event.Qualifier
         self._hash = ((q & ALL_QUALIFIERS) << 8) + v
@@ -118,29 +119,37 @@ class MUIEventParser:
     @classmethod
     def encode(cl, key):
         return cl._convert_keyadj_string(key)
-        
+
     @staticmethod
     def convert_key(key):
         qual = 0
         for word in key.split():
-            if word == 'capslock': qual += IEQUALIFIER_CAPSLOCK
-            elif word == 'lalt': qual += IEQUALIFIER_LALT
-            elif word == 'ralt': qual += IEQUALIFIER_RALT
-            elif word == 'control': qual += IEQUALIFIER_CONTROL
-            elif word == 'lshift': qual += IEQUALIFIER_LSHIFT
-            elif word == 'rshift': qual += IEQUALIFIER_RSHIFT
-            elif word == 'lcommand': qual += IEQUALIFIER_LCOMMAND
-            elif word == 'rcommand': qual += IEQUALIFIER_RCOMMAND
+            if word == 'capslock':
+                qual += IEQUALIFIER_CAPSLOCK
+            elif word == 'lalt':
+                qual += IEQUALIFIER_LALT
+            elif word == 'ralt':
+                qual += IEQUALIFIER_RALT
+            elif word == 'control':
+                qual += IEQUALIFIER_CONTROL
+            elif word == 'lshift':
+                qual += IEQUALIFIER_LSHIFT
+            elif word == 'rshift':
+                qual += IEQUALIFIER_RSHIFT
+            elif word == 'lcommand':
+                qual += IEQUALIFIER_LCOMMAND
+            elif word == 'rcommand':
+                qual += IEQUALIFIER_RCOMMAND
             elif word in _KEYVALS_INV:
                 return (qual << 8) + _KEYVALS_INV[word]
             else:
                 return (qual << 8) + ord(word[0]) + 0x10000
-        return (qual << 8) + 0x7f
-    
+        return (qual << 8) + 0x7F
+
     @staticmethod
     def get_modificators(event):
         mods = []
-        qual = event.Qualifier 
+        qual = event.Qualifier
         if qual & IEQUALIFIER_CAPSLOCK and event.Up:
             mods.append('capslock')
         if qual & IEQUALIFIER_LALT:
@@ -158,7 +167,7 @@ class MUIEventParser:
         if qual & IEQUALIFIER_RCOMMAND:
             mods.append('rcommand')
         return ' '.join(mods)
-    
+
     @staticmethod
     def get_key(event):
         tool = MUIEventParser.get_tooltype(event)
@@ -171,7 +180,7 @@ class MUIEventParser:
     def get_time(event):
         ## Removing 252460800 is the trick to synchronize the reference time used by time.time()
         ## and the time returned by system events.
-        return event.Seconds - MUIEventParser.__t0 + event.Micros*1e-6
+        return event.Seconds - MUIEventParser.__t0 + event.Micros * 1e-6
 
     @staticmethod
     def get_screen_position(event):
@@ -192,7 +201,7 @@ class MUIEventParser:
     @staticmethod
     def get_pressure(event):
         if event.td_Tags:
-            return float(event.td_Tags.get(pymui.TABLETA_Pressure, _PRESSURE_MAX/2)) / _PRESSURE_MAX
+            return float(event.td_Tags.get(pymui.TABLETA_Pressure, _PRESSURE_MAX / 2)) / _PRESSURE_MAX
         return _DEFAULT_PRESSURE
 
     @staticmethod
@@ -200,7 +209,7 @@ class MUIEventParser:
         if event.td_Tags:
             return event.td_Tags.get(TABLETA_ToolType, 0)
         return 0
-        
+
     @staticmethod
     def get_pad_stripx(event):
         if event.td_Tags:
@@ -212,7 +221,7 @@ class MUIEventParser:
         if event.td_Tags:
             return event.td_Tags.get(TABLETA_StripY, 0)
         return 0
-        
+
     @staticmethod
     def get_pad_buttons(event):
         if event.td_Tags:

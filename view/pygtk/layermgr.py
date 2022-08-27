@@ -32,25 +32,26 @@ from gi.repository import GObject as gobject
 
 from .common import SubWindow
 
-__all__ = [ 'LayerManager', 'LayerCtrl' ]
+__all__ = ['LayerManager', 'LayerCtrl']
+
 
 def _new_signal(name):
-    return gobject.signal_new(name, gobject.Object,
-                              gobject.SIGNAL_ACTION,
-                              gobject.TYPE_BOOLEAN, (gobject.TYPE_PYOBJECT, ))
+    return gobject.signal_new(
+        name, gobject.Object, gobject.SIGNAL_ACTION, gobject.TYPE_BOOLEAN, (gobject.TYPE_PYOBJECT,)
+    )
+
 
 sig_layer_active = _new_signal('layer-active-event')
 sig_layer_name = _new_signal('layer-name-changed')
 sig_layer_visibility = _new_signal('layer-visibility-event')
 sig_layer_operator = _new_signal('layer-operator-event')
 
+
 def ask_for_name(widget, title, default):
     window = widget.get_toplevel()
-    d = gtk.Dialog(title,
-                   window,
-                   gtk.DIALOG_MODAL,
-                   (gtk.STOCK_CANCEL, gtk.RESPONSE_REJECT,
-                    gtk.STOCK_OK, gtk.RESPONSE_ACCEPT))
+    d = gtk.Dialog(
+        title, window, gtk.DIALOG_MODAL, (gtk.STOCK_CANCEL, gtk.RESPONSE_REJECT, gtk.STOCK_OK, gtk.RESPONSE_ACCEPT)
+    )
 
     hbox = gtk.HBox()
     d.vbox.pack_start(hbox, True, True, 0)
@@ -59,8 +60,10 @@ def ask_for_name(widget, title, default):
     d.e = e = gtk.Entry()
     e.set_text(default)
     e.select_region(0, len(default))
+
     def responseToDialog(entry, dialog, response):
         dialog.response(response)
+
     e.connect("activate", responseToDialog, d, gtk.RESPONSE_ACCEPT)
 
     hbox.pack_start(e, True, True, 0)
@@ -78,8 +81,10 @@ class EyeArea(gtk.DrawingArea):
         super(EyeArea, self).__init__()
 
         self._active = 0
-        self.eye_img = [ GdkPixbuf.Pixbuf.new_from_file('data/icons/edit.png'),
-                         GdkPixbuf.Pixbuf.new_from_file('data/icons/edit.png') ]
+        self.eye_img = [
+            GdkPixbuf.Pixbuf.new_from_file('data/icons/edit.png'),
+            GdkPixbuf.Pixbuf.new_from_file('data/icons/edit.png'),
+        ]
 
         self.set_size_request(self.eye_img[0].get_width(), self.eye_img[0].get_height())
 
@@ -150,11 +155,13 @@ class LayerCtrl(gtk.EventBox):
 
     def set_active(self, v):
         style = self.get_style()
-        color = (style.bg[gtk.StateType.SELECTED] if v and style.bg else None)
+        color = style.bg[gtk.StateType.SELECTED] if v and style.bg else None
+
         def mark(w):
             w.modify_bg(gtk.StateType.NORMAL, color)
             if isinstance(w, gtk.Box):
                 w.foreach(mark)
+
         mark(self)
         self.topbox.foreach(mark)
 
@@ -166,7 +173,8 @@ class LayerCtrl(gtk.EventBox):
         oldname = self.label.get_text()
         name = ask_for_name(self, "Change Layer Name", oldname)
         if name:
-            if name == oldname: return
+            if name == oldname:
+                return
             self.label.set_text(name)
         return name
 
@@ -209,14 +217,14 @@ class LayerManager(SubWindow):
 
         self.btn = {}
 
-        addButton('add',  gtk.STOCK_ADD)
-        addButton('del',  gtk.STOCK_DELETE)
-        addButton('top',  gtk.STOCK_GOTO_TOP)
-        addButton('up',   gtk.STOCK_GO_UP)
+        addButton('add', gtk.STOCK_ADD)
+        addButton('del', gtk.STOCK_DELETE)
+        addButton('top', gtk.STOCK_GOTO_TOP)
+        addButton('up', gtk.STOCK_GO_UP)
         addButton('down', gtk.STOCK_GO_DOWN)
-        addButton('bot',  gtk.STOCK_GOTO_BOTTOM)
-        addButton('dup',  gtk.STOCK_COPY)
-        addButton('merge',  gtk.STOCK_CONVERT)
+        addButton('bot', gtk.STOCK_GOTO_BOTTOM)
+        addButton('dup', gtk.STOCK_COPY)
+        addButton('merge', gtk.STOCK_CONVERT)
 
         # Packing all
         topbox.pack_start(scroll, True, True, 0)
@@ -230,7 +238,8 @@ class LayerManager(SubWindow):
         return len(self.layers_container.get_children())
 
     def _set_active_ctrl(self, ctrl):
-        if ctrl is self._active: return
+        if ctrl is self._active:
+            return
         ctrl.set_active(True)
         if self._active:
             self._active.set_active(False)
@@ -257,7 +266,7 @@ class LayerManager(SubWindow):
         ctrl = LayerCtrl(layer)
         ctrl.label.connect('button-press-event', self.on_ctrl_label_press)
         self.layers_container.pack_start(ctrl, False, True, 0)
-        self.layers_container.reorder_child(ctrl, len(self)-pos-1)
+        self.layers_container.reorder_child(ctrl, len(self) - pos - 1)
 
     def set_layers(self, layers, active=None):
         self.clear()
@@ -269,7 +278,7 @@ class LayerManager(SubWindow):
         ctrl = self.add_layer_ctrl(layer, pos)
         self.active = layer
         return ctrl
-        
+
     def del_layer(self, layer):
         for ctrl in self.layers_container.get_children():
             if ctrl.layer is layer:
@@ -286,7 +295,7 @@ class LayerManager(SubWindow):
     def move_layer(self, layer, pos):
         for ctrl in self.layers_container.get_children():
             if ctrl.layer is layer:
-                self.layers_container.reorder_child(ctrl, len(self)-pos-1)
+                self.layers_container.reorder_child(ctrl, len(self) - pos - 1)
                 return
 
     def get_active_position(self):
@@ -303,5 +312,3 @@ class LayerManager(SubWindow):
                 return
 
     active = property(fget=get_active, fset=set_active)
-
-

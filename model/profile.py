@@ -28,13 +28,15 @@ import _lcms
 from model import prefs
 from utils import _T
 
-__all__ = [ 'Profile', 'Transform', 'INTENTS' ]
+__all__ = ['Profile', 'Transform', 'INTENTS']
 
-INTENTS = { _T("Perceptual"):            _lcms.INTENT_PERCEPTUAL,
-            _T("Relative Colorimetric"): _lcms.INTENT_RELATIVE_COLORIMETRIC,
-            _T("Saturation"):            _lcms.INTENT_SATURATION,
-            _T("Absolute Colorimetric"): _lcms.INTENT_ABSOLUTE_COLORIMETRIC,
-          }
+INTENTS = {
+    _T("Perceptual"): _lcms.INTENT_PERCEPTUAL,
+    _T("Relative Colorimetric"): _lcms.INTENT_RELATIVE_COLORIMETRIC,
+    _T("Saturation"): _lcms.INTENT_SATURATION,
+    _T("Absolute Colorimetric"): _lcms.INTENT_ABSOLUTE_COLORIMETRIC,
+}
+
 
 class Profile(_lcms.Profile):
     __all = []
@@ -55,21 +57,25 @@ class Profile(_lcms.Profile):
 
     def __str__(self):
         if len(self.Description) > 50:
-            return self.Description[:50]+' (...)'
+            return self.Description[:50] + ' (...)'
         else:
             return self.Description
 
     def __repr__(self):
         return self.Description
 
+
 class Transform(_lcms.Transform):
-    def __new__(cl, src_profile, dst_profile,
-                 src_type=_lcms.TYPE_ARGB_8, dst_type=_lcms.TYPE_ARGB_8,
-                 intent=_lcms.INTENT_ABSOLUTE_COLORIMETRIC, flags=0):
-        return super(Transform, cl).__new__(cl,
-                                            src_profile, src_type,
-                                            dst_profile, dst_type,
-                                            intent, flags)
+    def __new__(
+        cl,
+        src_profile,
+        dst_profile,
+        src_type=_lcms.TYPE_ARGB_8,
+        dst_type=_lcms.TYPE_ARGB_8,
+        intent=_lcms.INTENT_ABSOLUTE_COLORIMETRIC,
+        flags=0,
+    ):
+        return super(Transform, cl).__new__(cl, src_profile, src_type, dst_profile, dst_type, intent, flags)
 
     def __call__(self, src, dst):
         assert src.size == dst.size
@@ -81,4 +87,3 @@ if not Profile.get_all():
 
     for filename in glob.glob(os.path.join(prefs['profiles-path'], '*.icc')):
         Profile.add_file(filename)
-

@@ -27,7 +27,8 @@ from pymui import *
 
 import model, view, main, utils
 
-__all__ = [ 'CommandsHistoryList' ]
+__all__ = ['CommandsHistoryList']
+
 
 class MyList(List):
     MCC = True
@@ -122,7 +123,7 @@ class CommandsHistoryList(Window):
         self._cmdlist.Remove(self.__last_added)
         self._cmdlist.InsertSingleString('\0334' + MUIX_I + cmd.getCommandName(), self.__last_added)
         self.__last_added += 1
-        self.enable_undo(self.__last_added < self._cmdlist.Entries.value-1)
+        self.enable_undo(self.__last_added < self._cmdlist.Entries.value - 1)
         self.enable_redo(True)
 
     def redo(self, cmd):

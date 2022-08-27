@@ -27,6 +27,7 @@ from utils import *
 
 __all__ = ['ApplicationMixin']
 
+
 class ApplicationMixin(object):
     """
     Gives a class pattern and interface to implement backend's application classes.
@@ -49,4 +50,3 @@ class ApplicationMixin(object):
         Virtual method.
         """
         pass
-

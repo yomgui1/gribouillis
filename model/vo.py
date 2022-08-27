@@ -26,9 +26,7 @@
 import model.document
 from utils import _T
 
-__all__ = [ 'DocumentConfigVO', 'FileDocumentConfigVO',
-            'EmptyDocumentConfigVO', 'LayerConfigVO',
-            'LayerCmdVO' ]
+__all__ = ['DocumentConfigVO', 'FileDocumentConfigVO', 'EmptyDocumentConfigVO', 'LayerConfigVO', 'LayerCmdVO']
 
 
 class GenericVO(dict):
@@ -57,9 +55,7 @@ class DocumentConfigVO(GenericVO):
 
 class FileDocumentConfigVO(DocumentConfigVO):
     def __init__(self, filename, docproxy=None, **k):
-        super(FileDocumentConfigVO, self).__init__(filename,
-                                                   docproxy=docproxy,
-                                                   **k)
+        super(FileDocumentConfigVO, self).__init__(filename, docproxy=docproxy, **k)
 
 
 class EmptyDocumentConfigVO(DocumentConfigVO):

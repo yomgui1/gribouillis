@@ -1,4 +1,3 @@
-
 # Copyright (c) 2009-2013 Guillaume Roguez
 #
 # Permission is hereby granted, free of charge, to any person
@@ -39,9 +38,9 @@ from model.brush import Brush, DrawableBrush
 from model.document import Document
 from model import _pixbuf, prefs
 
-__all__ = [ 'BrushHouseWindow' ]
+__all__ = ['BrushHouseWindow']
 
-MUIA_Group_PageMax = 0x8042d777 # /* V4  i.. BOOL              */ /* private */
+MUIA_Group_PageMax = 0x8042D777  # /* V4  i.. BOOL              */ /* private */
 
 _BRUSH_PREVIEW_BACK = "5:" + resolve_path(main.Gribouillis.TRANSPARENT_BACKGROUND)
 
@@ -51,23 +50,20 @@ _PREVIEW_BACK_PAT.set_extend(cairo.EXTEND_REPEAT)
 _PREVIEW_BACK_PAT.set_filter(cairo.FILTER_NEAREST)
 del surf
 
+
 class BrushHouseWindow(pymui.Window):
     _current_cb = utils.idle_cb
     _eraser_set_cb = utils.idle_cb
 
     def __init__(self, name):
-        super(BrushHouseWindow, self).__init__(name,
-                                               ID='BRHO',
-                                               LeftEdge=0,
-                                               TopDeltaEdge=0,
-                                               CloseOnReq=True)
+        super(BrushHouseWindow, self).__init__(name, ID='BRHO', LeftEdge=0, TopDeltaEdge=0, CloseOnReq=True)
         self.name = name
 
         self._brushes = set()
         self._all = None
         self._current = None
         self._pages = []
-        self._drawbrush = DrawableBrush() # used for preview
+        self._drawbrush = DrawableBrush()  # used for preview
 
         # UI
         self._top = topbox = self.RootObject = pymui.VGroup()
@@ -78,12 +74,14 @@ class BrushHouseWindow(pymui.Window):
         self._brushmenustrip.AddTail(menu)
 
         self._menuitems = {}
-        for k, text in [('use-preview-icon', _T('Use preview icon')),
-                        ('use-image-icon', _T('Use image icon')),
-                        ('change-icon', _T('Change image icon...')),
-                        ('as-eraser', _T('As eraser brush...')),
-                        ('dup', _T('Duplicate')),
-                        ('delete', _T('Delete'))]:
+        for k, text in [
+            ('use-preview-icon', _T('Use preview icon')),
+            ('use-image-icon', _T('Use image icon')),
+            ('change-icon', _T('Change image icon...')),
+            ('as-eraser', _T('As eraser brush...')),
+            ('dup', _T('Duplicate')),
+            ('delete', _T('Delete')),
+        ]:
             o = self._menuitems[k] = pymui.Menuitem(text)
             menu.AddChild(o)
 
@@ -110,22 +108,31 @@ class BrushHouseWindow(pymui.Window):
         box.AddChild(pymui.HSpace(0))
 
         # Notebook
-        nb = self._nb = pymui.VGroup(Frame='Register',
-                                     PageMode=True,
-                                     Background='RegisterBack',
-                                     CycleChain=True,
-                                     muiargs=[(MUIA_Group_PageMax, False)])
+        nb = self._nb = pymui.VGroup(
+            Frame='Register',
+            PageMode=True,
+            Background='RegisterBack',
+            CycleChain=True,
+            muiargs=[(MUIA_Group_PageMax, False)],
+        )
         self._titles = pymui.Title(Closable=False, Newable=False)
         nb.AddChild(self._titles)
         nb.Notify('ActivePage', self._on_active_page)
         topbox.AddChild(nb)
-        
+
         self._pagenamebt = pymui.String(Frame='String', Background='StringBack', Disabled=True, CycleChain=True)
         self._pagenamebt.Notify('Acknowledge', lambda ev, v: self._change_page_name(v), pymui.MUIV_TriggerValue)
-        
+
         self._brushnamebt = pymui.Text(Frame='String', PreParse=pymui.MUIX_C)
-        
-        grp = pymui.HGroup(Child=[ pymui.Label(_T('Page name')+':'), self._pagenamebt, pymui.Label(_T('Active brush')+':'), self._brushnamebt ])
+
+        grp = pymui.HGroup(
+            Child=[
+                pymui.Label(_T('Page name') + ':'),
+                self._pagenamebt,
+                pymui.Label(_T('Active brush') + ':'),
+                self._brushnamebt,
+            ]
+        )
         topbox.AddChild(grp)
 
         # Add the 'All brushes' page
@@ -137,7 +144,7 @@ class BrushHouseWindow(pymui.Window):
 
     def set_current_cb(self, cb):
         self._current_cb = cb
-        
+
     def set_eraser_set_cb(self, cb):
         self._eraser_set_cb = cb
 
@@ -146,7 +153,7 @@ class BrushHouseWindow(pymui.Window):
         for page, title in self._pages:
             if page.name == name:
                 return page
-                
+
         title = pymui.Text(name, Dropable=True)
         page = laygroup.LayGroup(SameSize=False, Spacing=1, InnerSpacing=0)
         page.name = name
@@ -168,65 +175,59 @@ class BrushHouseWindow(pymui.Window):
         bt.allbt = bt
         brush.bt = bt
         self._brushes.add(bt)
-        
+
         # Obtain a valid page object
         if page is None:
             if name:
                 page = self.add_page(name)
             else:
                 page = self._all
-                
+
         if page != self._all:
             bt.bt2 = self._mkbrushbt(page, brush)
             bt.bt2.allbt = bt
             brush.group = page.name
         else:
             brush.group = None
-            
+
         if len(self._brushes) == 2:
             self._menuitems['delete'].Enabled = True
 
-        #self.ActiveObject = bt
+        # self.ActiveObject = bt
         bt.Selected = True
 
     def _preview_icon_buffer(self, brush):
         self._drawbrush.set_from_brush(brush)
-        self._drawbrush.smudge = 0.
+        self._drawbrush.smudge = 0.0
         width = 128
         height = 60
         buf = self._drawbrush.paint_rgb_preview(width, height, fmt=_pixbuf.FORMAT_ARGB8)
-        
+
         # Compose with a checker background
         cr = cairo.Context(cairo.ImageSurface.create_for_data(buf, cairo.FORMAT_ARGB32, width, height))
         cr.set_operator(cairo.OPERATOR_DEST_OVER)
         cr.set_source(_PREVIEW_BACK_PAT)
         cr.paint()
-        
+
         return buf
-    
+
     def _load_brush_icon_for_rawimage(self, brush):
         buf, w, h, stride = Document.load_image(brush.icon, 'RGB')
         brush.icon_preview = buf
         data = rawimage.mkRawimageData(w, h, buf, rawimage.RAWIMAGE_FORMAT_RAW_RGB_ID)
         return data
-        
+
     def _mkbrushbt(self, page, brush):
         if brush.icon:
             data = self._load_brush_icon_for_rawimage(brush)
-            bt = rawimage.Rawimage(int(data),
-                                   Frame='None',
-                                   InputMode='Toggle',
-                                   InnerSpacing=2)
+            bt = rawimage.Rawimage(int(data), Frame='None', InputMode='Toggle', InnerSpacing=2)
             bt.ri_data = data
         else:
             if not brush.icon_preview:
                 brush.icon_preview = self._preview_icon_buffer(brush)
             buf = brush.icon_preview
             data = rawimage.mkRawimageData(buf.width, buf.height, str(buffer(buf)))
-            bt = rawimage.Rawimage(int(data),
-                                   Frame='None',
-                                   InputMode='Toggle',
-                                   InnerSpacing=2)
+            bt = rawimage.Rawimage(int(data), Frame='None', InputMode='Toggle', InnerSpacing=2)
             bt.ri_data = data
 
         bt.Background = 'ImageButtonBack'
@@ -234,7 +235,7 @@ class BrushHouseWindow(pymui.Window):
         bt.CycleChain = True
         bt.Draggable = True
         bt.ContextMenu = self._brushmenustrip
-        
+
         bt.Notify('Selected', self._on_brush_bt_clicked)
         bt.Notify('ContextMenuTrigger', self._on_preview_icon, when=self._menuitems['use-preview-icon']._object)
         bt.Notify('ContextMenuTrigger', self._on_image_icon, when=self._menuitems['use-image-icon']._object)
@@ -242,10 +243,10 @@ class BrushHouseWindow(pymui.Window):
         bt.Notify('ContextMenuTrigger', self._on_dup_brush, when=self._menuitems['dup']._object)
         bt.Notify('ContextMenuTrigger', self._on_delete_brush, when=self._menuitems['delete']._object)
         bt.Notify('ContextMenuTrigger', self._on_as_eraser, when=self._menuitems['as-eraser']._object)
-        
+
         bt.page = page
         bt.brush = brush
-        bt.bt2 = None # button in another page if it has been added
+        bt.bt2 = None  # button in another page if it has been added
 
         page.AddChild(bt, lock=True)
 
@@ -263,13 +264,13 @@ class BrushHouseWindow(pymui.Window):
         self._titles.RemChild(title)
         self._top.ExitChange()
 
-        self._nb.ActivePage = max(0, n-1)
+        self._nb.ActivePage = max(0, n - 1)
 
         if page is not self._all:
             for bt in list(self._brushes):
                 if bt.page is page.name:
                     self._brushes.remove(bt)
-        
+
     def _on_active_page(self, evt):
         page = self._pages[self._nb.ActivePage.value][0]
         self._pagenamebt.NNSet('Contents', page.name)
@@ -309,7 +310,7 @@ class BrushHouseWindow(pymui.Window):
         elif self._current is bt.allbt:
             bt.NNSet('Selected', True)
             ctx.app.open_window('BrushEditor')
-            
+
         self._brushnamebt.Contents = bt.brush.name
 
     def _on_change_icon(self, evt):
@@ -368,7 +369,7 @@ class BrushHouseWindow(pymui.Window):
         self._eraser_set_cb(evt.Source.allbt.brush)
 
     def _set_active_brush(self, brush):
-        brush.bt.Selected =True
+        brush.bt.Selected = True
 
     def _change_page_name(self, value):
         page, title = self._pages[self._nb.ActivePage.value]
@@ -378,4 +379,3 @@ class BrushHouseWindow(pymui.Window):
         self._brushnamebt.Contents = self.active_brush.name
 
     active_brush = property(fget=lambda self: self._current.brush, fset=_set_active_brush)
-

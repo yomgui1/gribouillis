@@ -128,7 +128,7 @@ class DocumentProxy(Proxy):
 
     #### Private API ####
     __instances = {}  # All registered DocumentProxy instances
-    profile = None    # Color profile
+    profile = None  # Color profile
     docname_num_match = re.compile('(.* #)([0-9]+)').match
     layerproxy = None
     active = None
@@ -196,7 +196,7 @@ class DocumentProxy(Proxy):
             basename = _T("New Empty Document")
 
         if basename in cls.__instances:
-            match =  cls.docname_num_match(basename)
+            match = cls.docname_num_match(basename)
             if match:
                 basename, n = match.groups()
                 basename += str(int(n) + 1)
@@ -258,8 +258,7 @@ class DocumentProxy(Proxy):
         return docproxy
 
     def load(self, filename):
-        """Replace current document by loading a new one.
-        """
+        """Replace current document by loading a new one."""
 
         # New document from file
         vo = _vo.FileDocumentConfigVO(filename)
@@ -354,7 +353,7 @@ class DocumentProxy(Proxy):
     def draw_end(self):
         layer = self._layer
         doc = self.data
-        area = doc.brush.stop() # layer relative area
+        area = doc.brush.stop()  # layer relative area
         if area:
             layer.dirty = True
             self.layerproxy.handle_dirty(layer, layer.document_relative_area(*area))
@@ -363,16 +362,14 @@ class DocumentProxy(Proxy):
         if ss.reduce(layer.surface):
             self.sendNotification(
                 main.DOC_RECORD_STROKE,
-                model.vo.LayerCmdVO(docproxy=self,
-                                    layer=layer,
-                                    snapshot=ss,
-                                    stroke=self._stroke))
+                model.vo.LayerCmdVO(docproxy=self, layer=layer, snapshot=ss, stroke=self._stroke),
+            )
             del self._snapshot, self._layer, self._stroke, self._dev
 
     def _record(self):
         state = self._dev.current
         self._stroke.append(state)
-        area = self.data.brush.draw_stroke(state) # layer relative area
+        area = self.data.brush.draw_stroke(state)  # layer relative area
         if area:
             layer = self._layer
             layer.dirty = True
@@ -383,45 +380,34 @@ class DocumentProxy(Proxy):
 
     def new_layer(self, vo):
         layer = self.data.new_layer(**vo)
-        self.sendNotification(self.DOC_LAYER_ADDED,
-                              (self, layer,
-                               self.data.index(layer)))
+        self.sendNotification(self.DOC_LAYER_ADDED, (self, layer, self.data.index(layer)))
         return layer
 
     def insert_layer(self, layer, pos=None, **k):
         self.data.insert_layer(layer, pos, **k)
-        self.sendNotification(self.DOC_LAYER_ADDED,
-                              (self, layer,
-                               self.data.index(layer)))
+        self.sendNotification(self.DOC_LAYER_ADDED, (self, layer, self.data.index(layer)))
 
     def remove_layer(self, layer):
         self.data.remove_layer(layer)
         self.sendNotification(main.DOC_LAYER_DELETED, (self, layer))
-        self.sendNotification(main.DOC_LAYER_ACTIVATED,
-                              (self, self.active_layer))
+        self.sendNotification(main.DOC_LAYER_ACTIVATED, (self, self.active_layer))
 
     def copy_layer(self, layer, pos=None):
         if pos is None:
             pos = self.data.get_layer_index(layer) + 1
         new_layer = self.data.new_layer(_T('Copy of %s') % layer.name, pos)
         new_layer.copy(layer)
-        self.sendNotification(main.DOC_LAYER_ADDED,
-                              (self, new_layer,
-                               self.data.get_layer_index(layer)))
+        self.sendNotification(main.DOC_LAYER_ADDED, (self, new_layer, self.data.get_layer_index(layer)))
         return new_layer
 
     def move_layer(self, layer, pos=None):
         self.data.move_layer(layer, pos)
-        self.sendNotification(main.DOC_LAYER_STACK_CHANGED,
-                              (self, layer,
-                               self.data.get_layer_index(layer)))
+        self.sendNotification(main.DOC_LAYER_STACK_CHANGED, (self, layer, self.data.get_layer_index(layer)))
 
     def set_layer_visibility(self, layer, state):
         state = bool(state)
         if layer.visible != state:
-            vo = model.vo.GenericVO(docproxy=self,
-                                    layer=layer,
-                                    state=state)
+            vo = model.vo.GenericVO(docproxy=self, layer=layer, state=state)
             self.sendNotification(main.DOC_LAYER_SET_VISIBLE, vo)
 
     def iter_visible_layers(self):
@@ -429,16 +415,12 @@ class DocumentProxy(Proxy):
 
     def set_layer_opacity(self, layer, value):
         if value != layer.opacity:
-            vo = model.vo.GenericVO(docproxy=self,
-                                    layer=layer,
-                                    state=value)
+            vo = model.vo.GenericVO(docproxy=self, layer=layer, state=value)
             self.sendNotification(main.DOC_LAYER_SET_OPACITY, vo)
 
     def record_layer_matrix(self, layer, old_mat):
         if not layer.empty:
-            self.sendNotification(main.DOC_LAYER_MATRIX,
-                                  (self, layer, old_mat,
-                                   cairo.Matrix(*layer.matrix)))
+            self.sendNotification(main.DOC_LAYER_MATRIX, (self, layer, old_mat, cairo.Matrix(*layer.matrix)))
 
     def layer_translate(self, *delta):
         layer = self.data.active
@@ -545,52 +527,43 @@ class BrushProxy(Proxy):
         r = min(max(r, brush.RADIUS_MIN), brush.RADIUS_MAX)
         if brush.radius_max != r:
             brush.radius_max = r
-            self.sendNotification(self.BRUSH_PROP_CHANGED,
-                                  (brush, 'radius_max'))
+            self.sendNotification(self.BRUSH_PROP_CHANGED, (brush, 'radius_max'))
         if brush.radius_min != r:
             brush.radius_min = r
-            self.sendNotification(self.BRUSH_PROP_CHANGED,
-                                  (brush, 'radius_min'))
+            self.sendNotification(self.BRUSH_PROP_CHANGED, (brush, 'radius_min'))
 
     def add_to_radius(self, brush, dr):
-        r = min(max(0.5, dr + max(brush.radius_min, brush.radius_max)),
-                brush.RADIUS_MAX)
+        r = min(max(0.5, dr + max(brush.radius_min, brush.radius_max)), brush.RADIUS_MAX)
         if brush.radius_max != r:
             brush.radius_max = r
-            self.sendNotification(self.BRUSH_PROP_CHANGED,
-                                  (brush, 'radius_max'))
+            self.sendNotification(self.BRUSH_PROP_CHANGED, (brush, 'radius_max'))
         if brush.radius_min != r:
             brush.radius_min = r
-            self.sendNotification(self.BRUSH_PROP_CHANGED,
-                                  (brush, 'radius_min'))
+            self.sendNotification(self.BRUSH_PROP_CHANGED, (brush, 'radius_min'))
 
     def set_max_radius(self, brush, r):
         r = min(max(r, 0.5), brush.RADIUS_MAX)
         if brush.radius_max != r:
             brush.radius_max = r
-            self.sendNotification(self.BRUSH_PROP_CHANGED,
-                                  (brush, 'radius_max'))
+            self.sendNotification(self.BRUSH_PROP_CHANGED, (brush, 'radius_max'))
 
     def add_to_max_radius(self, brush, dr):
         r = min(max(0.5, brush.radius_max + dr), brush.RADIUS_MAX)
         if brush.radius_max != r:
             brush.radius_max = r
-            self.sendNotification(brush.BRUSH_PROP_CHANGED,
-                                  (brush, 'radius_max'))
+            self.sendNotification(brush.BRUSH_PROP_CHANGED, (brush, 'radius_max'))
 
     def set_min_radius(self, brush, r):
         r = min(max(r, 0.5), brush.RADIUS_MAX)
         if brush.radius_min != r:
             brush.radius_min = r
-            self.sendNotification(self.BRUSH_PROP_CHANGED,
-                                  (brush, 'radius_min'))
+            self.sendNotification(self.BRUSH_PROP_CHANGED, (brush, 'radius_min'))
 
     def add_to_radius_min(self, brush, dr):
         r = min(max(0.5, brush.radius_min + dr), brush.RADIUS_MAX)
         if brush.radius_min != r:
             brush.radius_min = r
-            self.sendNotification(self.BRUSH_PROP_CHANGED,
-                                  (brush, 'radius_min'))
+            self.sendNotification(self.BRUSH_PROP_CHANGED, (brush, 'radius_min'))
 
     def add_to_color(self, brush, *factors):
         hsv = [c + f for c, f in zip(self.get_brush_color_hsv(brush), factors)]

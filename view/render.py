@@ -32,7 +32,8 @@ from model import _pixbuf, _cutils, surface
 class Render(object):
     viewport = None
 
-    def matrix_changed(self): pass
+    def matrix_changed(self):
+        pass
 
     def apply_operator(self):
         raise NotImplemented()
@@ -64,7 +65,7 @@ class CairoRenderBase(Render):
 class DocumentCairoRender(CairoRenderBase):
     filter = cairo.FILTER_FAST
     passepartout = False
-    docproxy = None # need to be set before repaint() call
+    docproxy = None  # need to be set before repaint() call
 
     def enable_fast_filter(self, state=True):
         self.filter = cairo.FILTER_FAST if state else None
@@ -107,7 +108,9 @@ class DocumentCairoRender(CairoRenderBase):
 
         # Paint the document, pixelize using FILTER_FAST filter if zoom level is high
         if self.filter is None:
-            flt = cairo.FILTER_FAST if self.viewport.scale_idx > prefs['view-filter-threshold'] else cairo.FILTER_BILINEAR
+            flt = (
+                cairo.FILTER_FAST if self.viewport.scale_idx > prefs['view-filter-threshold'] else cairo.FILTER_BILINEAR
+            )
         else:
             flt = self.filter
 
@@ -178,6 +181,7 @@ class DocumentRender(Render):
         self.docproxy.document.rasterize_to_surface(self._s, clip, m2v_mat)
         self._s.rasterize(clip, 0, 0, destination=self._pb)
 
+
 class BackgroundMixin:
     _backcolor = None  # background as solid color
     _backpat = None  # background as pattern
@@ -205,4 +209,3 @@ class BackgroundMixin:
             self.repaint()
         except:
             pass
-

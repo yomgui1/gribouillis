@@ -32,8 +32,8 @@ from model import _pixbuf
 class DocumentOpenGLRender(Render):
     filter = cairo.FILTER_FAST
     passepartout = False
-    docproxy = None # need to be set before repaint() call
-    
+    docproxy = None  # need to be set before repaint() call
+
     def enable_fast_filter(self, state=True):
         self.filter = cairo.FILTER_FAST if state else None
 
@@ -75,7 +75,9 @@ class DocumentOpenGLRender(Render):
 
         # Paint the document, pixelize using FILTER_FAST filter if zoom level is high
         if self.filter is None:
-            flt = cairo.FILTER_FAST if self.viewport.scale_idx > prefs['view-filter-threshold'] else cairo.FILTER_BILINEAR
+            flt = (
+                cairo.FILTER_FAST if self.viewport.scale_idx > prefs['view-filter-threshold'] else cairo.FILTER_BILINEAR
+            )
         else:
             flt = self.filter
 
@@ -83,13 +85,13 @@ class DocumentOpenGLRender(Render):
         cr.restore()
 
     # Render class implemtation
-    
+
     def set_view_size(self, width, height):
         # create new cairo surface/context
         self.buf = _pixbuf.Pixbuf(_pixbuf.FORMAT_RGBA8, width, height)
         self.surf = cairo.ImageSurface.create_for_data(self.buf, cairo.FORMAT_ARGB32, width, height)
         self.ctx = cairo.Context(self.surf)
-    
+
     def clear_area(self, clip):
         self.buf.clear_area(*clip)
         self.surf.mark_dirty_rectangle(*clip)

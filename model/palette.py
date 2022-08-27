@@ -33,13 +33,16 @@ from utils import virtualmethod
 
 debug = 0
 
+
 def _DBG(msg):
     print(msg)
 
-DBG = (_DBG if debug else lambda x: None)
+
+DBG = _DBG if debug else lambda x: None
 del debug, _DBG
 
 SUPPORTED_EXTENSIONS = []
+
 
 class Palette(list):
     MAX_COLORS = 256
@@ -57,7 +60,7 @@ class Palette(list):
     def loadfromfile(self, filename):
         for handler in _MetaPaletteHandler.HANDLERS:
             if handler.ishandled(filename):
-                DBG("File '%s' accepted as '%s' palette, loading..." % (filename, handler.NAME ))
+                DBG("File '%s' accepted as '%s' palette, loading..." % (filename, handler.NAME))
                 try:
                     handler.load(filename, self)
                     return
@@ -68,13 +71,14 @@ class Palette(list):
     def savetofile(self, filename):
         for handler in _MetaPaletteHandler.HANDLERS:
             if handler.ishandled(filename):
-                DBG("File '%s' accepted as '%s' palette, saving..." % (filename, handler.NAME ))
+                DBG("File '%s' accepted as '%s' palette, saving..." % (filename, handler.NAME))
                 try:
                     handler.save(filename, self)
                     return
                 except:
                     pass
         raise NotImplementedError("Unable to recognize as palette the file '%s'" % filename)
+
 
 class PaletteValue(object):
     __slots__ = ('value', 'colorspace')
@@ -102,6 +106,7 @@ class PaletteValue(object):
 
     rgb = property(fget=__get_rgb, fset=__set_rgb, fdel=__del_value)
 
+
 class _MetaPaletteHandler(type):
     HANDLERS = set()
 
@@ -111,6 +116,7 @@ class _MetaPaletteHandler(type):
             _MetaPaletteHandler.HANDLERS.add(cl)
             SUPPORTED_EXTENSIONS.append(cl.EXT)
 
+
 class PaletteHandler(metaclass=_MetaPaletteHandler):
     @classmethod
     def getext(cl, filename):
@@ -118,15 +124,18 @@ class PaletteHandler(metaclass=_MetaPaletteHandler):
 
     @classmethod
     @virtualmethod
-    def load(cl, filename, palette): pass
+    def load(cl, filename, palette):
+        pass
 
     @classmethod
     @virtualmethod
-    def save(cl, filename, palette): pass
+    def save(cl, filename, palette):
+        pass
 
     @classmethod
     def ishandled(cl, filename):
         return cl.getext(filename) == cl.EXT
+
 
 class PaintShopProHandler(PaletteHandler):
     NAME = "PaintShopPro"
@@ -146,7 +155,7 @@ class PaintShopProHandler(PaletteHandler):
             # Read RGB values
             for i in range(count):
                 line = fd.readline()[:-1]
-                rgb = [int(x)/255. for x in line.split()]
+                rgb = [int(x) / 255.0 for x in line.split()]
                 assert len(rgb) == 3, "Invalid RGB value: '%s'" % line
                 palette[i].rgb = rgb
 
@@ -156,11 +165,12 @@ class PaintShopProHandler(PaletteHandler):
             fd.write('JASC-PAL\r\n')
             fd.write('0100\r\n')
 
-            values = [ pv.rgb for pv in palette if pv.value != None ]
+            values = [pv.rgb for pv in palette if pv.value != None]
             fd.write('%u\r\n' % len(values))
 
             for rgb in values:
-                fd.write("%u %u %u\r\n" % tuple(int(x*255) for x in rgb))
+                fd.write("%u %u %u\r\n" % tuple(int(x * 255) for x in rgb))
+
 
 class AdobeColorSwatchHandler(PaletteHandler):
     NAME = "Adobe Photoshop Color"
@@ -180,37 +190,38 @@ class AdobeColorSwatchHandler(PaletteHandler):
 
             # Laod value
             for i in range(count):
-                off = 2+i*5
-                cs, w, x, y, _ = a[off:off+5]
+                off = 2 + i * 5
+                cs, w, x, y, _ = a[off : off + 5]
                 if cs == 0:
                     # RGB
-                    palette[i].rgb = (w/65280., x/65280., y/65280.)
+                    palette[i].rgb = (w / 65280.0, x / 65280.0, y / 65280.0)
 
                 if ver == 2:
                     # Read name
-                    len = data[off+6] - 1
-                    #name = unicode(data[off+7:off+len+7].tostring(), 'utf-16')
-                    i += off+len+8
+                    len = data[off + 6] - 1
+                    # name = unicode(data[off+7:off+len+7].tostring(), 'utf-16')
+                    i += off + len + 8
 
     @classmethod
     def save(cl, filename, palette):
         a = array.array('H')
         a.append(1)
-        values = [ pv.rgb for pv in palette if pv.value != None ]
+        values = [pv.rgb for pv in palette if pv.value != None]
         a.append(len(values))
         for r, g, b in values:
             a.append(0)
-            a.append(int(r*65280))
-            a.append(int(g*65280))
-            a.append(int(b*65280))
+            a.append(int(r * 65280))
+            a.append(int(g * 65280))
+            a.append(int(b * 65280))
             a.append(0)
 
         with open(filename, 'w') as fd:
             a.tofile(fd)
 
+
 DefaultPalette = Palette('default')
-DefaultPalette[0].rgb = (0,0,0)
-DefaultPalette[1].rgb = (1,1,1)
-DefaultPalette[2].rgb = (1,0,0)
-DefaultPalette[3].rgb = (0,1,0)
-DefaultPalette[4].rgb = (0,0,1)
+DefaultPalette[0].rgb = (0, 0, 0)
+DefaultPalette[1].rgb = (1, 1, 1)
+DefaultPalette[2].rgb = (1, 0, 0)
+DefaultPalette[3].rgb = (0, 1, 0)
+DefaultPalette[4].rgb = (0, 0, 1)

@@ -23,6 +23,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
+
 class EventParserI:
     """EventParserI : Interface class
 

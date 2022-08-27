@@ -32,43 +32,65 @@ from utils import delayedmethod, _T
 
 from view import cairo_tools as tools
 
+
 class MetaEventHandler(type):
     def __new__(meta, name, bases, dct):
         cl = type.__new__(meta, name, bases, dct)
         return cl
 
+
 class EventHandler(metaclass=MetaEventHandler):
-    def start(self, vp): pass
-    def stop(self, vp): pass
-    def on_enter(self, vp, state, evt): pass
-    def on_leave(self, vp, state, evt): pass
-    def on_motion(self, vp, dev, evt): pass
-    def on_key_pressed(self, vp, qual, key, evt): pass
-    def on_key_released(self, vp, qual, key, evt): pass
-    def on_button_pressed(self, vp, state, bt, evt): pass
-    def on_button_released(self, vp, state, bt, evt): pass
-    def on_scroll(self, vp, state, direction, evt): pass
+    def start(self, vp):
+        pass
+
+    def stop(self, vp):
+        pass
+
+    def on_enter(self, vp, state, evt):
+        pass
+
+    def on_leave(self, vp, state, evt):
+        pass
+
+    def on_motion(self, vp, dev, evt):
+        pass
+
+    def on_key_pressed(self, vp, qual, key, evt):
+        pass
+
+    def on_key_released(self, vp, qual, key, evt):
+        pass
+
+    def on_button_pressed(self, vp, state, bt, evt):
+        pass
+
+    def on_button_released(self, vp, state, bt, evt):
+        pass
+
+    def on_scroll(self, vp, state, direction, evt):
+        pass
+
 
 class IdleHandler(EventHandler):
     def __init__(self):
         super(IdleHandler, self).__init__()
-        
+
     def start(self, vp):
         vp.enable_mouse_motion()
         if vp.dev.current:
             vp.repaint_cursor(*vp.dev.current.cpos)
         else:
             vp.Redraw()
-        
+
     def stop(self, vp):
         vp.enable_mouse_motion(False)
         vp.hide_cursor()
-        
+
     def on_enter(self, vp, state, *a):
         if vp.focus:
             vp.enable_mouse_motion()
             vp.repaint_cursor(*state.cpos)
-        
+
     def on_leave(self, vp, state, *a):
         vp.enable_mouse_motion(False)
         vp.hide_cursor()
@@ -116,26 +138,28 @@ class IdleHandler(EventHandler):
     def on_tool_sel(self, vp, *a):
         vp.set_evt_handler('tool-sel')
         return True
-        
+
     def on_set_radius_max(self, vp, *a):
         vp.set_evt_handler('set-radius-max')
         return True
-        
-    KEYMAP_PRESSED = {'=': on_reset,
-                      's': on_free_sel,
-                      ' ': on_tool_sel,
-                      'r': on_set_radius_max,
-                      }
+
+    KEYMAP_PRESSED = {
+        '=': on_reset,
+        's': on_free_sel,
+        ' ': on_tool_sel,
+        'r': on_set_radius_max,
+    }
+
 
 class DrawHandler(EventHandler):
     def start(self, vp):
         vp.lock_focus()
         vp.enable_mouse_motion()
-    
+
     def stop(self, vp):
         vp.unlock_focus()
         vp.enable_mouse_motion(False)
-        
+
     def on_button_released(self, vp, state, bt, *a):
         if bt == IECODE_LBUTTON:
             vp.docproxy.draw_end()
@@ -145,6 +169,7 @@ class DrawHandler(EventHandler):
     def on_motion(self, vp, *a):
         vp.docproxy.record()
         return True
+
 
 class DragViewHandler(EventHandler):
     def __init__(self):
@@ -156,14 +181,14 @@ class DragViewHandler(EventHandler):
         vp.enable_mouse_motion()
         self.x = 0
         self.y = 0
-        self._text.set_text("Dx=%-4u, Dy=%-4u" % (0,0))
+        self._text.set_text("Dx=%-4u, Dy=%-4u" % (0, 0))
         vp.add_tool(self._text)
 
     def stop(self, vp):
         vp.unlock_focus()
         vp.enable_mouse_motion(False)
         vp.rem_tool(self._text)
-        
+
     def on_motion(self, vp, dev, *a):
         delta = dev.view_motion
         vp.scroll(*delta)
@@ -178,7 +203,8 @@ class DragViewHandler(EventHandler):
             vp.set_evt_handler('idle')
             return True
 
-class DragLayerHandler(EventHandler):    
+
+class DragLayerHandler(EventHandler):
     def __init__(self):
         super(DragLayerHandler, self).__init__()
         self._text = tools.Text()
@@ -189,14 +215,14 @@ class DragLayerHandler(EventHandler):
         layer = vp.docproxy.active_layer
         self.x = 0
         self.y = 0
-        self._text.set_text("Dx=%-4u, Dy=%-4u" % (0,0))
+        self._text.set_text("Dx=%-4u, Dy=%-4u" % (0, 0))
         vp.add_tool(self._text)
 
     def stop(self, vp):
         vp.unlock_focus()
         vp.enable_mouse_motion(False)
         vp.rem_tool(self._text)
-        
+
     def on_motion(self, vp, dev, *a):
         delta = dev.view_motion
         layer = vp.docproxy.active_layer
@@ -215,22 +241,26 @@ class DragLayerHandler(EventHandler):
             vp.set_evt_handler('idle')
             return True
 
+
 class RotateViewHandler(EventHandler):
     def __init__(self):
         super(RotateViewHandler, self).__init__()
         self._rot = tools.Rotate()
         self._text = tools.Text()
-        
+
     def start(self, vp):
         vp.lock_focus()
         vp.enable_mouse_motion()
-        self._angle = 0.
+        self._angle = 0.0
         self._rot.set_cursor_pos(vp.dev.current.cpos)
         self._text.set_text("Angle: 0")
         vp.add_tool(self._rot)
         vp.add_tool(self._text)
 
-    def stop(self, vp,):
+    def stop(
+        self,
+        vp,
+    ):
         vp.unlock_focus()
         vp.enable_mouse_motion(False)
         vp.rem_tool(self._rot)
@@ -241,16 +271,17 @@ class RotateViewHandler(EventHandler):
         self._text.set_text("Angle: %u" % math.degrees(self._angle))
         vp.repaint_tools()
         vp.rotate(-self._rot.dr)
-        self._angle = (self._angle + self._rot.dr) % (2*pi)
+        self._angle = (self._angle + self._rot.dr) % (2 * pi)
 
     def on_button_released(self, vp, state, bt, *a):
         if bt == IECODE_MBUTTON:
             vp.set_evt_handler('idle')
             return True
 
+
 class SelectionHandler(EventHandler):
     _move = False
-    
+
     def __init__(self):
         super(SelectionHandler, self).__init__()
         self._tool = tools.SelectionDisplay()
@@ -264,12 +295,12 @@ class SelectionHandler(EventHandler):
     def stop(self, vp):
         vp.enable_mouse_motion(False)
         vp.rem_tool(self._tool)
-        
+
     def on_motion(self, vp, dev, *a):
         if self._move:
-            area = self._tool.area # save old area before move
+            area = self._tool.area  # save old area before move
             self._tool.move(*dev.view_motion)
-            area = utils.join_area(area, self._tool.area) # add dirty areas
+            area = utils.join_area(area, self._tool.area)  # add dirty areas
             vp.repaint_tools(area)
             vp.Redraw(area)
         return True
@@ -295,9 +326,10 @@ class SelectionHandler(EventHandler):
             vp.set_evt_handler('idle')
             return True
 
+
 class DrawFreeSelectionHandler(EventHandler):
     _draw = False
-    
+
     def __init__(self):
         super(DrawFreeSelectionHandler, self).__init__()
         self._tool = tools.DrawFreeSelection()
@@ -349,9 +381,10 @@ class DrawFreeSelectionHandler(EventHandler):
                 vp.set_evt_handler('idle')
             return True
 
+
 class ToolSelectorHandler(EventHandler):
     _move = False
-    
+
     def __init__(self):
         super(ToolSelectorHandler, self).__init__()
         self._tool = tools.CircleTools()
@@ -371,7 +404,7 @@ class ToolSelectorHandler(EventHandler):
             vp.unlock_focus()
             vp.set_evt_handler('idle')
             return True
-        
+
     def on_motion(self, vp, dev, *a):
         self._tool.cpos = dev.current.cpos
         vp.repaint_tools(self._tool.area)
@@ -385,7 +418,8 @@ class ToolSelectorHandler(EventHandler):
     def on_button_released(self, vp, state, bt, *a):
         if bt == IECODE_LBUTTON:
             return True
-            
+
+
 class ResizeRadiusMaxHandler(EventHandler):
     def __init__(self):
         super(ResizeRadiusMaxHandler, self).__init__()
@@ -403,12 +437,11 @@ class ResizeRadiusMaxHandler(EventHandler):
 
     def on_motion(self, vp, dev, *e):
         dr = -dev.view_motion[1]
-        vp.docproxy.add_brush_radius_max(dr*.25)
+        vp.docproxy.add_brush_radius_max(dr * 0.25)
         vp.repaint_cursor(*self.pos)
         return True
-        
+
     def on_key_released(self, vp, qual, key, evt):
         if key == 'r':
             vp.set_evt_handler('idle')
             return True
-

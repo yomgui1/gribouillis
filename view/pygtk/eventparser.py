@@ -45,25 +45,25 @@ class GdkEventParser:
 
     @staticmethod
     def get_cursor_xtilt(evt):
-        return evt.get_axis(gdk.AxisUse.XTILT) or 0.
+        return evt.get_axis(gdk.AxisUse.XTILT) or 0.0
 
     @staticmethod
     def get_cursor_ytilt(evt):
-        return evt.get_axis(gdk.AxisUse.YTILT) or 0.
+        return evt.get_axis(gdk.AxisUse.YTILT) or 0.0
 
     @classmethod
     def get_pressure(cls, evt):
         # Is pressure value not in supposed range?
         p = evt.get_axis(gdk.AxisUse.PRESSURE)
         if p is not None:
-            if p < 0. or p > 1.:
+            if p < 0.0 or p > 1.0:
                 if evt.device.name not in cls.__bad_devices:
                     print('WARNING: device "%s" is reporting bad pressure %+f' % (evt.device.name, p))
                     cls.__bad_devices.append(evt.device.name)
                     # Over limits?
-                if p < -10000. or p > 10000.:
-                    p = .5
+                if p < -10000.0 or p > 10000.0:
+                    p = 0.5
         else:
-            p = .5
-        
+            p = 0.5
+
         return p

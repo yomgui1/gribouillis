@@ -31,4 +31,3 @@ By default this module is empty as only filled by platform code.
 
 Note: that only objects related to view layer must access to this module.
 """
-

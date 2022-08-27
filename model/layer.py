@@ -32,7 +32,7 @@ from model.surface import *
 from model import _pixbuf, _cutils
 from utils import virtualmethod
 
-__all__ = [ 'Layer', 'PlainLayer', 'TiledLayer' ]
+__all__ = ['Layer', 'PlainLayer', 'TiledLayer']
 
 
 class Layer(object):
@@ -54,40 +54,41 @@ class Layer(object):
     how to
     """
 
-    OPERATORS = { 'normal':     cairo.OPERATOR_OVER,
-                  'multiply':   14,
-                  'screen':     15,
-                  'overlay':    16,
-                  'mask':       cairo.OPERATOR_ATOP,
-                  'darken':     17,
-                  'lighten':    18,
-                  'dodge':      19,
-                  'burn':       20,
-                  'hard-light': 21,
-                  'soft-light': 22,
-                  'clear':      cairo.OPERATOR_CLEAR,
-                  'add':        cairo.OPERATOR_ADD,
-                  'xor':        cairo.OPERATOR_XOR,
-                  'difference': 23,
-                  'exclusion':  24,
-                }
+    OPERATORS = {
+        'normal': cairo.OPERATOR_OVER,
+        'multiply': 14,
+        'screen': 15,
+        'overlay': 16,
+        'mask': cairo.OPERATOR_ATOP,
+        'darken': 17,
+        'lighten': 18,
+        'dodge': 19,
+        'burn': 20,
+        'hard-light': 21,
+        'soft-light': 22,
+        'clear': cairo.OPERATOR_CLEAR,
+        'add': cairo.OPERATOR_ADD,
+        'xor': cairo.OPERATOR_XOR,
+        'difference': 23,
+        'exclusion': 24,
+    }
 
-    OPERATORS_LIST  = "normal multiply screen overlay clear mask add difference exclusion"
+    OPERATORS_LIST = "normal multiply screen overlay clear mask add difference exclusion"
     OPERATORS_LIST += " darken lighten dodge burn hard-light soft-light xor"
-    OPERATORS_LIST  = OPERATORS_LIST.split()
+    OPERATORS_LIST = OPERATORS_LIST.split()
 
     _visible = True
     locked = False
     dirty = False
 
     def __init__(self, surface, name, alpha=1.0, alphamask=None, operator='normal', opacity=1.0, **options):
-        self._surface   = surface # drawing surface
-        self._alpha     = alpha # global transparency of the layer
-        self._alphamask = alphamask # surface to use as global transparency of the layer (* _alpha)
-        self._name      = name
-        self.operator   = operator
-        self.opacity    = opacity
-        self._matrix     = cairo.Matrix() # display matrix
+        self._surface = surface  # drawing surface
+        self._alpha = alpha  # global transparency of the layer
+        self._alphamask = alphamask  # surface to use as global transparency of the layer (* _alpha)
+        self._name = name
+        self.operator = operator
+        self.opacity = opacity
+        self._matrix = cairo.Matrix()  # display matrix
         self.inv_matrix = cairo.Matrix()
 
     def __repr__(self):
@@ -118,8 +119,8 @@ class Layer(object):
 
     def translate(self, *delta):
         x, y = self.inv_matrix.transform_distance(*delta)
-        self._matrix.translate(x,y)
-        self.inv_matrix.translate(-x,-y)
+        self._matrix.translate(x, y)
+        self.inv_matrix.translate(-x, -y)
         self.dirty = True
 
     def _set_name(self, name):
@@ -193,7 +194,7 @@ class Layer(object):
 
 class PlainLayer(Layer):
     def __init__(self, pixfmt, name, **options):
-        surface = None # TODO
+        surface = None  # TODO
         super(PlainLayer, self).__init__(surface, name, **options)
 
 
@@ -285,7 +286,7 @@ class TiledLayer(Layer):
             # Note: if dst tiles are marked as readonly, we'll get new tile
             # => perfect if layer has been snapshot'ed.
             for dst_tile in dst.surface.get_tiles(dst.surface.area):
-                dst_tile.blit(tmp) # format convertion: GB3 -> cairo
+                dst_tile.blit(tmp)  # format convertion: GB3 -> cairo
 
                 # Blit the destination first using its opacity
                 rsurf_pb.clear()
@@ -318,7 +319,7 @@ class TiledLayer(Layer):
             # Surface for cairo compositing
             src_surf = cairo.ImageSurface.create_for_data(rpb, cairo.FORMAT_ARGB32, w, h)
 
-            for dst_tile in dst.surface.get_tiles([ x, y, w, h ], True):
+            for dst_tile in dst.surface.get_tiles([x, y, w, h], True):
                 # Make a copy of destination tile
                 dst_tile.blit(rsurf_pb)
 

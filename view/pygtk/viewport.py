@@ -49,7 +49,7 @@ from .eventparser import GdkEventParser
 def _check_key(key, evt):
     if not key:
         key = evt.keyval
-        if key <= 0xff:
+        if key <= 0xFF:
             key = chr(evt.keyval).lower()
         else:
             key = hex(evt.keyval)
@@ -75,7 +75,7 @@ class DocViewport(gtk.DrawingArea, view.render.BackgroundMixin):
     _debug = 0
     selpath = None
     docproxy = None
-    view_area = None # set during expose
+    view_area = None  # set during expose
 
     __new_cairo_surface = cairo.ImageSurface.create_for_data
 
@@ -101,28 +101,30 @@ class DocViewport(gtk.DrawingArea, view.render.BackgroundMixin):
         # Aliases
         self.get_view_area = self._docvp.get_view_area
 
-        self.set_events(gdk.EventMask.EXPOSURE_MASK
-                        | gdk.EventMask.BUTTON_PRESS_MASK
-                        | gdk.EventMask.BUTTON_RELEASE_MASK
-                        | gdk.EventMask.POINTER_MOTION_MASK
-                        | gdk.EventMask.SCROLL_MASK
-                        | gdk.EventMask.ENTER_NOTIFY_MASK
-                        | gdk.EventMask.LEAVE_NOTIFY_MASK
-                        | gdk.EventMask.KEY_PRESS_MASK
-                        | gdk.EventMask.KEY_RELEASE_MASK)
+        self.set_events(
+            gdk.EventMask.EXPOSURE_MASK
+            | gdk.EventMask.BUTTON_PRESS_MASK
+            | gdk.EventMask.BUTTON_RELEASE_MASK
+            | gdk.EventMask.POINTER_MOTION_MASK
+            | gdk.EventMask.SCROLL_MASK
+            | gdk.EventMask.ENTER_NOTIFY_MASK
+            | gdk.EventMask.LEAVE_NOTIFY_MASK
+            | gdk.EventMask.KEY_PRESS_MASK
+            | gdk.EventMask.KEY_RELEASE_MASK
+        )
 
         self.set_can_focus(True)
         self.set_sensitive(True)
 
-        self.connect("draw"        , self._on_expose)
-        self.connect("motion-notify-event" , self._on_vp_event)
-        self.connect("button-press-event"  , self._on_vp_event)
+        self.connect("draw", self._on_expose)
+        self.connect("motion-notify-event", self._on_vp_event)
+        self.connect("button-press-event", self._on_vp_event)
         self.connect("button-release-event", self._on_vp_event)
-        self.connect("scroll-event"        , self._on_vp_event)
-        self.connect("enter-notify-event"  , self._on_enter)
-        self.connect("leave-notify-event"  , self._on_leave)
-        self.connect("key-press-event"     , self._on_vp_event)
-        self.connect("key-release-event"   , self._on_vp_event)
+        self.connect("scroll-event", self._on_vp_event)
+        self.connect("enter-notify-event", self._on_enter)
+        self.connect("leave-notify-event", self._on_leave)
+        self.connect("key-press-event", self._on_vp_event)
+        self.connect("key-release-event", self._on_vp_event)
 
         if docproxy is not None:
             self.set_docproxy(docproxy)
@@ -150,7 +152,7 @@ class DocViewport(gtk.DrawingArea, view.render.BackgroundMixin):
         if self.width != width or self.height != height:
             # free memory
             del self._doc_gtk_pb, self._doc_pb
-            #del self._tools_cairo_sf, self._tools_pb
+            # del self._tools_cairo_sf, self._tools_pb
 
             self.width = width
             self.height = height
@@ -167,13 +169,13 @@ class DocViewport(gtk.DrawingArea, view.render.BackgroundMixin):
             self._doc_offset = self._docvp.offset
             self._doc_scale = self._docvp.scale_idx
 
-            #self._tools_pb = _pixbuf.Pixbuf(_pixbuf.FORMAT_RGBA8, width, height)
-            #self._toolsvp.set_view_size(width, height)
-            #self._tools_cairo_sf = self.__new_cairo_surface(self._tools_pb, cairo.FORMAT_ARGB32, width, height)
-            #self._toolsvp.repaint()
+            # self._tools_pb = _pixbuf.Pixbuf(_pixbuf.FORMAT_RGBA8, width, height)
+            # self._toolsvp.set_view_size(width, height)
+            # self._tools_cairo_sf = self.__new_cairo_surface(self._tools_pb, cairo.FORMAT_ARGB32, width, height)
+            # self._toolsvp.repaint()
 
         # Cairo compositing (doc + tools)
-        cr = evt #self.window.cairo_create()
+        cr = evt  # self.window.cairo_create()
         cr.set_operator(cairo.OPERATOR_OVER)
         self._paint_composite(cr, area)
 
@@ -181,13 +183,13 @@ class DocViewport(gtk.DrawingArea, view.render.BackgroundMixin):
         if self._cur_on and not self._cur_area:
             area = self._get_cursor_clip(*self._cur_pos)
             x, y = self._cur_pos
-            x -= area[2]/2.
-            y -= area[3]/2.
+            x -= area[2] / 2.0
+            y -= area[3] / 2.0
             cr.set_source_surface(self._curvp.cairo_surface, x, y)
             cr.paint()
 
             # area to erase the cursor
-            self._cur_area = (int(floor(x)), int(floor(y)), area[2]+2, area[3]+2)
+            self._cur_area = (int(floor(x)), int(floor(y)), area[2] + 2, area[3] + 2)
 
         return True
 
@@ -199,10 +201,10 @@ class DocViewport(gtk.DrawingArea, view.render.BackgroundMixin):
 
         # We uses here the knownledge of backend
         # to do some optimizations
-        #ox, oy = self._doc_offset
-        #nx, ny = self._doc_offset = self._docvp.offset
-        #os = self._doc_scale
-        #ns = self._doc_scale = self._docvp.scale_idx
+        # ox, oy = self._doc_offset
+        # nx, ny = self._doc_offset = self._docvp.offset
+        # os = self._doc_scale
+        # ns = self._doc_scale = self._docvp.scale_idx
 
         if 0 and os == ns and (nx != ox or ny != oy):
             # Only translation
@@ -217,11 +219,11 @@ class DocViewport(gtk.DrawingArea, view.render.BackgroundMixin):
 
         # Paint tools surface
 
-        #cr.set_source_surface(self._tools_cairo_sf, 0, 0)
+        # cr.set_source_surface(self._tools_cairo_sf, 0, 0)
 
-        #cr.rectangle(*clip)
-        #cr.set_source_rgba(0, 0, random.random(), 0.6)
-        #cr.paint()
+        # cr.rectangle(*clip)
+        # cr.set_source_rgba(0, 0, random.random(), 0.6)
+        # cr.paint()
 
     # Events dispatchers
 
@@ -245,7 +247,8 @@ class DocViewport(gtk.DrawingArea, view.render.BackgroundMixin):
     # Public API
 
     def set_docproxy(self, docproxy):
-        if self.docproxy is docproxy: return
+        if self.docproxy is docproxy:
+            return
         if self.docproxy:
             self.docproxy.release()
         docproxy.obtain()
@@ -267,7 +270,6 @@ class DocViewport(gtk.DrawingArea, view.render.BackgroundMixin):
     @property
     def cursor_position(self):
         return self._cur_pos
-
 
     # Rendering
 
@@ -293,20 +295,20 @@ class DocViewport(gtk.DrawingArea, view.render.BackgroundMixin):
         h = self.height
 
         if dy > 0:
-            re.render(Area(0, 0, w, dy), mat) #3
+            re.render(Area(0, 0, w, dy), mat)  # 3
         elif dy < 0:
-            re.render(Area(0, h+dy, w, h), mat) #4
+            re.render(Area(0, h + dy, w, h), mat)  # 4
 
         if dx > 0:
             if dy >= 0:
-                re.render(Area(0, dy, dx, h), mat) #1
+                re.render(Area(0, dy, dx, h), mat)  # 1
             else:
-                re.render(Area(0, 0, dx, h+dy), mat) #1
+                re.render(Area(0, 0, dx, h + dy), mat)  # 1
         elif dx < 0:
             if dy >= 0:
-                re.render(Area(w+dx, dy, w, h), mat) #2
+                re.render(Area(w + dx, dy, w, h), mat)  # 2
             else:
-                re.render(Area(w+dx, 0, w, h+dy), mat) #2
+                re.render(Area(w + dx, 0, w, h + dy), mat)  # 2
 
     def redraw(self, clip=None):
         if clip is None:
@@ -348,8 +350,8 @@ class DocViewport(gtk.DrawingArea, view.render.BackgroundMixin):
     def _get_cursor_clip(self, dx, dy):
         w = self._curvp.width
         h = self._curvp.height
-        dx -= w/2
-        dy -= h/2
+        dx -= w / 2
+        dy -= h / 2
         return dx, dy, w, h
 
     def set_cursor_radius(self, r):
@@ -361,7 +363,6 @@ class DocViewport(gtk.DrawingArea, view.render.BackgroundMixin):
         self._cur_on = state
         self.repaint_cursor(*(pos or self._cur_pos))
         return self._cur_pos
-
 
     # View transformations
 
@@ -377,7 +378,7 @@ class DocViewport(gtk.DrawingArea, view.render.BackgroundMixin):
         self._docvp.reset_rotation()
         self.repaint_doc()
 
-    def scale_up(self, cx=.0, cy=.0):
+    def scale_up(self, cx=0.0, cy=0.0):
         # Zooming is space origin centered,
         # but we want it centered around (cx, cy)
         # So a scroll will be made to compensate
@@ -385,21 +386,21 @@ class DocViewport(gtk.DrawingArea, view.render.BackgroundMixin):
         x, y = self._docvp.model_matrix.transform_point(cx, cy)
         if self._docvp.scale_up():
             x, y = self._docvp.view_matrix.transform_point(x, y)
-            self._docvp.scroll(int(cx-x), int(cy - y))
+            self._docvp.scroll(int(cx - x), int(cy - y))
 
             # Scale cursor display as well
             self._curvp.set_scale(self._docvp.scale_factor)
             self._curvp.repaint()
-            self._cur_area = None # force cursor display
+            self._cur_area = None  # force cursor display
 
             # Refresh display
             self.redraw()
 
-    def scale_down(self, cx=.0, cy=.0):
+    def scale_down(self, cx=0.0, cy=0.0):
         x, y = self._docvp.model_matrix.transform_point(cx, cy)
         if self._docvp.scale_down():
             x, y = self._docvp.view_matrix.transform_point(x, y)
-            self._docvp.scroll(int(cx-x), int(cy - y))
+            self._docvp.scroll(int(cx - x), int(cy - y))
             self._curvp.set_scale(self._docvp.scale_factor)
             self._curvp.repaint()
             self._cur_area = None
@@ -432,7 +433,6 @@ class DocViewport(gtk.DrawingArea, view.render.BackgroundMixin):
             self._swap_y = None
         self.repaint_doc()
 
-
     # Device state handling
 
     def update_dev_state(self, evt, new_state=model.devices.DeviceState):
@@ -456,9 +456,8 @@ class DocViewport(gtk.DrawingArea, view.render.BackgroundMixin):
         pos = self._docvp.get_model_point(*state.vpos)
         state.spos = self.docproxy.get_layer_pos(*pos)
 
-        self.device.add_state(state) # for recording
+        self.device.add_state(state)  # for recording
         return state
-
 
     # Tools
 
@@ -467,7 +466,7 @@ class DocViewport(gtk.DrawingArea, view.render.BackgroundMixin):
         self.redraw(tool.area)
 
     def rem_tool(self, tool):
-        area = tool.area # saving because may be destroyed during rem_tool
+        area = tool.area  # saving because may be destroyed during rem_tool
         self._toolsvp.rem_tool(tool)
         self.redraw(area)
 
@@ -477,7 +476,7 @@ class DocViewport(gtk.DrawingArea, view.render.BackgroundMixin):
 
     @property
     def center(self):
-        return self.width/2, self.height/2
+        return self.width / 2, self.height / 2
 
     def get_offset(self):
         return self._docvp.offset

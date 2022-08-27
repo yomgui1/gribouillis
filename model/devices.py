@@ -25,6 +25,7 @@
 
 from math import exp
 
+
 class DeviceState(object):
     __slots__ = "cpos vpos spos pressure xtilt ytilt angle time".split()
 
@@ -34,6 +35,7 @@ class DeviceState(object):
 
     def __repr__(self):
         return "(%d, %d)" % self.cpos
+
 
 class InputDevice(object):
     """InputDevice()
@@ -52,7 +54,7 @@ class InputDevice(object):
 
     @property
     def view_motion(self):
-        return [ a-b for a,b in zip(self.current.vpos, self.previous.vpos) ]
+        return [a - b for a, b in zip(self.current.vpos, self.previous.vpos)]
 
     @property
     def delta_time(self):

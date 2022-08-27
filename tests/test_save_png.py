@@ -1,4 +1,4 @@
-from  model import _savers
+from model import _savers
 import PIL.Image
 
 filename = "/tmp/test.png"
@@ -23,7 +23,7 @@ try:
         assert data_new != data
 
         for y in range(256):
-            rows = data_new[y*320:(y+1)*320]
+            rows = data_new[y * 320 : (y + 1) * 320]
         del im
 except:
     print("Failed")

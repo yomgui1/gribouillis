@@ -29,20 +29,23 @@ from gi.repository import GObject as gobject
 from model.profile import Profile
 from utils import _T
 
-__all__ = [ 'AssignCMSDialog', 'ConvertDialog' ]
+__all__ = ['AssignCMSDialog', 'ConvertDialog']
+
 
 class AssignCMSDialog(gtk.Dialog):
     def __init__(self, docproxy, parent=None):
-        super(AssignCMSDialog, self).__init__(_T("Assign Profile"), parent,
-                                              gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
-                                              (gtk.STOCK_OK, gtk.RESPONSE_OK,
-                                               gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL))
+        super(AssignCMSDialog, self).__init__(
+            _T("Assign Profile"),
+            parent,
+            gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+            (gtk.STOCK_OK, gtk.RESPONSE_OK, gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL),
+        )
 
         self._bt = []
         self._current = docproxy.profile
         self._profiles = Profile.get_all()
-        
-        frame = gtk.Frame(_T("Assign Profile")+':')
+
+        frame = gtk.Frame(_T("Assign Profile") + ':')
         self.vbox.pack_start(frame, False, False, 0)
 
         vbox = gtk.VBox()
@@ -55,7 +58,7 @@ class AssignCMSDialog(gtk.Dialog):
 
         # Current
         if docproxy.profile:
-            bt2 = gtk.RadioButton(bt1, _T("Working")+': %s' % docproxy.profile)
+            bt2 = gtk.RadioButton(bt1, _T("Working") + ': %s' % docproxy.profile)
             bt2.set_active()
             self._bt.append(bt2)
             vbox.pack_start(bt2, False, False, 0)
@@ -63,7 +66,7 @@ class AssignCMSDialog(gtk.Dialog):
             self._bt.append(None)
 
         # New one
-        bt3 = gtk.RadioButton(bt1, _T("Profile")+': ')
+        bt3 = gtk.RadioButton(bt1, _T("Profile") + ': ')
         self._bt.append(bt3)
 
         cb = gtk.combo_box_new_text()
@@ -77,7 +80,7 @@ class AssignCMSDialog(gtk.Dialog):
         hbox.pack_start(cb, True, True, 0)
 
         vbox.pack_start(hbox, False, False, 0)
-        
+
         self.show_all()
 
     def get_profile(self):
@@ -93,24 +96,26 @@ class AssignCMSDialog(gtk.Dialog):
 
 class ConvertDialog(gtk.Dialog):
     def __init__(self, docproxy, parent=None):
-        super(ConvertDialog, self).__init__(_T("Convert to Profile"), parent,
-                                              gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
-                                              (gtk.STOCK_OK, gtk.RESPONSE_OK,
-                                               gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL))
+        super(ConvertDialog, self).__init__(
+            _T("Convert to Profile"),
+            parent,
+            gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+            (gtk.STOCK_OK, gtk.RESPONSE_OK, gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL),
+        )
 
         self._profiles = Profile.get_all()
-        
-        frame = gtk.Frame(_T("Source")+':')
+
+        frame = gtk.Frame(_T("Source") + ':')
         self.vbox.pack_start(frame, False, False, 0)
 
         hbox = gtk.HBox()
         frame.add(hbox)
 
-        label = gtk.Label(_T("Profile")+': %s' % docproxy.profile)
+        label = gtk.Label(_T("Profile") + ': %s' % docproxy.profile)
         label.set_justify(gtk.JUSTIFY_LEFT)
         hbox.pack_start(label, False, False, 0)
 
-        frame = gtk.Frame(_T("Destination")+':')
+        frame = gtk.Frame(_T("Destination") + ':')
         self.vbox.pack_start(frame, False, False, 0)
 
         self._dest = cb = gtk.combo_box_new_text()
@@ -121,10 +126,10 @@ class ConvertDialog(gtk.Dialog):
         hbox = gtk.HBox()
         frame.add(hbox)
 
-        hbox.pack_start(gtk.Label(_T("Profile")+': '), False, False, 0)
+        hbox.pack_start(gtk.Label(_T("Profile") + ': '), False, False, 0)
         hbox.pack_start(cb, False, False, 0)
 
-        frame = gtk.Frame(_T("Options")+':')
+        frame = gtk.Frame(_T("Options") + ':')
         self.vbox.pack_start(frame, False, False, 0)
 
         vbox = gtk.VBox()
@@ -140,12 +145,12 @@ class ConvertDialog(gtk.Dialog):
         hbox = gtk.HBox()
         vbox.pack_start(hbox, True, True, 0)
 
-        hbox.pack_start(gtk.Label(_T("Intent")+': '), False, False, 0)
+        hbox.pack_start(gtk.Label(_T("Intent") + ': '), False, False, 0)
         hbox.pack_start(cb, False, False, 0)
 
-        bt1 = gtk.CheckButton(_T("Use Black Point Compensation")+': ')
-        bt2 = gtk.CheckButton(_T("Use Dither")+': ')
-        bt3 = gtk.CheckButton(_T("Flatten Image")+': ')
+        bt1 = gtk.CheckButton(_T("Use Black Point Compensation") + ': ')
+        bt2 = gtk.CheckButton(_T("Use Dither") + ': ')
+        bt3 = gtk.CheckButton(_T("Flatten Image") + ': ')
         if len(docproxy.document.layers) == 1:
             bt3.set_sensitive(False)
 

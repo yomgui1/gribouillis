@@ -48,6 +48,7 @@ class StartupCmd(MacroCommand, ICommand):
     """First command executed when application is created.
     Initialize model and view layers, setup defaults.
     """
+
     def initializeMacroCommand(self):
         self.addSubCommand(InitModelCmd)
         self.addSubCommand(InitViewCmd)
@@ -69,6 +70,7 @@ class NewDocumentCmd(SimpleCommand, ICommand):
     """Try to open/create document model as specified by given
     DocumentConfigVO instance.
     """
+
     def execute(self, note):
         vo = note.getBody()  # DocumentConfigVO
         self.sendNotification(main.DOC_ACTIVATE, model.DocumentProxy.new_doc(vo))
@@ -90,8 +92,7 @@ class SaveDocumentCmd(SimpleCommand, ICommand):
     def execute(self, note):
         docproxy, filename = note.getBody()
         if docproxy.document.empty:
-            self.sendNotification(main.DOC_SAVE_RESULT,
-                                  (docproxy, False, _T("Empty document")))
+            self.sendNotification(main.DOC_SAVE_RESULT, (docproxy, False, _T("Empty document")))
             return
 
         try:
@@ -99,8 +100,7 @@ class SaveDocumentCmd(SimpleCommand, ICommand):
             docproxy.docname = filename
 
         except (IOError, TypeError) as e:
-            self.sendNotification(main.DOC_SAVE_RESULT,
-                                  (docproxy, False, str(e)))
+            self.sendNotification(main.DOC_SAVE_RESULT, (docproxy, False, str(e)))
         else:
             self.sendNotification(main.DOC_SAVE_RESULT, (docproxy, True))
 
@@ -259,7 +259,7 @@ class MergeDownLayerCmd(UndoableCommand):
         docproxy, pos = note.getBody()
         if pos == 0:
             return
-        ldst, lsrc = docproxy.document.layers[pos - 1:pos + 1]
+        ldst, lsrc = docproxy.document.layers[pos - 1 : pos + 1]
         self.__name = "Merged layer: %s -> %s" % (lsrc.name, ldst.name)
         note.setBody([docproxy, lsrc, ldst, ldst.opacity, None])
         super(MergeDownLayerCmd, self).execute(note)
@@ -270,10 +270,10 @@ class MergeDownLayerCmd(UndoableCommand):
         docproxy, lsrc, ldst, opa, snapshot = note.getBody()
 
         if snapshot is None:
-            snapshot = ldst.snapshot()      # Save destination layer contents
-            lsrc.merge_to(ldst)             # Do the merge
-            snapshot.reduce(ldst.surface)   # Keep only modified part in snapshot
-            note.getBody()[-1] = snapshot   # Register snapshot for undo operation
+            snapshot = ldst.snapshot()  # Save destination layer contents
+            lsrc.merge_to(ldst)  # Do the merge
+            snapshot.reduce(ldst.surface)  # Keep only modified part in snapshot
+            note.getBody()[-1] = snapshot  # Register snapshot for undo operation
         else:
             ldst.unsnapshot(snapshot, redo=True)
 
@@ -311,8 +311,8 @@ class RecordStrokeCmd(UndoableCommand):
 
     def execute(self, note):
         vo = note.getBody()
-        vo.dirty_area = None # don't repaint immediately
-        self.__name = 'Stroke (%2.3fMB)' % (vo.snapshot.size / (1024. * 1024))
+        vo.dirty_area = None  # don't repaint immediately
+        self.__name = 'Stroke (%2.3fMB)' % (vo.snapshot.size / (1024.0 * 1024))
         super(RecordStrokeCmd, self).execute(note)
         self.registerUndoCommand(_UnsnaphotLayerCmd)
 
@@ -330,12 +330,12 @@ class RecordStrokeCmd(UndoableCommand):
 class LoadImageAsLayerCmd(UndoableCommand):
     """vo parameters:
 
-        docproxy: document proxy
-        filename: stroke to record
+     docproxy: document proxy
+     filename: stroke to record
 
-       Stored for undo:
-        layer: created layer
-        pos: layer position in document's layers stack
+    Stored for undo:
+     layer: created layer
+     pos: layer position in document's layers stack
     """
 
     def execute(self, note):
@@ -357,8 +357,7 @@ class LoadImageAsLayerCmd(UndoableCommand):
             # Load the image
             data = model.Document.load_image(vo.filename)
             if data is None:
-                self.sendNotification(main.SHOW_ERROR_DIALOG,
-                                      "Loading image %s failed" % vo.filename)
+                self.sendNotification(main.SHOW_ERROR_DIALOG, "Loading image %s failed" % vo.filename)
                 return
 
             # Create a new layer (on top) and fill it with image data

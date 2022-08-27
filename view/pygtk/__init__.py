@@ -55,10 +55,10 @@ from .brusheditor import BrushEditorWindow
 # Needed by view module
 Application = app.Application
 
-ctx.application = None # ApplicationMediator
-ctx.active_viewport = None # Viewport
-ctx.viewports = set() # DocViewportMediator
-ctx.brush = None # BrushHouseWindowMediator
+ctx.application = None  # ApplicationMediator
+ctx.active_viewport = None  # Viewport
+ctx.viewports = set()  # DocViewportMediator
+ctx.brush = None  # BrushHouseWindowMediator
 ctx.keymgr = KeymapManager('Application')
 
 
@@ -68,10 +68,7 @@ class GenericMediator(utils.Mediator):
     """
 
     def show_dialog(self, tp, msg, parent=None):
-        dlg = gtk.MessageDialog(parent=parent,
-                                type=tp,
-                                buttons=gtk.BUTTONS_OK,
-                                message_format=msg)
+        dlg = gtk.MessageDialog(parent=parent, type=tp, buttons=gtk.BUTTONS_OK, message_format=msg)
         dlg.run()
         dlg.destroy()
 
@@ -168,7 +165,7 @@ class DocumentMediator(GenericMediator):
         self.focused = win
 
     def _on_delete_event(self, win, evt=None):
-        #FIXME: self.sendNotification(main.DOC_DELETE, win.docproxy)
+        # FIXME: self.sendNotification(main.DOC_DELETE, win.docproxy)
 
         # quit application if last document window is closed
         self.__count -= 1
@@ -185,8 +182,7 @@ class DocumentMediator(GenericMediator):
         self.load_new_doc(win)
 
     def _on_menu_save_doc(self, win):
-        filename = self.viewComponent.get_document_filename(parent=win,
-                                                            read=False)
+        filename = self.viewComponent.get_document_filename(parent=win, read=False)
         if filename:
             self.sendNotification(main.DOC_SAVE, (win.docproxy, filename))
 
@@ -200,9 +196,7 @@ class DocumentMediator(GenericMediator):
     @mvcHandler(main.DOC_SAVE_RESULT)
     def _on_doc_save_result(self, docproxy, result, err=None):
         if not result:
-            msg = "%s:\n'%s'\n\n%s:\n\n%s" % (_T("Failed to save document"),
-                                              docproxy.docname,
-                                              _T("Reason"), err)
+            msg = "%s:\n'%s'\n\n%s:\n\n%s" % (_T("Failed to save document"), docproxy.docname, _T("Reason"), err)
             self.show_error_dialog(msg)
         else:
             self.show_info_dialog(_T("Document saved"))
@@ -244,8 +238,7 @@ class DocumentMediator(GenericMediator):
         win.connect("menu_close_doc", self._on_delete_event)
         win.connect("menu_save_doc", self._on_menu_save_doc)
         win.connect("menu_open_window", self._on_menu_open_window)
-        win.connect("menu_load_image_as_layer",
-                    self._on_menu_load_image_as_layer)
+        win.connect("menu_load_image_as_layer", self._on_menu_load_image_as_layer)
         self.__count += 1
 
     def load_new_doc(self, win):
@@ -374,8 +367,7 @@ class CommandsHistoryListMediator(GenericMediator):
     def _on_doc_activated(self, docproxy):
         self.viewComponent.set_doc_name(docproxy.docname)
         self.__cur_hp = utils.CommandsHistoryProxy.get_active()
-        self.viewComponent.from_stacks(self.__cur_hp.undo_stack,
-                                       self.__cur_hp.redo_stack)
+        self.viewComponent.from_stacks(self.__cur_hp.undo_stack, self.__cur_hp.redo_stack)
 
     @mvcHandler(utils.CommandsHistoryProxy.CMD_HIST_ADD)
     def _on_cmd_add(self, hp, cmd):
@@ -406,17 +398,13 @@ class ColorWindowMediator(GenericMediator):
     # private API
     def __init__(self, component):
         assert isinstance(component, ColorWindow)
-        super(ColorWindowMediator, self).__init__(ColorWindowMediator.NAME,
-                                                  component)
+        super(ColorWindowMediator, self).__init__(ColorWindowMediator.NAME, component)
         self.brushproxy = self.facade.retrieveProxy(model.BrushProxy.NAME)
         component.colorsel.connect('color-changed', self._on_color_changed)
 
     def _on_color_changed(self, widget):
         color = widget.get_current_color()
-        self.brushproxy.set_color_rgb(ctx.active_docproxy.brush,
-                                      color.red_float,
-                                      color.green_float,
-                                      color.blue_float)
+        self.brushproxy.set_color_rgb(ctx.active_docproxy.brush, color.red_float, color.green_float, color.blue_float)
 
     # notification handlers
     @mvcHandler(main.DOC_ACTIVATED)
@@ -446,22 +434,18 @@ class LayerManagerMediator(GenericMediator):
 
         component.connect('layer-active-event', self._on_layer_active_event)
         component.connect('layer-name-changed', self._on_layer_name_changed)
-        component.connect('layer-operator-event',
-                          self._on_layer_operator_event)
-        component.connect('layer-visibility-event',
-                          self._on_layer_visibility_event)
+        component.connect('layer-operator-event', self._on_layer_operator_event)
+        component.connect('layer-visibility-event', self._on_layer_visibility_event)
 
     # UI event handlers
     def _on_layer_active_event(self, w, layer):
         self.__docproxy.document.active = layer
-        self.sendNotification(main.DOC_LAYER_ACTIVATE,
-                              (self.__docproxy, layer))
+        self.sendNotification(main.DOC_LAYER_ACTIVATE, (self.__docproxy, layer))
 
     def _on_layer_name_changed(self, w, data):
         layer, name = data
         if layer.name != name:
-            vo = model.vo.LayerCmdVO(layer=layer, docproxy=self.__docproxy,
-                                     name=name)
+            vo = model.vo.LayerCmdVO(layer=layer, docproxy=self.__docproxy, name=name)
             self.sendNotification(main.DOC_LAYER_RENAME, vo)
 
     def _on_layer_visibility_event(self, w, data):
@@ -484,26 +468,24 @@ class LayerManagerMediator(GenericMediator):
         self.sendNotification(main.DOC_LAYER_DEL, vo)
 
     def _on_up_layer(self, *a):
-        self.sendNotification(main.DOC_LAYER_STACK_CHANGE,
-                              (self.__docproxy,
-                               self.viewComponent.active,
-                               self.viewComponent.get_active_position() + 1))
+        self.sendNotification(
+            main.DOC_LAYER_STACK_CHANGE,
+            (self.__docproxy, self.viewComponent.active, self.viewComponent.get_active_position() + 1),
+        )
 
     def _on_down_layer(self, *a):
-        self.sendNotification(main.DOC_LAYER_STACK_CHANGE,
-                              (self.__docproxy,
-                               self.viewComponent.active,
-                               self.viewComponent.get_active_position() - 1))
+        self.sendNotification(
+            main.DOC_LAYER_STACK_CHANGE,
+            (self.__docproxy, self.viewComponent.active, self.viewComponent.get_active_position() - 1),
+        )
 
     def _on_top_layer(self, *a):
-        self.sendNotification(main.DOC_LAYER_STACK_CHANGE,
-                              (self.__docproxy,
-                               self.viewComponent.active,
-                               len(self.viewComponent) - 1))
+        self.sendNotification(
+            main.DOC_LAYER_STACK_CHANGE, (self.__docproxy, self.viewComponent.active, len(self.viewComponent) - 1)
+        )
 
     def _on_bottom_layer(self, *a):
-        self.sendNotification(main.DOC_LAYER_STACK_CHANGE,
-                              (self.__docproxy, self.viewComponent.active, 0))
+        self.sendNotification(main.DOC_LAYER_STACK_CHANGE, (self.__docproxy, self.viewComponent.active, 0))
 
     def _on_duplicate_layer(self, *a):
         layer = self.viewComponent.active
@@ -511,9 +493,7 @@ class LayerManagerMediator(GenericMediator):
         self.sendNotification(main.DOC_LAYER_DUP, vo)
 
     def _on_merge_layer(self, *a):
-        self.sendNotification(main.DOC_LAYER_MERGE_DOWN,
-                              (self.__docproxy,
-                               self.viewComponent.get_active_position()))
+        self.sendNotification(main.DOC_LAYER_MERGE_DOWN, (self.__docproxy, self.viewComponent.get_active_position()))
 
     # notification handlers
     @mvcHandler(main.DOC_DELETE)
@@ -554,6 +534,5 @@ class LayerManagerMediator(GenericMediator):
 
     @mvcHandler(main.DOC_LAYER_ACTIVATED)
     def _on_doc_layer_activated(self, docproxy, layer):
-        if self.__docproxy is docproxy and \
-                layer is not self.viewComponent.active:
+        if self.__docproxy is docproxy and layer is not self.viewComponent.active:
             self.viewComponent.active = layer

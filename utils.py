@@ -35,25 +35,38 @@ from time import time
 from string import Template
 from math import atan, pi
 
-__all__ = [ 'VirtualCalledError', 'virtualmethod',
-            'Mediator',  'mvcHandler',
-            'MetaSingleton', 'idle_cb', '_T', 'delayedmethod' ]
+__all__ = [
+    'VirtualCalledError',
+    'virtualmethod',
+    'Mediator',
+    'mvcHandler',
+    'MetaSingleton',
+    'idle_cb',
+    '_T',
+    'delayedmethod',
+]
 
 NON_RECORDABLE_COMMAND = "NonRecordableCommand"
 
 idle_cb = lambda *a, **k: None
 
+
 def _T(s):
     # TODO: auto translation function
     return s
 
+
 if os.environ.get('GB_DEBUG'):
+
     def dbg_log(*a):
         sys.stderr.write(*a)
         sys.stderr.flush()
+
 else:
+
     def dbg_log(*a):
         pass
+
 
 class VirtualCalledError(SyntaxError):
     def __init__(self, instance, func):
@@ -68,20 +81,24 @@ def virtualmethod(wrapped_func):
     @wraps(wrapped_func)
     def wrapper(self, *args, **kwds):
         raise VirtualCalledError(self, wrapped_func)
+
     return wrapper
 
 
 def delayedmethod(delay):
     def wrapper(func):
         func.__delay = delay
-        func.__lastcall = 0.
+        func.__lastcall = 0.0
+
         @wraps(func)
         def _func(*a, **k):
             t = time()
-            if t-func.__lastcall >= func.__delay:
+            if t - func.__lastcall >= func.__delay:
                 func.__lastcall = t
                 return func(*a, **k)
+
         return _func
+
     return wrapper
 
 
@@ -136,12 +153,14 @@ def mvcHandler(signal):
     """Decorated function will be called when given MVC signal is trigged.
     Note: be aware that there is no way to control the calls order!
     """
+
     def mvcHandlerDecorate(func):
         if hasattr(func, '_mvc_signals'):
             func._mvc_signals.append(signal)
         else:
             func._mvc_signals = [signal]
         return func
+
     return mvcHandlerDecorate
 
 
@@ -151,6 +170,7 @@ class _MyTemplate(Template):
 
 def resolve_path(path):
     from model import prefs
+
     path = path.replace('/', os.path.sep)
     old_path = None
     while path != old_path:
@@ -163,7 +183,7 @@ def compute_angle(x, y):
     # (x,y) in view coordinates
 
     if y >= 0:
-        r = 0.
+        r = 0.0
     else:
         r = pi
         y = -y
@@ -174,18 +194,17 @@ def compute_angle(x, y):
     elif x < 0:
         r += pi - atan(float(y) / -x)
     else:
-        r += pi / 2.
+        r += pi / 2.0
 
     return r
+
 
 ##
 ## PureMVC extention implemented from "PureMVC AS3 Utility - Undo"
 ##
 
-__all__ += ["CommandsHistoryProxy",
-            "IUndoableCommand",
-            "UndoableCommand",
-            "NON_RECORDABLE_COMMAND"]
+__all__ += ["CommandsHistoryProxy", "IUndoableCommand", "UndoableCommand", "NON_RECORDABLE_COMMAND"]
+
 
 class CommandsHistoryProxy(puremvc.patterns.proxy.Proxy, puremvc.interfaces.IProxy):
     """The model that keeps track of the commands.
@@ -200,16 +219,16 @@ class CommandsHistoryProxy(puremvc.patterns.proxy.Proxy, puremvc.interfaces.IPro
     # The name of the proxy.
     NAME = "CommandsHistoryProxy"
 
-    CMD_HIST_ADD     = 'hist-add'
+    CMD_HIST_ADD = 'hist-add'
     CMD_HIST_FLUSHED = 'hist-flushed'
-    CMD_HIST_UNDO    = 'undo-done'
-    CMD_HIST_REDO    = 'redo-done'
+    CMD_HIST_UNDO = 'undo-done'
+    CMD_HIST_REDO = 'redo-done'
 
     __instances = []
     __active = None
 
     def __init__(self, name, data=None):
-        super(CommandsHistoryProxy, self).__init__( name, data )
+        super(CommandsHistoryProxy, self).__init__(name, data)
 
         self.__undoStack = []
         self.__redoStack = []
@@ -244,7 +263,7 @@ class CommandsHistoryProxy(puremvc.patterns.proxy.Proxy, puremvc.interfaces.IPro
             cmd = self.__undoStack.pop(-1)
             self.__redoStack.append(cmd)
 
-            self.sendNotification( CommandsHistoryProxy.CMD_HIST_UNDO, (self, cmd) )
+            self.sendNotification(CommandsHistoryProxy.CMD_HIST_UNDO, (self, cmd))
 
             return cmd
 
@@ -264,7 +283,7 @@ class CommandsHistoryProxy(puremvc.patterns.proxy.Proxy, puremvc.interfaces.IPro
             cmd = self.__redoStack.pop(-1)
             self.__undoStack.append(cmd)
 
-            self.sendNotification( CommandsHistoryProxy.CMD_HIST_REDO, (self, cmd) )
+            self.sendNotification(CommandsHistoryProxy.CMD_HIST_REDO, (self, cmd))
 
             return cmd
 
@@ -287,9 +306,9 @@ class CommandsHistoryProxy(puremvc.patterns.proxy.Proxy, puremvc.interfaces.IPro
         """
 
         self.__redoStack = []
-        self.__undoStack.append( cmd )
+        self.__undoStack.append(cmd)
 
-        self.sendNotification( CommandsHistoryProxy.CMD_HIST_ADD, (self, cmd))
+        self.sendNotification(CommandsHistoryProxy.CMD_HIST_ADD, (self, cmd))
 
     def flush(self):
         # Flush redo stack first
@@ -303,7 +322,7 @@ class CommandsHistoryProxy(puremvc.patterns.proxy.Proxy, puremvc.interfaces.IPro
         self.__undoStack = []
 
         # Notify listeners
-        self.sendNotification( CommandsHistoryProxy.CMD_HIST_FLUSHED, self)
+        self.sendNotification(CommandsHistoryProxy.CMD_HIST_FLUSHED, self)
 
     def activate(self):
         self.active = self
@@ -320,14 +339,15 @@ class CommandsHistoryProxy(puremvc.patterns.proxy.Proxy, puremvc.interfaces.IPro
 
     ### Properties ###
 
-    active = property(fget=lambda self: self.get_active(),
-                      fset=lambda self, v: self.set_active(v))
+    active = property(fget=lambda self: self.get_active(), fset=lambda self, v: self.set_active(v))
 
     @property
-    def undo_stack(self): return tuple(self.__undoStack)
+    def undo_stack(self):
+        return tuple(self.__undoStack)
 
     @property
-    def redo_stack(self): return tuple(self.__redoStack)
+    def redo_stack(self):
+        return tuple(self.__redoStack)
 
 
 class IUndoableCommand(puremvc.interfaces.ICommand, puremvc.interfaces.INotification):
@@ -398,8 +418,7 @@ class UndoableCommand(puremvc.patterns.command.SimpleCommand, IUndoableCommand):
         raise NotImplemented
 
     def redo(self):
-        """Calls C{executeCommand}
-        """
+        """Calls C{executeCommand}"""
 
         self.executeCommand()
 
@@ -410,7 +429,9 @@ class UndoableCommand(puremvc.patterns.command.SimpleCommand, IUndoableCommand):
         """
 
         if self.__undoCmdClass is None:
-            raise RuntimeError("Undo command not set. Could not undo. Use 'registerUndoCommand' to register an undo command")
+            raise RuntimeError(
+                "Undo command not set. Could not undo. Use 'registerUndoCommand' to register an undo command"
+            )
 
         ##
         # The type of the notification is used as a flag,
@@ -419,12 +440,12 @@ class UndoableCommand(puremvc.patterns.command.SimpleCommand, IUndoableCommand):
         # and its notification type is set to C{NON_RECORDABLE_COMMAND}
         ##
         oldType = self._note.getType()
-        self._note.setType( NON_RECORDABLE_COMMAND )
+        self._note.setType(NON_RECORDABLE_COMMAND)
 
         commandInstance = self.__undoCmdClass()
-        commandInstance.execute( self._note )
+        commandInstance.execute(self._note)
 
-        self._note.setType( oldType )
+        self._note.setType(oldType)
 
     def flush(self):
         pass

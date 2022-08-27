@@ -68,7 +68,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
     _clip = None
     _cur_area = None
     _cur_area2 = None
-    _cur_pos = (0,0)
+    _cur_pos = (0, 0)
     _cur_on = False
     _filter = None
     _swap_x = _swap_y = None
@@ -86,7 +86,8 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
     # Class only
     __focus_lock = None
 
-    class Event: pass
+    class Event:
+        pass
 
     def __init__(self, root, docproxy=None, rulers=None):
         super(DocViewport, self).__init__(InnerSpacing=0, FillArea=False, DoubleBuffer=False)
@@ -166,7 +167,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
                     self.focus = False
                     if not self.focus:
                         evt_type = 'cursor-leave'
-            elif cl ==  pymui.IDCMP_MOUSEBUTTONS or cl == pymui.IDCMP_RAWKEY:
+            elif cl == pymui.IDCMP_MOUSEBUTTONS or cl == pymui.IDCMP_RAWKEY:
                 if ev.Up:
                     name = "%s-release"
                 elif ev.InObject:
@@ -194,7 +195,8 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
     @pymui.muimethod(pymui.MUIM_Draw)
     def _mcc_Draw(self, msg):
         msg.DoSuper()
-        if not (msg.flags.value & pymui.MADF_DRAWOBJECT): return
+        if not (msg.flags.value & pymui.MADF_DRAWOBJECT):
+            return
 
         self.AddClipping()
         try:
@@ -206,19 +208,19 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
                 self.width = width
                 self.height = height
                 self._new_render_context(width, height)
-                
+
             if self._cur_area2:
                 x, y, w, h = self._cur_area2
                 args = x + self.MLeft, y + self.MTop, w, h, x, y
                 self._docrp.BltBitMapRastPort(self._rp, 0, *args)
                 self._toolsrp.BltBitMapRastPort(self._rp, 1, *args)
                 self._cur_area2 = None
-                
+
             x, y, w, h = self._clip
             args = x + self.MLeft, y + self.MTop, w, h, x, y
             self._docrp.BltBitMapRastPort(self._rp, 0, *args)
             self._toolsrp.BltBitMapRastPort(self._rp, 1, *args)
-            
+
             if self._cur_on:
                 x, y, w, h = self._cur_area2 = self._cur_area
                 self._currp.BltBitMapRastPort(self._rp, 1, x + self.MLeft, y + self.MTop, w, h)
@@ -234,9 +236,10 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         vp = self.__class__(self.root, self.docproxy)
         vp.like(self)
         return vp
-        
+
     def set_docproxy(self, docproxy):
-        if self.docproxy is docproxy: return
+        if self.docproxy is docproxy:
+            return
         if self.docproxy:
             self.docproxy.release()
         docproxy.obtain()
@@ -327,16 +330,16 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
     def _new_render_context(self, width, height):
         self._docrp.AllocBitMap(width, height, 32, self, self.opengl)
         self._toolsrp.AllocBitMap(width, height, 32, self)
-        
+
         self._docvp.set_view_size(width, height)
         self._toolsvp.set_view_size(width, height)
-        
+
         gl.init_gl_context(int(self._docrp), width, height)
-        
+
         # Full rendering
         self._docvp.repaint()
         self._toolsvp.repaint()
-        
+
         self._clip = (0, 0, width, height)
         self._blit_doc(*self._clip)
         self._blit_tools(*self._clip)
@@ -362,21 +365,20 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
             gl.blit_pixbuf(buf, x, y, w, h)
         else:
             self._docrp.Blit8(buf, buf.stride, x, y, w, h, x, y)
-        
+
     def _blit_tools(self, x, y, w, h):
         buf = self._toolsre.pixbuf
         self._toolsrp.Blit8(buf, buf.stride, x, y, w, h, x, y)
-        
+
     def _blit_cursor(self):
         buf = self._curvp.pixbuf
-        self._currp.Blit8(buf, buf.stride,
-            0, 0, self._curvp.width, self._curvp.height)
-    
+        self._currp.Blit8(buf, buf.stride, 0, 0, self._curvp.width, self._curvp.height)
+
     def _render_cursor(self):
         self._currp.AllocBitMap(self._curvp.width, self._curvp.height, 32, self)
         self._curvp.repaint()
         self._blit_cursor()
-        
+
     def repaint_doc(self, clip=None, redraw=True):
         if not self.width:
             return
@@ -421,8 +423,8 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
     def _get_cursor_clip(self, dx, dy):
         w = self._curvp.width
         h = self._curvp.height
-        dx -= w/2
-        dy -= h/2
+        dx -= w / 2
+        dy -= h / 2
         return dx, dy, w, h
 
     def set_cursor_radius(self, r):
@@ -475,7 +477,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
 
     def get_view_pos(self, mx, my):
         "Convert Mouse coordinates from intuition event into viewport coordinates"
-        return mx-self.MLeft, my-self.MTop
+        return mx - self.MLeft, my - self.MTop
 
     def reset_transforms(self):
         self._swap_x = self._swap_y = None
@@ -507,7 +509,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
 
             # Center vp on current cursor position
             x, y = dvp.get_view_point(x, y)
-            self.scroll(int(cx-x), int(cy-y))
+            self.scroll(int(cx - x), int(cy - y))
 
             self.repaint_cursor(cx, cy)
 
@@ -520,39 +522,39 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
 
             # Center vp on current cursor position
             x, y = dvp.get_view_point(x, y)
-            self.scroll(int(cx-x), int(cy-y))
+            self.scroll(int(cx - x), int(cy - y))
 
-    def scale_up(self, cx=.0, cy=.0):
+    def scale_up(self, cx=0.0, cy=0.0):
         x, y = self._docvp.get_model_point(cx, cy)
         if self._docvp.scale_up():
             self._curvp.set_scale(self._docvp.scale)
             self._render_cursor()
             self._docvp.update_matrix()
             x, y = self._docvp.get_view_point(x, y)
-            self._docvp.scroll(cx-x, cy-y)
+            self._docvp.scroll(cx - x, cy - y)
             self._docvp.update_matrix()
             self.repaint_doc()
             self._do_rulers()
 
-    def scale_down(self, cx=.0, cy=.0):
+    def scale_down(self, cx=0.0, cy=0.0):
         x, y = self._docvp.get_model_point(cx, cy)
         if self._docvp.scale_down():
             self._curvp.set_scale(self._docvp.scale)
             self._render_cursor()
             self._docvp.update_matrix()
             x, y = self._docvp.get_view_point(x, y)
-            self._docvp.scroll(cx-x, cy-y)
+            self._docvp.scroll(cx - x, cy - y)
             self._docvp.update_matrix()
             self.repaint_doc()
             self._do_rulers()
 
     def scroll(self, *delta):
         clip = self.get_view_area(*self.docproxy.document.area)
-        
+
         # Scroll the document viewport
         self._docvp.scroll(*delta)
         self._docvp.update_matrix()
-        
+
         # this is the maximal modified area possible
         clip = utils.join_area(clip, self.get_view_area(*self.docproxy.document.area))
 
@@ -579,20 +581,20 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         drects = []
 
         if dy > 0:
-            drects.append([0, 0, w, dy]) #3
+            drects.append([0, 0, w, dy])  # 3
         elif dy < 0:
-            drects.append([0, h+dy, w, h]) #4
+            drects.append([0, h + dy, w, h])  # 4
 
         if dx > 0:
             if dy >= 0:
-                drects.append([0, dy, dx, h]) #1
+                drects.append([0, dy, dx, h])  # 1
             else:
-                drects.append([0, 0, dx, h+dy]) #1
+                drects.append([0, 0, dx, h + dy])  # 1
         elif dx < 0:
             if dy >= 0:
-                drects.append([w+dx, dy, w, h]) #2
+                drects.append([w + dx, dy, w, h])  # 2
             else:
-                drects.append([w+dx, 0, w, h+dy]) #2
+                drects.append([w + dx, 0, w, h + dy])  # 2
 
         # Re-render only damaged parts
         for area in drects:
@@ -602,7 +604,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         self._clip = clip = self._check_clip(*clip)
         self._blit_doc(*clip)
         self.Redraw()
-        
+
         self._do_rulers()
 
     def rotate(self, angle):
@@ -615,8 +617,8 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         buf = self._docre.pixbuf
         w = buf.width
         h = buf.height
-        cx = w/2.
-        cy = h/2.
+        cx = w / 2.0
+        cy = h / 2.0
 
         srcbuf = model._pixbuf.Pixbuf(buf.pixfmt, w, h, buf)
         buf.clear_value(0.2)
@@ -665,13 +667,13 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
 
     def get_exact_color(self, *pos):
         try:
-            return self._docre.pixbuf.get_pixel(*pos)[:-1] # alpha last
+            return self._docre.pixbuf.get_pixel(*pos)[:-1]  # alpha last
         except:
             return
 
     def get_average_color(self, *pos):
         try:
-            return self._docre.pixbuf.get_average_pixel(self._curvp.radius, *pos)[:-1] # alpha last
+            return self._docre.pixbuf.get_average_pixel(self._curvp.radius, *pos)[:-1]  # alpha last
         except:
             return
 
@@ -687,7 +689,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
         self._docvp.update_matrix()
 
     offset = property(get_offset, set_offset)
-    
+
     #### Tools/Handlers ####
 
     def add_tool(self, tool):
@@ -706,7 +708,7 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
 
         if hasattr(tool, 'filter') and self._filter == tool.filter:
             self._filter = None
-        area = tool.area # saving because may be destroyed during rem_tool
+        area = tool.area  # saving because may be destroyed during rem_tool
         self._toolsvp.rem_tool(tool)
         tool.added = False
         self.repaint_tools(*tool.area)
@@ -732,4 +734,3 @@ class DocViewport(pymui.Rectangle, view.viewport.BackgroundMixin):
     @property
     def tools(self):
         return self._toolsvp.tools
-

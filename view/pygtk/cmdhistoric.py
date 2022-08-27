@@ -90,7 +90,7 @@ class CommandsHistoryList(SubWindow):
                 while n and self.liststore.remove(iter):
                     n -= 1
 
-        self.__last_added = self.liststore.prepend([ cmd.getCommandName() ])
+        self.__last_added = self.liststore.prepend([cmd.getCommandName()])
         self.enable_undo()
         self.enable_redo(False)
         self.enable_flush()
@@ -110,11 +110,11 @@ class CommandsHistoryList(SubWindow):
 
     def redo(self, cmd):
         if self.__last_added:
-            path = (self.liststore.get_path(self.__last_added)[0]-1,)
+            path = (self.liststore.get_path(self.__last_added)[0] - 1,)
             if path[0] == 0:
                 self.enable_redo(False)
         else:
-            path = (len(self.liststore)-1,)
+            path = (len(self.liststore) - 1,)
         self.__last_added = self.liststore.get_iter(path)
         self.liststore.set_value(self.__last_added, 0, cmd.getCommandName())
         self.enable_undo(True)
@@ -131,14 +131,14 @@ class CommandsHistoryList(SubWindow):
 
         if undo_stack:
             for cmd in undo_stack:
-                self.__last_added = self.liststore.prepend([ cmd.getCommandName() ])
+                self.__last_added = self.liststore.prepend([cmd.getCommandName()])
             self.enable_undo(True)
         else:
             self.enable_undo(False)
 
         if redo_stack:
             for cmd in redo_stack:
-                self.liststore.prepend([ '<s>%s</s>' % cmd.getCommandName() ])
+                self.liststore.prepend(['<s>%s</s>' % cmd.getCommandName()])
             self.enable_redo(True)
         else:
             self.enable_redo(False)

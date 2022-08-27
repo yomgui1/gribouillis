@@ -46,13 +46,17 @@ class Brush(object):
 
     __version__ = 2.7
     ALLBRUSHES = "brushes.data"
-    PROPERTIES = 'radius_min radius_max yratio angle spacing opacity_min opacity_max opa_comp hardness erase grain'.split()
-    PROPERTIES += 'motion_track hi_speed_track smudge smudge_var direction_jitter dab_pos_jitter dab_radius_jitter'.split()
+    PROPERTIES = (
+        'radius_min radius_max yratio angle spacing opacity_min opacity_max opa_comp hardness erase grain'.split()
+    )
+    PROPERTIES += (
+        'motion_track hi_speed_track smudge smudge_var direction_jitter dab_pos_jitter dab_radius_jitter'.split()
+    )
     PROPERTIES += 'color_shift_h color_shift_v color_shift_s alpha_lock'.split()
     PROPERTIES += 'icon eraser'.split()
 
     RADIUS_MIN = 0.5
-    RADIUS_MAX = 500.
+    RADIUS_MAX = 500.0
 
     # default values = pen
     radius_min = 1.0
@@ -80,7 +84,7 @@ class Brush(object):
     icon = None
     group = None
     icon_preview = None  # runtime usage only, not saved
-    eraser = False # 2.7
+    eraser = False  # 2.7
 
     def __init__(self, name='brush', icon=None, **kwds):
         self.name = name
@@ -132,7 +136,7 @@ class Brush(object):
                             if attr in Brush.PROPERTIES:
                                 if attr == 'eraser':
                                     value = value.lower() not in ('0', 'false')
-                                elif attr !=  'icon':
+                                elif attr != 'icon':
                                     value = float(value)
                             else:  # compatibility support
                                 if ver <= 1.0:
@@ -161,9 +165,17 @@ class Brush(object):
         if not l:
             b = Brush('pen')
             l.append(b)
-            b = Brush('chalk', radius_min=7.0, radius_max=7.0, opacity_min=.8,
-                      opacity_max=.8, hardness=0.3, opa_comp=1.8, spacing=.5,
-                      grain=.8)
+            b = Brush(
+                'chalk',
+                radius_min=7.0,
+                radius_max=7.0,
+                opacity_min=0.8,
+                opacity_max=0.8,
+                hardness=0.3,
+                opa_comp=1.8,
+                spacing=0.5,
+                grain=0.8,
+            )
             l.append(b)
 
         return l
@@ -217,12 +229,7 @@ class DrawableBrush(_brush.Brush, Brush):
             state.spos = state.vpos
             yield state
 
-    def paint_rgb_preview(self,
-                          width,
-                          height,
-                          surface=None,
-                          states=None,
-                          fmt=_pixbuf.FORMAT_ARGB8_NOA):
+    def paint_rgb_preview(self, width, height, surface=None, states=None, fmt=_pixbuf.FORMAT_ARGB8_NOA):
         if surface is None:
             surface = BoundedPlainSurface(fmt, width, height)
 

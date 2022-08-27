@@ -38,8 +38,7 @@ import model._cutils as _cutils
 
 from utils import virtualmethod
 
-__all__ = ['Surface', 'UnboundedTiledSurface', 'BoundedPlainSurface',
-           'TILE_SIZE']
+__all__ = ['Surface', 'UnboundedTiledSurface', 'BoundedPlainSurface', 'TILE_SIZE']
 
 TILE_SIZE = 64
 
@@ -147,8 +146,8 @@ class TileSurfaceSnapshot(dict):
 
         # Set dirty area to invalid values
         # (but usefull with min/max computations)
-        xmin = ymin = sys.maxsize//2
-        xmax = ymax = -sys.maxsize//2 - 1
+        xmin = ymin = sys.maxsize // 2
+        xmax = ymax = -sys.maxsize // 2 - 1
 
         # Search for modifications (and additions!)
         for pos, tile in surface.tiles.items():
@@ -192,8 +191,7 @@ class TileSurfaceSnapshot(dict):
 
     @property
     def size(self):
-        return sum(t.memsize for t in self.values()) + \
-            sum(t.memsize for t in self._mod.values())
+        return sum(t.memsize for t in self.values()) + sum(t.memsize for t in self._mod.values())
 
 
 class Tile(_pixbuf.Pixbuf):
@@ -290,8 +288,7 @@ class UnboundedTiledSurface(Surface):
         self.from_buffer(_pixbuf.FORMAT_RGBA8_NOA, *a, **k)
 
     def cleanup(self):
-        for k in tuple(k for k, v in self.__tilemgr.tiles.items()
-                       if v.empty()):
+        for k in tuple(k for k, v in self.__tilemgr.tiles.items() if v.empty()):
             del self.__tilemgr.tiles[k]
 
     def __iter__(self):
@@ -302,7 +299,7 @@ class UnboundedTiledSurface(Surface):
         area = self.__tilemgr.bbox
         if area:
             x, y, w, h = area
-            return x, y, w-x+1, h-y+1
+            return x, y, w - x + 1, h - y + 1
 
     @property
     def tiles(self):

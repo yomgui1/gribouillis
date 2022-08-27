@@ -30,6 +30,7 @@ if __name__ == '__main__':
     import argparse
 
     import gi
+
     gi.require_version("Gtk", "3.0")
     gi.require_version('IBus', '1.0')
     from gi.repository import Gtk
@@ -37,17 +38,17 @@ if __name__ == '__main__':
     sys.setrecursionlimit(100)
     sys.path.append('libs')
 
-    backends = ['auto'] 
+    backends = ['auto']
     for root, dirs, files in os.walk('view'):
         backends += dirs
 
-
     parser = argparse.ArgumentParser()
-    parser.add_argument('-v', '--view', default="auto", dest='view',
-                        metavar='NAME', choices=backends,
-                        help="Select view backend")
-    
+    parser.add_argument(
+        '-v', '--view', default="auto", dest='view', metavar='NAME', choices=backends, help="Select view backend"
+    )
+
     import main
+
     main.app_args = parser.parse_args()
 
     # XXX: change me before any public release

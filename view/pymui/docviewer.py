@@ -50,22 +50,22 @@ class ModifiableContainer:
     def __init__(self, container):
         self.__contents = None
         self.__container = container
-    
+
     def get_contents(self):
         return self.__contents
-        
+
     def set_contents(self, contents=None):
         """use_contents(contents=None) -> BOOPSI object
-        
+
         Change root object contents using the given one.
         Returns the previous contents.
-        
+
         contents : a BOOPSI object or None for empty contents.
         """
-        
+
         if contents is None and self.__contents is None:
             return
-            
+
         root = self.__container
         root.InitChange()
         try:
@@ -74,7 +74,7 @@ class ModifiableContainer:
                 root.RemChild(old_contents)
             self.__contents = contents
             if contents:
-                #print("Set %s as contents of %s" % (contents, root))
+                # print("Set %s as contents of %s" % (contents, root))
                 root.AddTail(contents)
         finally:
             root.ExitChange()
@@ -91,22 +91,17 @@ class RuledViewGroup(pymui.Group):
     """
 
     viewport = None
-    
+
     def __init__(self, root):
-        super(RuledViewGroup, self).__init__(Horiz=False, Columns=2,
-                                             InnerSpacing=0, Spacing=0)        
+        super(RuledViewGroup, self).__init__(Horiz=False, Columns=2, InnerSpacing=0, Spacing=0)
         self._root = root
 
         # Rulers pop button
         names = [Ruler.METRICS[k][0] for k in Ruler.METRIC_KEYS]
-        lst = pymui.List(SourceArray=names,
-                         AdjustWidth=True,
-                         MultiSelect=pymui.MUIV_List_MultiSelect_None)
+        lst = pymui.List(SourceArray=names, AdjustWidth=True, MultiSelect=pymui.MUIV_List_MultiSelect_None)
         self._popruler = pymui.Popobject(
-            Object=lst,
-            Button=pymui.Image(Frame='ImageButton',
-            Spec=pymui.MUII_PopUp,
-            InputMode='RelVerify'))
+            Object=lst, Button=pymui.Image(Frame='ImageButton', Spec=pymui.MUII_PopUp, InputMode='RelVerify')
+        )
         lst.Notify('DoubleClick', self._on_ruler_metric, self._popruler, lst)
         self.AddChild(self._popruler)
 
@@ -117,7 +112,7 @@ class RuledViewGroup(pymui.Group):
         # Left ruler
         self.vruler = Ruler(Horiz=False)
         self.AddChild(self.vruler)
-        
+
         vp = DocViewport(root, rulers=(self.hruler, self.vruler))
         self.viewport = vp
         self.like = vp.like
@@ -146,14 +141,14 @@ class SplitableViewGroup(pymui.Group, ModifiableContainer):
     def __init__(self, root, parent=None):
         super(SplitableViewGroup, self).__init__(InnerSpacing=0, Spacing=0)
         ModifiableContainer.__init__(self, self)
-        
+
         self._root = root
         self._parent = parent
 
     def split(self, horiz=True):
         vp = self.contents
         assert isinstance(vp, DocViewport)
-        
+
         split1 = SplitableViewGroup(self._root, self, vp)
         split2 = SplitableViewGroup(self._root, self, vp.duplicate())
         self._root.register_viewport(split2.contents)
@@ -174,7 +169,7 @@ class SplitableViewGroup(pymui.Group, ModifiableContainer):
             else:
                 other = grp.split1.delete_contents()
             grp.Destroy()
-            
+
     def delete_contents(self, obj):
         if isinstance(obj, DocViewport):
             self._root.unregister_viewport(obj)
@@ -193,23 +188,23 @@ class SplitableViewGroup(pymui.Group, ModifiableContainer):
 
 class DrawingRoot(pymui.Group):
     """DrawingRoot class
-    
+
     Versatile paged group to show one or more document viewport
     in various layout configurations.
     """
 
     def __init__(self, docproxy, register_viewport_cb, unregister_viewport_cb):
         super(DrawingRoot, self).__init__(Horiz=True, PageMode=True)
-        
+
         self.register_viewport = register_viewport_cb
         self.unregister_viewport = unregister_viewport_cb
 
         # Page 1
         self._ruled = RuledViewGroup(self)
-        
+
         # Page 2:
         self._splitable = SplitableViewGroup(self)
-        
+
         self.AddChild(self._ruled, self._splitable)
 
         # Show default viewport
@@ -244,17 +239,14 @@ class DocWindowBase(pymui.Window, ModifiableContainer):
     POINTERTYPE_NORMAL = 0
     POINTERTYPE_DRAW = 6
     POINTERTYPE_PICK = 5
-    
+
     focus = 0  # used by viewport objects
-    
+
     def __init__(self, **kwds):
         root = pymui.HGroup()
-        super(DocWindowBase, self).__init__(None,
-                                            ID=0, # Haitian power
-                                            CloseOnReq=True,
-                                            TabletMessages=True,
-                                            RootObject=root,
-                                            **kwds)
+        super(DocWindowBase, self).__init__(
+            None, ID=0, CloseOnReq=True, TabletMessages=True, RootObject=root, **kwds  # Haitian power
+        )
         ModifiableContainer.__init__(self, root)
         self.Notify('Activate', self._on_activate)
 
@@ -274,13 +266,13 @@ class DocWindowBase(pymui.Window, ModifiableContainer):
 
     def confirm_close(self):
         "Request user confirmation to close the window."
-        
-        return pymui.DoRequest(pymui.GetApp(),
-                               gadgets=_T("_Yes|*_No"),
-                               title=_T("Need confirmation"),
-                               format=_T("This window contains modified"
-                                         "and not yet saved work\n"
-                                         "Are you sure to close it?"))
+
+        return pymui.DoRequest(
+            pymui.GetApp(),
+            gadgets=_T("_Yes|*_No"),
+            title=_T("Need confirmation"),
+            format=_T("This window contains modified" "and not yet saved work\n" "Are you sure to close it?"),
+        )
 
 
 class FramedDocWindow(DocWindowBase):
@@ -292,11 +284,9 @@ class FramedDocWindow(DocWindowBase):
     # private API
 
     def __init__(self):
-        super(FramedDocWindow, self).__init__(Position=('centered', 'centered'),
-                                              WidthVisible=50,
-                                              HeightVisible=50)
+        super(FramedDocWindow, self).__init__(Position=('centered', 'centered'), WidthVisible=50, HeightVisible=50)
         FramedDocWindow.__instances.add(self)
-        
+
         self.Notify('CloseRequest', lambda *a: FramedDocWindow.__instances.remove(self))
 
     @staticmethod
@@ -307,11 +297,10 @@ class FramedDocWindow(DocWindowBase):
             # So I emulate that using a PyMUI function that call
             # the instuition function ChangeWindowBox().
             if win.Open.value and not state:
-                win.__box = win.LeftEdge.value, win.TopEdge.value, \
-                            win.Width.value, win.Height.value
-            
+                win.__box = win.LeftEdge.value, win.TopEdge.value, win.Width.value, win.Height.value
+
             win.Open = state
-            
+
             if win.Open.value and state:
                 win.SetWindowBox(*win.__box)
 
@@ -319,7 +308,7 @@ class FramedDocWindow(DocWindowBase):
         self.Title = FramedDocWindow._title_header % (self._dname, self._scale * 100, self._lname)
 
     # Public API
-    
+
     def active_docproxy(self, docproxy):
         "Modify window properties using the given active docproxy"
 
@@ -335,9 +324,6 @@ class FramedDocWindow(DocWindowBase):
 class FullscreenDocWindow(DocWindowBase):
     # Private API
     #
-        
+
     def __init__(self):
-        super(FullscreenDocWindow, self).__init__(WidthScreen=100,
-                                                  HeightScreen=100,
-                                                  Backdrop=True,
-                                                  Borderless=True)
+        super(FullscreenDocWindow, self).__init__(WidthScreen=100, HeightScreen=100, Backdrop=True, Borderless=True)

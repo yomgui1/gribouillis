@@ -77,7 +77,7 @@ class Palette(list):
         raise NotImplementedError("Unable to recognize as palette the file '%s'" % filename)
 
 class PaletteValue(object):
-    __slots__ = ('value', 'colorspace', 'rgb')
+    __slots__ = ('value', 'colorspace')
 
     def __init__(self):
         self.value = None

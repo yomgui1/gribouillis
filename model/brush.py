@@ -210,7 +210,7 @@ class DrawableBrush(_brush.Brush, Brush):
             state = DeviceState()
             state.time = t = float(x - 10) / size
             state.pressure = 1.0 - (2 * t - 1) ** 2
-            state.vpos = (x, y + int(r * sin(2 * t * pi)))
+            state.cpos = state.vpos = (int(x), int(y + int(r * sin(2 * t * pi))))
             state.xtilt = 1.0
             state.ytilt = 0.0
             state.angle = 0.0

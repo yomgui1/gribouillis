@@ -61,7 +61,7 @@ class BrushPreview(gtk.DrawingArea):
                                             BrushPreview.HEIGHT)
 
         self.set_size_request(BrushPreview.WIDTH, BrushPreview.HEIGHT)
-        self.set_events(gdk.EXPOSURE_MASK)
+        self.set_events(gdk.EventMask.EXPOSURE_MASK)
         self.connect("expose-event", self.on_expose)
         
     def stroke(self, v=1.0):
@@ -148,7 +148,7 @@ class BrushEditorWindow(SubWindow):
         hs = gtk.HScale()
         hs.set_range(vmin, vmax)
         hs.set_increments(step, page_step)
-        hs.set_value_pos(gtk.POS_LEFT)
+        hs.set_value_pos(gtk.PositionType.LEFT)
         hs.set_digits(2)
         hs.set_value(vdef if not islog else log(vdef))
         hs.connect('value-changed', self._on_value_changed, label)

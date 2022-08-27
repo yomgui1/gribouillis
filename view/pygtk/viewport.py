@@ -101,15 +101,15 @@ class DocViewport(gtk.DrawingArea, view.render.BackgroundMixin):
         # Aliases
         self.get_view_area = self._docvp.get_view_area
 
-        self.set_events(gdk.EXPOSURE_MASK
-                        | gdk.BUTTON_PRESS_MASK
-                        | gdk.BUTTON_RELEASE_MASK
-                        | gdk.POINTER_MOTION_MASK
-                        | gdk.SCROLL_MASK
-                        | gdk.ENTER_NOTIFY_MASK
-                        | gdk.LEAVE_NOTIFY_MASK
-                        | gdk.KEY_PRESS_MASK
-                        | gdk.KEY_RELEASE_MASK)
+        self.set_events(gdk.EventMask.EXPOSURE_MASK
+                        | gdk.EventMask.BUTTON_PRESS_MASK
+                        | gdk.EventMask.BUTTON_RELEASE_MASK
+                        | gdk.EventMask.POINTER_MOTION_MASK
+                        | gdk.EventMask.SCROLL_MASK
+                        | gdk.EventMask.ENTER_NOTIFY_MASK
+                        | gdk.EventMask.LEAVE_NOTIFY_MASK
+                        | gdk.EventMask.KEY_PRESS_MASK
+                        | gdk.EventMask.KEY_RELEASE_MASK)
 
         self.set_can_focus(True)
         self.set_sensitive(True)

@@ -271,9 +271,9 @@ class DocWindow(gtk.Window):
         self.proxy_updated()
 
     def _on_window_state(self, widget, event):
-        if not event.changed_mask & gdk.WINDOW_STATE_FULLSCREEN:
+        if not event.changed_mask & gdk.WindowState.FULLSCREEN:
             return
-        self.__fullscreen = event.new_window_state & gdk.WINDOW_STATE_FULLSCREEN
+        self.__fullscreen = event.new_window_state & gdk.WindowState.FULLSCREEN
 
     def _add_vp(self, vp):
         self._reg_vp_cb(vp)

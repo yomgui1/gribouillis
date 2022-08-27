@@ -83,7 +83,7 @@ class BrushHouseWindow(SubWindow):
 
         # Pages controls
         box = gtk.HButtonBox()
-        box.set_layout(gtk.BUTTONBOX_START)
+        box.set_layout(gtk.ButtonBoxStyle.START)
         topbox.pack_start(box, False, True, 0)
 
         bt = gtk.Button('New page')
@@ -104,7 +104,7 @@ class BrushHouseWindow(SubWindow):
 
         # Notebook
         nb = self._nb = gtk.Notebook()
-        nb.set_tab_pos(gtk.POS_TOP)
+        nb.set_tab_pos(gtk.PositionType.TOP)
         nb.set_scrollable(True)
         nb.connect('switch-page', self._on_switch_page)
 

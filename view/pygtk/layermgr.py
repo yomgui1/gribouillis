@@ -150,9 +150,9 @@ class LayerCtrl(gtk.EventBox):
 
     def set_active(self, v):
         style = self.get_style()
-        color = (style.bg[gtk.STATE_SELECTED] if v else None)
+        color = (style.bg[gtk.StateType.SELECTED] if v and style.bg else None)
         def mark(w):
-            w.modify_bg(gtk.STATE_NORMAL, color)
+            w.modify_bg(gtk.StateType.NORMAL, color)
             if isinstance(w, gtk.Box):
                 w.foreach(mark)
         mark(self)
@@ -191,7 +191,7 @@ class LayerManager(SubWindow):
 
         # Layers virtual window
         scroll = gtk.ScrolledWindow()
-        scroll.set_policy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
+        scroll.set_policy(gtk.PolicyType.NEVER, gtk.PolicyType.AUTOMATIC)
         self.layers_container = gtk.VBox()
         scroll.add_with_viewport(self.layers_container)
 
@@ -203,7 +203,7 @@ class LayerManager(SubWindow):
         def addButton(name, stock):
             bt = self.btn[name] = gtk.Button()
             im = gtk.Image()
-            im.set_from_stock(stock, gtk.ICON_SIZE_BUTTON)
+            im.set_from_stock(stock, gtk.IconSize.BUTTON)
             bt.set_image(im)
             btnbox.pack_start(bt, True, True, 0)
 

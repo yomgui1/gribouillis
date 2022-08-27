@@ -45,16 +45,16 @@ class GdkEventParser:
 
     @staticmethod
     def get_cursor_xtilt(evt):
-        return evt.get_axis(gdk.AXIS_XTILT) or 0.
+        return evt.get_axis(gdk.AxisUse.XTILT) or 0.
 
     @staticmethod
     def get_cursor_ytilt(evt):
-        return evt.get_axis(gdk.AXIS_YTILT) or 0.
+        return evt.get_axis(gdk.AxisUse.YTILT) or 0.
 
     @classmethod
     def get_pressure(cls, evt):
         # Is pressure value not in supposed range?
-        p = evt.get_axis(gdk.AXIS_PRESSURE)
+        p = evt.get_axis(gdk.AxisUse.PRESSURE)
         if p is not None:
             if p < 0. or p > 1.:
                 if evt.device.name not in cls.__bad_devices:

@@ -25,7 +25,7 @@
 
 import os
 
-import mixin
+from . import mixin
 
 from main import app_args
 from view.viewstate import *
